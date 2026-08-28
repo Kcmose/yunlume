@@ -1,0 +1,16 @@
+node_modules
+dist
+coverage
+.vite
+.git
+.github
+.gitignore
+.env
+.env.*
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+jiyi.md
+jihua.md
+README.md

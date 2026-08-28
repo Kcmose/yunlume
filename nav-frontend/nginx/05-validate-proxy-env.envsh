@@ -1,0 +1,49 @@
+#!/bin/sh
+
+web_trust_proxy_headers="${WEB_TRUST_PROXY_HEADERS:-false}"
+web_trusted_proxy_cidr="${WEB_TRUSTED_PROXY_CIDR:-127.0.0.1/32}"
+app_bind_address="${APP_BIND_ADDRESS:-0.0.0.0}"
+
+case "$web_trust_proxy_headers" in
+    true|false)
+        ;;
+    *)
+        echo >&2 "WEB_TRUST_PROXY_HEADERS must be true or false"
+        return 1
+        ;;
+esac
+
+case "$web_trusted_proxy_cidr" in
+    ""|*[!0-9A-Fa-f:./]*)
+        echo >&2 "WEB_TRUSTED_PROXY_CIDR must be a single IPv4/IPv6 address or CIDR"
+        return 1
+        ;;
+esac
+
+export WEB_TRUST_PROXY_HEADERS="$web_trust_proxy_headers"
+export WEB_TRUSTED_PROXY_CIDR="$web_trusted_proxy_cidr"
+export APP_BIND_ADDRESS="$app_bind_address"
+
+if [ "$web_trust_proxy_headers" = "true" ]; then
+    case "$app_bind_address" in
+        127.*|10.*|192.168.*|172.1[6-9].*|172.2[0-9].*|172.3[01].*|::1|'[::1]'|[fF][cCdD][0-9A-Fa-f]*:*|[fF][eE]80:*)
+            ;;
+        *)
+            echo >&2 "Trusted proxy headers require APP_BIND_ADDRESS to be a specific loopback or private IP address"
+            return 1
+            ;;
+    esac
+
+    case "$web_trusted_proxy_cidr" in
+        0.0.0.0/0|::/0)
+            echo >&2 "WEB_TRUSTED_PROXY_CIDR cannot trust every network"
+            return 1
+            ;;
+    esac
+
+    export WEB_EFFECTIVE_TRUSTED_PROXY_CIDR="$web_trusted_proxy_cidr"
+else
+    # TEST-NET-1 is deliberately unreachable here, so the default mode does
+    # not accept client-controlled forwarded headers even from localhost.
+    export WEB_EFFECTIVE_TRUSTED_PROXY_CIDR=192.0.2.1/32
+fi

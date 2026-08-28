@@ -1,0 +1,60 @@
+spring:
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    # Reserved placeholder used only until the installer persists an external
+    # PostgreSQL connection. Production deployments must not rely on defaults.
+    url: ${DB_URL:jdbc:postgresql://database.invalid:5432/unconfigured}
+    username: ${DB_USERNAME:unconfigured}
+    # A fresh UNCONFIGURED deployment may intentionally have no active
+    # datasource yet; persisted installer settings replace this on restart.
+    password: ${DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+      minimum-idle: 0
+      initialization-fail-timeout: -1
+      connection-timeout: 6000
+  sql:
+    init:
+      mode: never
+  data:
+    redis:
+      host: ${REDIS_HOST:}
+      port: ${REDIS_PORT:6379}
+      username: ${REDIS_USERNAME:}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:3s}
+      timeout: ${REDIS_READ_TIMEOUT:3s}
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED:true}
+
+springdoc:
+  api-docs:
+    enabled: ${OPENAPI_ENABLED:false}
+  swagger-ui:
+    enabled: ${OPENAPI_ENABLED:false}
+
+nav:
+  external-redis:
+    host: ${REDIS_HOST:}
+    port: ${REDIS_PORT:6379}
+    username: ${REDIS_USERNAME:}
+    password: ${REDIS_PASSWORD:}
+    database: ${REDIS_DATABASE:0}
+    ssl-enabled: ${REDIS_SSL_ENABLED:true}
+    connect-timeout: ${REDIS_CONNECT_TIMEOUT:3s}
+    read-timeout: ${REDIS_READ_TIMEOUT:3s}
+  database-install:
+    auto-restart: ${NAV_DATABASE_AUTO_RESTART:true}
+  redis-install:
+    auto-restart: ${NAV_REDIS_AUTO_RESTART:true}
+  bootstrap:
+    demo-data-enabled: ${NAV_DEMO_DATA_ENABLED:false}
+    admin-password: ${ADMIN_PASSWORD:}
+  jwt:
+    secret: ${JWT_SECRET}
+
+logging:
+  level:
+    root: INFO
+    com.example.nav: INFO

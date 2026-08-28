@@ -1,0 +1,124 @@
+name: yunlume
+
+services:
+  backend:
+    image: ${BACKEND_IMAGE:-yunlume-backend:latest}
+    build:
+      context: ./nav-backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Asia/Hong_Kong}
+      SPRING_PROFILES_ACTIVE: prod
+      SERVER_PORT: 8080
+      CACHE_TYPE: redis
+      # Existing deployments may keep LEGACY_ENV and the REDIS_* variables.
+      # Fresh deployments set NAV_REDIS_SOURCE=UNCONFIGURED and configure the
+      # external service through the protected installation wizard.
+      REDIS_HOST: ${REDIS_HOST:-}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_USERNAME: ${REDIS_USERNAME:-}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_DATABASE: ${REDIS_DATABASE:-0}
+      REDIS_SSL_ENABLED: ${REDIS_SSL_ENABLED:-true}
+      REDIS_CONNECT_TIMEOUT: ${REDIS_CONNECT_TIMEOUT:-3s}
+      REDIS_READ_TIMEOUT: ${REDIS_READ_TIMEOUT:-3s}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-120}
+      OPENAPI_ENABLED: ${OPENAPI_ENABLED:-false}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
+      NAV_BOOTSTRAP_ENABLED: ${NAV_BOOTSTRAP_ENABLED:-false}
+      NAV_DEMO_DATA_ENABLED: ${NAV_DEMO_DATA_ENABLED:-false}
+      NAV_WEB_INSTALL_ENABLED: ${NAV_WEB_INSTALL_ENABLED:-true}
+      NAV_DATABASE_SOURCE: ${NAV_DATABASE_SOURCE:-UNCONFIGURED}
+      NAV_DATABASE_CONFIG_FILE: /app/config/database.properties
+      NAV_DATABASE_CONFIGURED_MARKER_FILE: /app/config/database.configured
+      NAV_INSTALL_COMPLETED_MARKER_FILE: /app/config/install.completed
+      NAV_DATABASE_CA_FILE: /app/config/postgresql-ca.pem
+      NAV_DATABASE_TICKET_TTL_SECONDS: ${NAV_DATABASE_TICKET_TTL_SECONDS:-300}
+      NAV_DATABASE_AUTO_RESTART: ${NAV_DATABASE_AUTO_RESTART:-true}
+      NAV_ALLOW_INSECURE_DATABASE_SETUP: ${NAV_ALLOW_INSECURE_DATABASE_SETUP:-true}
+      NAV_REDIS_SOURCE: ${NAV_REDIS_SOURCE:-UNCONFIGURED}
+      NAV_REDIS_CONFIG_FILE: /app/config/redis.properties
+      NAV_REDIS_CONFIGURED_MARKER_FILE: /app/config/redis.configured
+      NAV_REDIS_CA_FILE: /app/config/redis-ca.pem
+      NAV_REDIS_TICKET_TTL_SECONDS: ${NAV_REDIS_TICKET_TTL_SECONDS:-300}
+      NAV_REDIS_AUTO_RESTART: ${NAV_REDIS_AUTO_RESTART:-true}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      APP_UPLOAD_DIR: /app/uploads
+      UPLOAD_DIR: /app/uploads
+      APP_UPLOAD_BASE_URL: /uploads
+      APP_UPLOAD_MAX_BYTES: ${APP_UPLOAD_MAX_BYTES:-10485760}
+      APP_UPLOAD_MAX_TOTAL_BYTES: ${APP_UPLOAD_MAX_TOTAL_BYTES:-1073741824}
+      APP_UPLOAD_MAX_FILES: ${APP_UPLOAD_MAX_FILES:-500}
+      APP_UPLOAD_ORPHAN_GRACE_MS: ${APP_UPLOAD_ORPHAN_GRACE_MS:-86400000}
+      APP_UPLOAD_CLEANUP_INTERVAL_MS: ${APP_UPLOAD_CLEANUP_INTERVAL_MS:-21600000}
+      APP_UPLOAD_CLEANUP_INITIAL_DELAY_MS: ${APP_UPLOAD_CLEANUP_INITIAL_DELAY_MS:-60000}
+      JAVA_TOOL_OPTIONS: ${JAVA_OPTS:--XX:MaxRAMPercentage=75.0 -Dfile.encoding=UTF-8}
+    volumes:
+      - uploads_data:/app/uploads
+      - backend_logs:/app/logs
+      - database_config:/app/config
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q --spider http://127.0.0.1:8080/api/health || exit 1
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
+    networks:
+      nav_internal:
+        aliases:
+          - nav-backend
+    logging: &default-logging
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-yunlume-frontend:latest}
+    build:
+      context: ./nav-frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+        VITE_UPLOAD_MAX_BYTES: ${APP_UPLOAD_MAX_BYTES:-10485760}
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Asia/Hong_Kong}
+      APP_BIND_ADDRESS: ${APP_BIND_ADDRESS:-0.0.0.0}
+      WEB_TRUST_PROXY_HEADERS: ${WEB_TRUST_PROXY_HEADERS:-false}
+      WEB_TRUSTED_PROXY_CIDR: ${WEB_TRUSTED_PROXY_CIDR:-127.0.0.1/32}
+    ports:
+      - "${APP_BIND_ADDRESS:-0.0.0.0}:${APP_PORT:-8080}:80"
+    volumes:
+      - uploads_data:/var/www/uploads:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q --spider http://127.0.0.1/healthz || exit 1
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 15s
+    networks:
+      - nav_internal
+    logging: *default-logging
+
+networks:
+  nav_internal:
+    driver: bridge
+
+volumes:
+  uploads_data:
+    name: ${UPLOADS_VOLUME_NAME:-yunlume_uploads_data}
+  backend_logs:
+    name: ${LOGS_VOLUME_NAME:-yunlume_backend_logs}
+  database_config:
+    name: ${DATABASE_CONFIG_VOLUME_NAME:-yunlume_database_config}

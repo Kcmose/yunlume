@@ -1,0 +1,424 @@
+user nginx;
+worker_processes auto;
+
+error_log /var/log/nginx/error.log notice;
+pid /var/run/nginx.pid;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                    '$status $body_bytes_sent "$http_referer" '
+                    '"$http_user_agent" "$http_x_forwarded_for"';
+    access_log /var/log/nginx/access.log main;
+
+    sendfile on;
+    tcp_nopush on;
+    keepalive_timeout 65;
+    server_tokens off;
+    client_max_body_size 30m;
+
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types
+        application/javascript
+        application/json
+        application/xml
+        image/svg+xml
+        text/css
+        text/plain;
+
+    upstream nav_backend {
+        server backend:8080;
+        keepalive 16;
+    }
+
+    # The entrypoint replaces this with an unreachable TEST-NET address unless
+    # proxy-header trust is explicitly enabled. When enabled, only the listed
+    # immediate proxy may supply the real client IP and original scheme.
+    set_real_ip_from $WEB_EFFECTIVE_TRUSTED_PROXY_CIDR;
+    real_ip_header X-Forwarded-For;
+    real_ip_recursive on;
+
+    geo $realip_remote_addr $web_proxy_peer_trusted {
+        default 0;
+        $WEB_EFFECTIVE_TRUSTED_PROXY_CIDR 1;
+    }
+
+    map "$WEB_TRUST_PROXY_HEADERS:$web_proxy_peer_trusted:$http_x_forwarded_proto" $backend_forwarded_proto {
+        default $scheme;
+        ~*^true:1:https$ https;
+        ~*^true:1:http$ http;
+    }
+
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        '' close;
+    }
+
+    # Only matching requests consume login/install budgets. OPTIONS does not
+    # spend the shared POST allowance.
+    map $request_method $admin_login_limit_key {
+        default "";
+        POST $binary_remote_addr;
+    }
+
+    map $request_method $admin_install_limit_key {
+        default "";
+        POST $binary_remote_addr;
+    }
+
+    map $request_method $database_install_limit_key {
+        default "";
+        POST $binary_remote_addr;
+    }
+
+    map $request_method $redis_install_limit_key {
+        default "";
+        POST $binary_remote_addr;
+    }
+
+    map $request_method $install_status_limit_key {
+        default "";
+        GET $binary_remote_addr;
+        HEAD $binary_remote_addr;
+    }
+
+    map $request_method $health_limit_key {
+        default "";
+        GET $binary_remote_addr;
+        HEAD $binary_remote_addr;
+    }
+
+    limit_req_zone $admin_login_limit_key zone=admin_login_per_ip:10m rate=5r/m;
+    limit_req_zone $admin_install_limit_key zone=admin_install_per_ip:10m rate=3r/m;
+    limit_req_zone $database_install_limit_key zone=database_install_per_ip:10m rate=3r/m;
+    limit_req_zone $redis_install_limit_key zone=redis_install_per_ip:10m rate=3r/m;
+    limit_req_zone $install_status_limit_key zone=install_status_per_ip:10m rate=30r/m;
+    limit_req_zone $health_limit_key zone=health_per_ip:10m rate=60r/m;
+
+    server {
+        listen 80 default_server;
+        server_name _;
+        root /usr/share/nginx/html;
+        index index.html;
+
+        add_header X-Content-Type-Options nosniff always;
+        add_header X-Frame-Options SAMEORIGIN always;
+        add_header Referrer-Policy strict-origin-when-cross-origin always;
+
+        location = /healthz {
+            access_log off;
+            default_type text/plain;
+            return 200 'ok\n';
+        }
+
+        location = /api/health {
+            client_max_body_size 1k;
+            limit_req zone=health_per_ip burst=20 nodelay;
+            limit_req_status 429;
+            error_page 429 = @health_rate_limited;
+
+            proxy_pass http://nav_backend;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $remote_addr;
+            proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;
+            proxy_connect_timeout 10s;
+            proxy_read_timeout 30s;
+            add_header Cache-Control "no-store" always;
+            add_header X-Content-Type-Options nosniff always;
+        }
+
+        location @health_rate_limited {
+            default_type application/json;
+            add_header Cache-Control "no-store" always;
+            add_header X-Content-Type-Options nosniff always;
+            return 429 '{"code":429,"message":"健康检查请求过于频繁，请稍后再试","data":null}';
+        }
+
+        location ^~ /uploads/ {
+            alias /var/www/uploads/;
+            autoindex off;
+            expires 7d;
+            add_header Cache-Control "public, max-age=604800";
+            add_header X-Content-Type-Options nosniff always;
+            add_header X-Frame-Options SAMEORIGIN always;
+            add_header Referrer-Policy strict-origin-when-cross-origin always;
+        }
+
+        location = /api {
+            proxy_pass http://nav_backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $remote_addr;
+            proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;
+        }
+
+        location = /api/admin/auth/login {
+            client_max_body_size 32k;
+            limit_req zone=admin_login_per_ip burst=5 nodelay;
+            limit_req_status 429;
+            error_page 429 = @admin_login_rate_limited;
+
+            proxy_pass http://nav_backend;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $remote_addr;
+            proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;
+            proxy_connect_timeout 10s;
+            proxy_read_timeout 60s;
+        }
+
+        location @admin_login_rate_limited {
+            default_type application/json;
+            add_header Cache-Control "no-store" always;
+            return 429 '{"code":429,"message":"登录尝试过于频繁，请稍后再试","data":null}';
+        }
+
+        location = /api/install/status {
+            client_max_body_size 1k;
+            limit_req zone=install_status_per_ip burst=10 nodelay;
+            limit_req_status 429;
+            error_page 429 = @install_status_rate_limited;
+
+            proxy_pass http://nav_backend;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $remote_addr;
+            proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;
+            proxy_connect_timeout 10s;
+            proxy_read_timeout 30s;
+            add_header Cache-Control "no-store" always;
+            add_header Pragma "no-cache" always;
+            add_header X-Content-Type-Options nosniff always;
+        }
+
+        location @install_status_rate_limited {
+            default_type application/json;
+            add_header Cache-Control "no-store" always;
+            return 429 '{"code":429,"message":"安装状态查询过于频繁，请稍后再试","data":null}';
+        }
+
+        location = /api/install/check {
+            client_max_body_size 32k;
+            limit_req zone=admin_install_per_ip burst=3 nodelay;
+            limit_req_status 429;
+            error_page 429 = @admin_install_rate_limited;
+
+            proxy_pass http://nav_backend;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $remote_addr;
+            proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;
+            proxy_connect_timeout 10s;
+            proxy_read_timeout 60s;
+            add_header Cache-Control "no-store" always;
+            add_header Pragma "no-cache" always;
+            add_header X-Content-Type-Options nosniff always;
+        }
+
+        location = /api/install/database/test {
+            client_max_body_size 96k;
+            client_body_buffer_size 96k;
+            access_log off;
+            limit_req zone=database_install_per_ip burst=3 nodelay;
+            limit_req_status 429;
+            error_page 429 = @admin_install_rate_limited;
+
+            proxy_pass http://nav_backend;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $remote_addr;
+            proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;
+            proxy_connect_timeout 10s;
+            proxy_read_timeout 30s;
+            add_header Cache-Control "no-store" always;
+            add_header Pragma "no-cache" always;
+            add_header Referrer-Policy "no-referrer" always;
+            add_header X-Content-Type-Options nosniff always;
+        }
+
+        location = /api/install/database/configure {
+            client_max_body_size 32k;
+            client_body_buffer_size 32k;
+            access_log off;
+            limit_req zone=database_install_per_ip burst=3 nodelay;
+            limit_req_status 429;
+            error_page 429 = @admin_install_rate_limited;
+
+            proxy_pass http://nav_backend;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $remote_addr;
+            proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;
+            proxy_connect_timeout 10s;
+            proxy_read_timeout 90s;
+            add_header Cache-Control "no-store" always;
+            add_header Pragma "no-cache" always;
+            add_header Referrer-Policy "no-referrer" always;
+            add_header X-Content-Type-Options nosniff always;
+        }
+
+        location = /api/install/redis/test {
+            client_max_body_size 96k;
+            client_body_buffer_size 96k;
+            access_log off;
+            limit_req zone=redis_install_per_ip burst=3 nodelay;
+            limit_req_status 429;
+            error_page 429 = @admin_install_rate_limited;
+
+            proxy_pass http://nav_backend;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $remote_addr;
+            proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;
+            proxy_connect_timeout 10s;
+            proxy_read_timeout 80s;
+            add_header Cache-Control "no-store" always;
+            add_header Pragma "no-cache" always;
+            add_header Referrer-Policy "no-referrer" always;
+            add_header X-Content-Type-Options nosniff always;
+        }
+
+        location = /api/install/redis/configure {
+            client_max_body_size 32k;
+            client_body_buffer_size 32k;
+            access_log off;
+            limit_req zone=redis_install_per_ip burst=3 nodelay;
+            limit_req_status 429;
+            error_page 429 = @admin_install_rate_limited;
+
+            proxy_pass http://nav_backend;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $remote_addr;
+            proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;
+            proxy_connect_timeout 10s;
+            proxy_read_timeout 90s;
+            add_header Cache-Control "no-store" always;
+            add_header Pragma "no-cache" always;
+            add_header Referrer-Policy "no-referrer" always;
+            add_header X-Content-Type-Options nosniff always;
+        }
+
+        location = /api/install/complete {
+            client_max_body_size 32k;
+            limit_req zone=admin_install_per_ip burst=3 nodelay;
+            limit_req_status 429;
+            error_page 429 = @admin_install_rate_limited;
+
+            proxy_pass http://nav_backend;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $remote_addr;
+            proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;
+            proxy_connect_timeout 10s;
+            proxy_read_timeout 60s;
+            add_header Cache-Control "no-store" always;
+            add_header Pragma "no-cache" always;
+            add_header X-Content-Type-Options nosniff always;
+        }
+
+        location @admin_install_rate_limited {
+            default_type application/json;
+            add_header Cache-Control "no-store" always;
+            return 429 '{"code":429,"message":"安装尝试过于频繁，请稍后再试","data":null}';
+        }
+
+        location = /api/admin/data/import/preview {
+            client_max_body_size 66m;
+            error_page 413 = @data_package_too_large;
+
+            proxy_pass http://nav_backend;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $remote_addr;
+            proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;
+            proxy_connect_timeout 10s;
+            proxy_read_timeout 120s;
+        }
+
+        location @data_package_too_large {
+            default_type application/json;
+            add_header Cache-Control "no-store" always;
+            return 413 '{"code":413,"message":"数据包不能超过 64MiB","data":null}';
+        }
+
+        location ^~ /api/ {
+            client_max_body_size 12m;
+            proxy_pass http://nav_backend;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $remote_addr;
+            proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection $connection_upgrade;
+            proxy_connect_timeout 10s;
+            proxy_read_timeout 60s;
+        }
+
+        location ~ ^/(swagger-ui|v3/api-docs|webjars)(/|$) {
+            proxy_pass http://nav_backend;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $remote_addr;
+            proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;
+        }
+
+        location = /doc.html {
+            proxy_pass http://nav_backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $remote_addr;
+            proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;
+        }
+
+        location = /swagger-ui.html {
+            proxy_pass http://nav_backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $remote_addr;
+            proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;
+        }
+
+        location ~* \.(?:css|js|woff2?|png|jpg|jpeg|gif|webp|ico)$ {
+            expires 7d;
+            add_header Cache-Control "public, max-age=604800, immutable";
+            add_header X-Content-Type-Options nosniff always;
+            add_header X-Frame-Options SAMEORIGIN always;
+            add_header Referrer-Policy strict-origin-when-cross-origin always;
+            try_files $uri =404;
+        }
+
+        location = /index.html {
+            add_header Cache-Control "no-cache";
+            add_header X-Content-Type-Options nosniff always;
+            add_header X-Frame-Options SAMEORIGIN always;
+            add_header Referrer-Policy strict-origin-when-cross-origin always;
+            try_files $uri =404;
+        }
+
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+    }
+}

@@ -1,0 +1,78 @@
+# Local environment and secrets
+.env
+.env.*
+*.env
+!.env.example
+!**/.env.example
+
+# Private project and deployment notes
+jiyi.md
+
+# Runtime database installer state and credentials
+database_config/
+**/database_config/
+database.properties
+database.configured
+install.completed
+postgresql-ca.pem
+.pgpass
+*.pgpass
+
+# Certificates, private keys, and local credential stores
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.jks
+*.keystore
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+.npmrc
+
+# Frontend dependencies and build artifacts
+nav-frontend/node_modules/
+nav-frontend/dist/
+nav-frontend/.vite/
+nav-frontend/coverage/
+
+# Backend build artifacts and runtime files
+nav-backend/target/
+nav-backend/logs/
+nav-backend/uploads/
+logs/
+uploads/
+
+# IDE and operating system files
+.idea/
+.vscode/
+*.iml
+.classpath
+.project
+.settings/
+.DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
+*.swo
+.codex*
+
+# Backups, database dumps, and packaged runtime data
+.backups/
+backups/
+release/
+*.bak
+*.dump
+*.sql.gz
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.7z
+*.age

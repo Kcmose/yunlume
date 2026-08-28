@@ -1,0 +1,880 @@
+.install-page {
+  display: grid;
+  min-width: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  grid-template-columns: minmax(360px, .72fr) minmax(0, 1.28fr);
+  color: #172033;
+  background: #f4f7fb;
+}
+
+.install-page__story {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: 42px 48px;
+  overflow: hidden;
+  color: #fff;
+  background: #060708;
+
+  &::before,
+  &::after {
+    position: absolute;
+    content: '';
+    pointer-events: none;
+  }
+
+  &::before {
+    inset: 0;
+    opacity: .18;
+    background-image:
+      linear-gradient(rgba(255, 255, 255, .09) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, .09) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: linear-gradient(to right bottom, #000, transparent 82%);
+  }
+
+  &::after {
+    right: -180px;
+    bottom: -220px;
+    width: 460px;
+    height: 460px;
+    border: 1px solid rgba(184, 255, 99, .14);
+    border-radius: 50%;
+    box-shadow:
+      0 0 0 65px rgba(184, 255, 99, .035),
+      0 0 0 130px rgba(184, 255, 99, .02);
+  }
+
+  > small {
+    z-index: 1;
+    margin-top: auto;
+    color: rgba(255, 255, 255, .42);
+    font-size: 12px;
+    letter-spacing: .12em;
+  }
+}
+
+.install-page__brand {
+  z-index: 1;
+  display: flex;
+  width: fit-content;
+  gap: 11px;
+  align-items: center;
+
+  span {
+    display: grid;
+    width: 35px;
+    height: 35px;
+    place-items: center;
+    color: #070707;
+    font-size: 23px;
+    font-weight: 900;
+    background: #b8ff63;
+    border-radius: 11px;
+  }
+
+  strong {
+    color: #fff;
+    font-size: 20px;
+  }
+}
+
+.install-page__story-copy {
+  z-index: 1;
+  margin-top: clamp(90px, 18vh, 170px);
+
+  p {
+    color: #b8ff63;
+    font-size: 12px;
+    font-weight: 750;
+    letter-spacing: .2em;
+  }
+
+  h1 {
+    margin-top: 20px;
+    font-size: clamp(34px, 3vw, 50px);
+    line-height: 1.35;
+    letter-spacing: -.05em;
+  }
+
+  span {
+    display: block;
+    max-width: 430px;
+    margin-top: 22px;
+    color: rgba(255, 255, 255, .62);
+    font-size: 15px;
+    line-height: 1.8;
+  }
+}
+
+.install-page__main {
+  display: grid;
+  min-width: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 32px;
+  overflow-y: auto;
+  place-items: center;
+}
+
+.install-wizard {
+  width: min(780px, 100%);
+  min-width: 0;
+  padding: 30px;
+  background: #fff;
+  border: 1px solid #e5eaf1;
+  border-radius: 18px;
+  box-shadow: 0 18px 55px rgba(30, 52, 84, .1);
+}
+
+.install-wizard__heading {
+  > p {
+    color: #176fdf;
+    font-size: 12px;
+    font-weight: 750;
+    letter-spacing: .18em;
+  }
+
+  h2 {
+    margin-top: 7px;
+    color: #172033;
+    font-size: 29px;
+    letter-spacing: -.035em;
+  }
+
+  > span {
+    display: block;
+    margin-top: 8px;
+    color: #667287;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+}
+
+.install-wizard__mobile-brand {
+  display: none;
+}
+
+.install-wizard__steps {
+  margin: 28px 0 30px;
+
+  .el-step__title {
+    font-size: 14px;
+  }
+}
+
+.install-wizard__step-progress {
+  display: none;
+  margin: -14px 0 24px;
+  color: #526177;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.install-wizard__form {
+  min-width: 0;
+}
+
+.install-step {
+  min-width: 0;
+  min-height: 350px;
+}
+
+.install-step__heading {
+  display: flex;
+  min-width: 0;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 22px;
+
+  > span {
+    display: grid;
+    width: 40px;
+    height: 40px;
+    flex: 0 0 auto;
+    place-items: center;
+    padding: 10px;
+    color: #176fdf;
+    background: #edf5ff;
+    border-radius: 11px;
+  }
+
+  > div {
+    min-width: 0;
+  }
+
+  h3 {
+    color: #172033;
+    font-size: 18px;
+
+    &:focus-visible {
+      outline: 3px solid rgba(23, 111, 223, .28);
+      outline-offset: 4px;
+      border-radius: 3px;
+    }
+  }
+
+  p {
+    margin-top: 4px;
+    color: #6d788a;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+}
+
+.install-status {
+  min-width: 0;
+  margin-bottom: 16px;
+
+  .el-alert__description {
+    line-height: 1.55;
+  }
+}
+
+.install-checks {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.install-check {
+  display: flex;
+  min-width: 0;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 13px;
+  background: #f8fafc;
+  border: 1px solid #e5eaf1;
+  border-radius: 10px;
+
+  > svg {
+    width: 20px;
+    height: 20px;
+    flex: 0 0 auto;
+    color: #c94d4d;
+  }
+
+  > div {
+    min-width: 0;
+  }
+
+  strong {
+    color: #263248;
+    font-size: 14px;
+  }
+
+  p {
+    margin-top: 3px;
+    color: #738095;
+    font-size: 12px;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+  }
+
+  &.is-ok > svg {
+    color: #20a166;
+  }
+}
+
+.install-step__retry {
+  min-height: 44px;
+  margin-top: 16px;
+}
+
+.install-database-guidance {
+  margin: 0 0 18px;
+  color: #6f7b8e;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.install-database-fields,
+.install-redis-fields {
+  min-width: 0;
+}
+
+.install-provisioning-guide {
+  min-width: 0;
+  margin: 0 0 18px;
+  overflow: hidden;
+  background: #f8fafc;
+  border: 1px solid #dfe6ef;
+  border-radius: 10px;
+
+  summary {
+    min-height: 44px;
+    padding: 12px 14px;
+    color: #263248;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.45;
+    cursor: pointer;
+
+    &:focus-visible {
+      outline: 3px solid rgba(23, 111, 223, .3);
+      outline-offset: -3px;
+    }
+  }
+}
+
+.install-provisioning-guide__body {
+  min-width: 0;
+  padding: 0 14px 14px;
+
+  ol {
+    padding-left: 22px;
+    margin: 14px 0;
+    color: #566378;
+    font-size: 13px;
+    line-height: 1.65;
+  }
+
+  li + li {
+    margin-top: 5px;
+  }
+
+  code {
+    font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  }
+}
+
+.install-provisioning-guide__sql {
+  min-width: 0;
+
+  > div {
+    display: flex;
+    min-width: 0;
+    gap: 10px;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+
+    strong {
+      min-width: 0;
+      color: #344157;
+      font-size: 13px;
+    }
+
+    .el-button {
+      min-height: 40px;
+      flex: 0 0 auto;
+    }
+  }
+
+  pre {
+    max-width: 100%;
+    padding: 12px;
+    margin: 0;
+    overflow: auto;
+    color: #28364c;
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre;
+    background: #eef3f8;
+    border: 1px solid #dce4ed;
+    border-radius: 8px;
+
+    &:focus-visible {
+      outline: 3px solid rgba(23, 111, 223, .28);
+      outline-offset: 2px;
+    }
+  }
+}
+
+.install-database-prerequisites {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+  margin-bottom: 16px;
+
+  .el-alert__description {
+    line-height: 1.55;
+  }
+}
+
+.install-database-ssl-select {
+  width: 100%;
+}
+
+.install-mode-help {
+  margin: 7px 0 0;
+  color: #667085;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.install-redis-tls-note {
+  margin-bottom: 18px;
+}
+
+.install-ca-certificate {
+  min-width: 0;
+  padding: 14px;
+  margin-bottom: 18px;
+  background: #f8fafc;
+  border: 1px solid #e5eaf1;
+  border-radius: 10px;
+
+  .el-form-item {
+    margin-bottom: 10px;
+  }
+
+  > p {
+    margin-top: 8px;
+    color: #6f7b8e;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+}
+
+.install-ca-file-input {
+  display: none;
+}
+
+.install-ca-certificate__upload {
+  min-height: 40px;
+}
+
+.install-database-risk {
+  margin-bottom: 18px;
+
+  .el-form-item__content {
+    display: grid;
+    min-width: 0;
+    gap: 10px;
+  }
+
+  .el-checkbox {
+    width: fit-content;
+    max-width: 100%;
+    min-height: 44px;
+    height: auto;
+    align-items: flex-start;
+    margin-right: 0;
+    white-space: normal;
+  }
+
+  .el-checkbox__input {
+    flex: 0 0 auto;
+    margin-top: 4px;
+  }
+
+  .el-checkbox__label {
+    min-width: 0;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+}
+
+.install-database-result {
+  min-width: 0;
+  margin-top: 4px;
+}
+
+.install-database-initialize {
+  padding: 10px 12px;
+  margin: 12px 0 0;
+  background: #fff9eb;
+  border: 1px solid #f0dba7;
+  border-radius: 9px;
+
+  .el-checkbox {
+    width: fit-content;
+    max-width: 100%;
+    min-height: 44px;
+    height: auto;
+    align-items: flex-start;
+    margin-right: 0;
+    white-space: normal;
+  }
+
+  .el-checkbox__input {
+    flex: 0 0 auto;
+    margin-top: 4px;
+  }
+
+  .el-checkbox__label {
+    min-width: 0;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+}
+
+.install-database-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+
+  .el-button {
+    min-height: 44px;
+  }
+}
+
+.install-form-grid {
+  display: grid;
+  min-width: 0;
+  gap: 2px 16px;
+
+  &.is-two-column {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  &.is-database-address {
+    grid-template-columns: minmax(0, 3fr) minmax(110px, 1fr);
+  }
+
+  .el-form-item,
+  .el-input {
+    min-width: 0;
+  }
+}
+
+.install-password-policy {
+  padding: 13px 15px;
+  margin-top: 2px;
+  background: #f8fafc;
+  border: 1px solid #e5eaf1;
+  border-radius: 10px;
+
+  ul {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px 16px;
+    padding: 0;
+    margin: 12px 0 0;
+    color: #6e798b;
+    font-size: 12px;
+    line-height: 1.5;
+    list-style: none;
+  }
+
+  li {
+    position: relative;
+    min-width: 0;
+    padding-left: 15px;
+
+    &::before {
+      position: absolute;
+      top: .1em;
+      left: 0;
+      content: '○';
+      color: #a8b0bc;
+    }
+
+    &.is-valid {
+      color: #26744f;
+
+      &::before {
+        content: '✓';
+        color: #1d9660;
+        font-weight: 750;
+      }
+    }
+  }
+
+  &.is-medium,
+  &.is-strong {
+    .install-password-policy__summary strong { color: #21744d; }
+    .install-password-policy__track i { background: #25a36a; }
+  }
+
+  &.is-strong .install-password-policy__track i {
+    background: #176fdf;
+  }
+}
+
+.install-password-policy__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #566174;
+  font-size: 13px;
+
+  strong {
+    color: #7d8797;
+    font-size: 13px;
+  }
+}
+
+.install-password-policy__track {
+  height: 4px;
+  margin-top: 9px;
+  overflow: hidden;
+  background: #e8ebf0;
+  border-radius: 999px;
+
+  i {
+    display: block;
+    height: 100%;
+    background: #dc4c4c;
+    border-radius: inherit;
+    transition: width .2s ease, background-color .2s ease;
+  }
+}
+
+.install-summary {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 20px;
+
+  > div {
+    min-width: 0;
+    padding: 12px 14px;
+    background: #f7f9fc;
+    border: 1px solid #e8ecf2;
+    border-radius: 9px;
+  }
+
+  > div:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  dt {
+    color: #758196;
+    font-size: 12px;
+  }
+
+  dd {
+    margin: 5px 0 0;
+    overflow: hidden;
+    color: #263248;
+    font-size: 14px;
+    font-weight: 650;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.install-confirmation-field {
+  margin-bottom: 0;
+
+  .el-checkbox {
+    display: inline-flex;
+    width: fit-content;
+    max-width: 100%;
+    min-height: 44px;
+    height: auto;
+    align-items: flex-start;
+    margin-right: 0;
+    white-space: normal;
+  }
+
+  .el-checkbox__input {
+    flex: 0 0 auto;
+    margin-top: 4px;
+  }
+
+  .el-checkbox__label {
+    min-width: 0;
+    color: #445166;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+}
+
+.install-wizard__actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 20px;
+  margin-top: 22px;
+  border-top: 1px solid #e8ecf2;
+
+  .el-button {
+    min-width: 104px;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 1080px) {
+  .install-page {
+    grid-template-columns: minmax(300px, .58fr) minmax(0, 1.42fr);
+  }
+
+  .install-page__story {
+    padding-inline: 34px;
+  }
+}
+
+@media (max-width: 900px) {
+  .install-page {
+    display: block;
+  }
+
+  .install-page__story {
+    display: none;
+  }
+
+  .install-page__main {
+    width: 100%;
+    padding: 24px 18px;
+    place-items: start center;
+  }
+
+  .install-wizard__mobile-brand {
+    display: block;
+    margin-bottom: 22px;
+    color: #172033;
+    font-size: 21px;
+    font-weight: 800;
+  }
+}
+
+@media (max-width: 600px) {
+  .install-page__main {
+    padding: 14px 12px;
+  }
+
+  .install-wizard {
+    padding: 20px 16px;
+    border-radius: 14px;
+  }
+
+  .install-wizard__heading h2 {
+    font-size: 26px;
+  }
+
+  .install-wizard__steps {
+    margin: 24px -8px 22px;
+
+    .el-step__title {
+      display: none;
+    }
+
+    .el-step__icon {
+      width: 24px;
+      height: 24px;
+      font-size: 12px;
+    }
+  }
+
+  .install-wizard__step-progress {
+    display: block;
+  }
+
+  .install-step {
+    min-height: 0;
+  }
+
+  .install-step__heading {
+    margin-bottom: 18px;
+
+    p {
+      font-size: 14px;
+    }
+  }
+
+  .install-checks,
+  .install-form-grid.is-two-column,
+  .install-form-grid.is-database-address,
+  .install-password-policy ul,
+  .install-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .install-check p,
+  .install-database-guidance,
+  .install-ca-certificate > p,
+  .install-provisioning-guide__body ol,
+  .install-summary dt {
+    font-size: 14px;
+  }
+
+  .install-provisioning-guide__sql > div {
+    align-items: stretch;
+    flex-direction: column;
+
+    .el-button {
+      width: 100%;
+    }
+  }
+
+  .install-provisioning-guide__sql pre {
+    font-size: 13px;
+  }
+
+  .install-form-grid .el-input__wrapper,
+  .install-step > .el-form-item .el-input__wrapper {
+    min-height: 44px;
+  }
+
+  .install-step__retry {
+    width: 100%;
+  }
+
+  .install-database-actions,
+  .install-ca-certificate__upload {
+    width: 100%;
+  }
+
+  .install-database-actions .el-button {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .install-wizard__actions {
+    margin-top: 18px;
+
+    .el-button {
+      min-width: 0;
+      flex: 1 1 0;
+      margin-left: 0;
+    }
+
+    > span {
+      flex: 1 1 0;
+    }
+  }
+}
+
+@media (max-width: 420px) {
+  .install-wizard__actions {
+    flex-wrap: wrap;
+
+    .el-button {
+      width: 100%;
+      flex-basis: 100%;
+    }
+
+    > span {
+      display: none;
+    }
+  }
+}
+
+@media (max-width: 350px) {
+  .install-page__main {
+    padding-inline: 8px;
+  }
+
+  .install-wizard {
+    padding-inline: 13px;
+  }
+
+  .install-wizard__steps {
+    margin-inline: -9px;
+
+    .el-step__icon {
+      width: 22px;
+      height: 22px;
+    }
+  }
+
+  .install-wizard__heading > span {
+    font-size: 13px;
+  }
+
+  .install-step__heading {
+    gap: 9px;
+  }
+}

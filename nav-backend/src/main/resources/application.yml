@@ -1,0 +1,77 @@
+spring:
+  application:
+    name: nav-backend
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+  servlet:
+    multipart:
+      # Portable data packages are capped at 64MiB by the import parser. The
+      # small margin lets multipart framing pass; background images still have
+      # their independent APP_UPLOAD_MAX_BYTES (absolute 10MiB) content limit.
+      max-file-size: 66MB
+      max-request-size: 66MB
+  cache:
+    type: ${CACHE_TYPE:simple}
+
+server:
+  port: ${SERVER_PORT:8080}
+  error:
+    include-message: never
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+  api-docs:
+    path: /v3/api-docs
+
+nav:
+  bootstrap:
+    enabled: ${NAV_BOOTSTRAP_ENABLED:true}
+    demo-data-enabled: ${NAV_DEMO_DATA_ENABLED:false}
+    admin-username: ${ADMIN_USERNAME:admin}
+    admin-password: ${ADMIN_PASSWORD:}
+  web-install:
+    enabled: ${NAV_WEB_INSTALL_ENABLED:true}
+  database-install:
+    source: ${NAV_DATABASE_SOURCE:LEGACY_ENV}
+    config-file: ${NAV_DATABASE_CONFIG_FILE:/app/config/database.properties}
+    configured-marker-file: ${NAV_DATABASE_CONFIGURED_MARKER_FILE:/app/config/database.configured}
+    completed-marker-file: ${NAV_INSTALL_COMPLETED_MARKER_FILE:/app/config/install.completed}
+    ca-certificate-file: ${NAV_DATABASE_CA_FILE:/app/config/postgresql-ca.pem}
+    ticket-ttl-seconds: ${NAV_DATABASE_TICKET_TTL_SECONDS:300}
+    auto-restart: ${NAV_DATABASE_AUTO_RESTART:false}
+    allow-insecure-setup: ${NAV_ALLOW_INSECURE_DATABASE_SETUP:false}
+  redis-install:
+    source: ${NAV_REDIS_SOURCE:LEGACY_ENV}
+    config-file: ${NAV_REDIS_CONFIG_FILE:/app/config/redis.properties}
+    configured-marker-file: ${NAV_REDIS_CONFIGURED_MARKER_FILE:/app/config/redis.configured}
+    ca-certificate-file: ${NAV_REDIS_CA_FILE:/app/config/redis-ca.pem}
+    ticket-ttl-seconds: ${NAV_REDIS_TICKET_TTL_SECONDS:300}
+    auto-restart: ${NAV_REDIS_AUTO_RESTART:false}
+  jwt:
+    secret: ${JWT_SECRET:local-development-jwt-secret-change-before-production-2026}
+    expiration-minutes: ${JWT_EXPIRATION_MINUTES:120}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+  upload:
+    directory: ${APP_UPLOAD_DIR:${UPLOAD_DIR:./uploads}}
+    base-url: ${APP_UPLOAD_BASE_URL:/uploads}
+    max-bytes: ${APP_UPLOAD_MAX_BYTES:10485760}
+    max-total-bytes: ${APP_UPLOAD_MAX_TOTAL_BYTES:1073741824}
+    max-files: ${APP_UPLOAD_MAX_FILES:500}
+    orphan-grace-ms: ${APP_UPLOAD_ORPHAN_GRACE_MS:86400000}
+    cleanup-interval-ms: ${APP_UPLOAD_CLEANUP_INTERVAL_MS:21600000}
+    cleanup-initial-delay-ms: ${APP_UPLOAD_CLEANUP_INITIAL_DELAY_MS:60000}

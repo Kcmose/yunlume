@@ -1,0 +1,302 @@
+@use '../variables' as *;
+
+.account-security-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, .72fr) minmax(420px, 1.28fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.account-profile,
+.account-password {
+  overflow: hidden;
+}
+
+.account-section-heading {
+  display: flex;
+  gap: 13px;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #edf0f4;
+
+  > span {
+    display: grid;
+    width: 35px;
+    height: 35px;
+    flex: 0 0 auto;
+    place-items: center;
+    padding: 8px;
+    color: $admin-primary;
+    background: #edf4ff;
+    border-radius: 10px;
+  }
+
+  h2 {
+    color: #1f2937;
+    font-size: 17px;
+  }
+
+  p {
+    margin-top: 4px;
+    color: #7d8797;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+}
+
+.account-profile__details {
+  padding: 8px 24px;
+  margin: 0;
+
+  > div {
+    display: flex;
+    gap: 18px;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 58px;
+    border-bottom: 1px solid #f0f2f5;
+
+    &:last-child {
+      border-bottom: 0;
+    }
+  }
+
+  dt {
+    color: #687386;
+    font-size: 14px;
+  }
+
+  dd {
+    max-width: 65%;
+    margin: 0;
+    overflow: hidden;
+    color: #1f2937;
+    font-size: 15px;
+    font-weight: 650;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.account-profile__notice {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 13px 15px;
+  margin: 6px 24px 24px;
+  color: #657286;
+  font-size: 12px;
+  line-height: 1.6;
+  background: #f7f9fc;
+  border-radius: 9px;
+
+  svg {
+    width: 14px;
+    flex: 0 0 auto;
+    margin-top: 1px;
+    color: $admin-primary;
+  }
+}
+
+.account-password__form {
+  padding: 24px;
+
+  > .el-button {
+    min-width: 132px;
+  }
+}
+
+.password-strength {
+  padding: 13px 15px;
+  margin: -6px 0 18px;
+  background: #f8fafc;
+  border: 1px solid #e7eaf0;
+  border-radius: 10px;
+}
+
+.password-strength__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #566174;
+  font-size: 13px;
+
+  strong {
+    color: #7d8797;
+    font-size: 13px;
+  }
+}
+
+.password-strength__track {
+  height: 4px;
+  margin-top: 9px;
+  overflow: hidden;
+  background: #e8ebf0;
+  border-radius: 999px;
+
+  i {
+    display: block;
+    height: 100%;
+    background: #dc4c4c;
+    border-radius: inherit;
+    transition: width .2s ease, background-color .2s ease;
+  }
+}
+
+.password-strength ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px 16px;
+  padding: 0;
+  margin: 12px 0 0;
+  color: #7d8797;
+  font-size: 12px;
+  line-height: 1.5;
+  list-style: none;
+
+  li {
+    position: relative;
+    padding-left: 15px;
+
+    &::before {
+      position: absolute;
+      top: .1em;
+      left: 0;
+      content: '○';
+      color: #a8b0bc;
+    }
+
+    &.is-valid {
+      color: #26744f;
+
+      &::before {
+        content: '✓';
+        color: #1d9660;
+        font-weight: 750;
+      }
+    }
+  }
+}
+
+.password-strength.is-medium,
+.password-strength.is-strong {
+  .password-strength__summary strong {
+    color: #21744d;
+  }
+
+  .password-strength__track i {
+    background: #25a36a;
+  }
+}
+
+.password-strength.is-strong .password-strength__track i {
+  background: #176fdf;
+}
+
+.account-danger {
+  display: flex;
+  grid-column: 1 / -1;
+  gap: 22px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-color: #f2d7d7;
+}
+
+.account-danger__copy {
+  display: flex;
+  min-width: 0;
+  gap: 13px;
+  align-items: center;
+
+  > span {
+    display: grid;
+    width: 35px;
+    height: 35px;
+    flex: 0 0 auto;
+    place-items: center;
+    padding: 8px;
+    color: #c94444;
+    background: #fff0f0;
+    border-radius: 10px;
+  }
+
+  h2 {
+    color: #302829;
+    font-size: 16px;
+  }
+
+  p {
+    margin-top: 4px;
+    color: #7d6870;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+}
+
+@media (max-width: 1020px) {
+  .account-security-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .account-danger {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 600px) {
+  .account-section-heading {
+    align-items: flex-start;
+    padding: 18px;
+
+    > div {
+      min-width: 0;
+    }
+
+    p {
+      font-size: 14px;
+    }
+  }
+
+  .account-profile__details {
+    padding-inline: 18px;
+  }
+
+  .account-profile__notice {
+    margin-inline: 18px;
+    font-size: 14px;
+  }
+
+  .account-password__form {
+    padding: 18px;
+
+    > .el-button {
+      width: 100%;
+      min-height: 44px;
+    }
+  }
+
+  .password-strength ul {
+    grid-template-columns: 1fr;
+    font-size: 14px;
+  }
+
+  .account-danger {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 18px;
+
+    > .el-button {
+      width: 100%;
+      min-height: 44px;
+    }
+  }
+
+  .account-danger__copy {
+    align-items: flex-start;
+
+    p {
+      font-size: 14px;
+    }
+  }
+}

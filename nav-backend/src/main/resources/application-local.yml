@@ -1,0 +1,23 @@
+spring:
+  datasource:
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:mem:navdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema-h2.sql
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+nav:
+  bootstrap:
+    demo-data-enabled: ${NAV_DEMO_DATA_ENABLED:true}
+    admin-password: ${ADMIN_PASSWORD:Local!Start2026}
+
+logging:
+  level:
+    com.example.nav: INFO
