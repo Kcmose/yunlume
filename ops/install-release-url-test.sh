@@ -38,23 +38,41 @@ chmod 0755 "${WORK_DIR}/bin/uname"
 
 set +e
 PATH="${WORK_DIR}/bin:${PATH}" \
-  "${WORK_DIR}/install.sh" --version 1.0.0 \
-  >"${WORK_DIR}/stdout" 2>"${WORK_DIR}/stderr"
-status=$?
+  "${PROJECT_DIR}/install.sh" --version 1.0.0 \
+  >"${WORK_DIR}/source-stdout" 2>"${WORK_DIR}/source-stderr"
+source_status=$?
 set -e
 
-if (( status == 0 )); then
+if (( source_status == 0 )); then
+  printf 'Source installer unexpectedly accepted its unresolved release URL placeholder.\n' >&2
+  exit 1
+fi
+if ! grep -Fq '当前源码安装脚本尚未写入发布地址' "${WORK_DIR}/source-stderr"; then
+  printf 'Source installer did not reject its unresolved release URL placeholder. stderr:\n' >&2
+  cat "${WORK_DIR}/source-stderr" >&2
+  exit 1
+fi
+
+set +e
+PATH="${WORK_DIR}/bin:${PATH}" \
+  "${WORK_DIR}/install.sh" --version 1.0.0 \
+  >"${WORK_DIR}/rendered-stdout" 2>"${WORK_DIR}/rendered-stderr"
+rendered_status=$?
+set -e
+
+if (( rendered_status == 0 )); then
   printf 'Rendered Release installer unexpectedly completed successfully.\n' >&2
   exit 1
 fi
-if grep -Fq '当前源码安装脚本尚未写入发布地址' "${WORK_DIR}/stderr"; then
+if grep -Fq '当前源码安装脚本尚未写入发布地址' "${WORK_DIR}/rendered-stderr"; then
   printf 'Rendered Release installer rejected its embedded release URL.\n' >&2
   exit 1
 fi
-if ! grep -Fq '安装器仅支持 Linux' "${WORK_DIR}/stderr"; then
+if ! grep -Fq '安装器仅支持 Linux' "${WORK_DIR}/rendered-stderr"; then
   printf 'Rendered Release installer did not pass URL validation. stderr:\n' >&2
-  cat "${WORK_DIR}/stderr" >&2
+  cat "${WORK_DIR}/rendered-stderr" >&2
   exit 1
 fi
 
+printf 'Source installer rejects its unresolved release URL placeholder.\n'
 printf 'Rendered Release installer accepts its embedded release URL.\n'
