@@ -59,10 +59,22 @@ Docker 模式要求服务器已经安装 Docker 与 Compose v2：
 curl -fsSL https://github.com/Kcmose/yunlume/releases/latest/download/install.sh | sudo bash
 ```
 
+上面的 `latest` 地址始终下载最新正式 Release 的安装器。需要固定安装入口和目标版本时，可同时固定 Release 下载地址并传入不带 `v` 的版本号：
+
+```bash
+curl -fsSL https://github.com/Kcmose/yunlume/releases/download/v1.0.1/install.sh | sudo bash -s -- --mode docker --version 1.0.1
+```
+
 宿主机模式不使用 Docker，要求服务器已经安装 Java 17+、Nginx 和 systemd。这里的“二进制安装”指发布包中的后端可执行 JAR 与编译后的前端静态文件：
 
 ```bash
 curl -fsSL https://github.com/Kcmose/yunlume/releases/latest/download/install.sh | sudo bash -s -- --mode host
+```
+
+宿主机模式同样可以固定安装器和目标版本：
+
+```bash
+curl -fsSL https://github.com/Kcmose/yunlume/releases/download/v1.0.1/install.sh | sudo bash -s -- --mode host --version 1.0.1
 ```
 
 两种模式都可增加 `--port 端口`、`--install-dir 绝对路径`。成功后安装器会优先输出自动识别到的公网访问地址；无法可靠识别时会明确提示替换占位符：
@@ -84,7 +96,7 @@ curl -fsSL https://github.com/Kcmose/yunlume/releases/latest/download/install.sh
 
 ### GitHub 自动构建镜像
 
-仓库包含 `.github/workflows/publish-images.yml`。Pull Request 和普通分支只执行前后端测试、生产构建与依赖审计，不会登录镜像仓库或发布镜像。只有以下两种提交在全部门禁通过后发布到 GitHub Container Registry（GHCR）：
+仓库包含 `.github/workflows/publish-images.yml`。Pull Request 和普通分支只执行安装器回归检查、前后端测试、生产构建与依赖审计，不会登录镜像仓库或发布镜像。只有以下两种提交在全部门禁通过后发布到 GitHub Container Registry（GHCR）：
 
 - 默认分支：`ghcr.io/<所有者>/yunlume-frontend:latest` 和 `ghcr.io/<所有者>/yunlume-backend:latest`。
 - `v1.2.3` 形式的版本标签：生成 `1.2.3`、`1.2` 和对应完整提交的 `sha-<40位提交摘要>` 标签；默认分支也始终生成对应的完整 SHA 标签。标签门禁通过后还会创建最新 GitHub Release。

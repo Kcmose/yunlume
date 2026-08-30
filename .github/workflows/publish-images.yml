@@ -54,6 +54,23 @@ jobs:
               ;;
           esac
 
+  installer-test:
+    name: Installer regression checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Verify installer scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n install.sh ops/*.sh ops/lib/*.sh
+          ops/install-release-url-test.sh
+
   frontend-test:
     name: Frontend tests and production build
     runs-on: ubuntu-latest
@@ -120,6 +137,7 @@ jobs:
       - frontend-test
       - backend-test
       - release-preflight
+      - installer-test
     if: >-
       github.event_name == 'push' &&
       (github.ref_type == 'tag' ||

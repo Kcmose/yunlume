@@ -296,7 +296,8 @@ validate_args() {
       die "--version 必须使用不带 v 的 X.Y.Z 格式"
   fi
   [[ -n "${RELEASE_BASE_URL}" ]] || die "发布地址不能为空"
-  [[ "${RELEASE_BASE_URL}" != "${DEFAULT_RELEASE_BASE_URL}" ]] ||
+  local source_placeholder="__YUNLUME_RELEASE_""BASE_URL__"
+  [[ "${RELEASE_BASE_URL}" != "${source_placeholder}" ]] ||
     die "当前源码安装脚本尚未写入发布地址，请使用 Release 中的 install.sh 或传入 --release-base-url"
 }
 
