@@ -102,6 +102,66 @@ require_command() {
   command -v "$1" >/dev/null 2>&1 || die "缺少命令: $1"
 }
 
+validate_docker_architecture() {
+  local machine_arch
+  [[ "${MODE}" == "docker" ]] || return 0
+  machine_arch="$(uname -m)"
+  case "${machine_arch}" in
+    x86_64|amd64|aarch64|arm64)
+      ;;
+    *)
+      die "Docker 模式仅支持 x86_64/amd64 和 aarch64/arm64，当前架构: ${machine_arch}"
+      ;;
+  esac
+}
+
+is_global_ip_address() {
+  python3 - "$1" >/dev/null 2>&1 <<'PY'
+import ipaddress
+import sys
+
+try:
+    address = ipaddress.ip_address(sys.argv[1])
+except ValueError:
+    raise SystemExit(1)
+raise SystemExit(0 if address.is_global else 1)
+PY
+}
+
+detect_public_access_host() {
+  local address=""
+  command -v ip >/dev/null 2>&1 || return 1
+
+  address="$(
+    ip -4 route get 1.1.1.1 2>/dev/null |
+      awk '{ for (index = 1; index <= NF; index++) if ($index == "src") { print $(index + 1); exit } }'
+  )" || true
+  if [[ -n "${address}" ]] && is_global_ip_address "${address}"; then
+    printf '%s\n' "${address}"
+    return 0
+  fi
+
+  address="$(
+    ip -6 route get 2001:4860:4860::8888 2>/dev/null |
+      awk '{ for (index = 1; index <= NF; index++) if ($index == "src") { print $(index + 1); exit } }'
+  )" || true
+  if [[ -n "${address}" ]] && is_global_ip_address "${address}"; then
+    printf '[%s]\n' "${address}"
+    return 0
+  fi
+  return 1
+}
+
+print_access_url() {
+  local public_host=""
+  if public_host="$(detect_public_access_host)"; then
+    info "请访问: http://${public_host}:${APP_PORT}/install"
+    return
+  fi
+  info "未能可靠识别服务器公网地址。"
+  info "请将 <服务器公网IP> 替换为实际地址后访问: http://<服务器公网IP>:${APP_PORT}/install"
+}
+
 cleanup() {
   local status=$?
   local rollback_failed="false"
@@ -1044,6 +1104,7 @@ main() {
   parse_args "$@"
   validate_args
   [[ "$(uname -s)" == "Linux" ]] || die "安装器仅支持 Linux"
+  validate_docker_architecture
   [[ "$(id -u)" -eq 0 ]] || die "请使用 root 或 sudo 执行安装器"
   require_command curl
   require_command sha256sum
@@ -1066,7 +1127,7 @@ main() {
     install_host
   fi
   info "yunlume ${VERSION} 已启动。"
-  info "请访问: http://<服务器公网IP>:${APP_PORT}/install"
+  print_access_url
 }
 
 main "$@"

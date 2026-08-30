@@ -271,6 +271,10 @@ describe('import state and polling terminal rules', () => {
 })
 
 describe('import job session recovery', () => {
+  it('uses the yunlume-scoped session key', () => {
+    expect(DATA_IMPORT_JOB_SESSION_KEY).toBe('yunlume_data_import_job')
+  })
+
   it('round-trips a valid job session and clears it explicitly', () => {
     const storage = new MemoryStorage()
     const session = { jobId: 'job_ABC-123', startedAt: '2026-08-12T01:02:03Z' }

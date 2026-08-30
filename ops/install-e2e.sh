@@ -237,7 +237,7 @@ EOF
 generate_tls_fixture() {
   local ca_key="${FIXTURE_DIR}/ca.key"
   openssl req -x509 -newkey rsa:3072 -sha256 -nodes -days 2 \
-    -subj "/CN=XYNav-E2E-${RUN_ID}" \
+    -subj "/CN=yunlume-e2e-${RUN_ID}" \
     -keyout "${ca_key}" -out "${FIXTURE_DIR}/ca.crt" >/dev/null 2>&1
 
   cat >"${FIXTURE_DIR}/postgres.ext" <<'EOF'

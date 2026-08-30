@@ -1,4 +1,4 @@
-import type { InstallState } from '@/types/install'
+import type { CompleteInstallationPayload, InstallState } from '@/types/install'
 
 export type InstallWizardStep = 0 | 1 | 2 | 3 | 4 | 5
 
@@ -20,6 +20,48 @@ export interface InstallPrimaryActionState {
   redisBusy: boolean
   environmentReady: boolean
   checkingEnvironment: boolean
+}
+
+export interface InstallCompletionRoute {
+  name: 'admin-login'
+  query: { installed: '1' }
+}
+
+export interface InstallCompletionActions {
+  submit(payload: CompleteInstallationPayload): Promise<unknown>
+  finalizeLocalState(): void
+  redirect(route: InstallCompletionRoute): Promise<unknown>
+}
+
+export function installRequestErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback
+}
+
+export function buildCompleteInstallationPayload(
+  input: CompleteInstallationPayload,
+): CompleteInstallationPayload {
+  return {
+    siteName: input.siteName.trim(),
+    siteDescription: input.siteDescription.trim(),
+    username: input.username.trim(),
+    nickname: input.nickname.trim(),
+    password: input.password,
+    confirmPassword: input.confirmPassword,
+  }
+}
+
+export function installCompletionRoute(): InstallCompletionRoute {
+  return { name: 'admin-login', query: { installed: '1' } }
+}
+
+/** Keeps the accepted installation result, local state update and redirect in one tested flow. */
+export async function submitInstallCompletion(
+  input: CompleteInstallationPayload,
+  actions: InstallCompletionActions,
+): Promise<void> {
+  await actions.submit(buildCompleteInstallationPayload(input))
+  actions.finalizeLocalState()
+  await actions.redirect(installCompletionRoute())
 }
 
 /** Mirrors the visible primary button so keyboard shortcuts cannot bypass it. */

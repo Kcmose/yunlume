@@ -11,7 +11,7 @@ import { getHttpStatus } from './httpError'
 
 export const DATA_IMPORT_CONFIRMATION_TEXT = '确认导入'
 export const DATA_IMPORT_MAX_BYTES = 64 * 1024 * 1024
-export const DATA_IMPORT_JOB_SESSION_KEY = 'xy_navigation_data_import_job'
+export const DATA_IMPORT_JOB_SESSION_KEY = 'yunlume_data_import_job'
 
 export type DataImportClientState =
   | 'IDLE'

@@ -53,19 +53,19 @@ yunlume 是一个前后端分离的自托管导航站。前台提供搜索、分
 
 首次安装前先准备外部 PostgreSQL 14+ 空白专用数据库和外部 Redis。安装器只部署 `yunlume` 前后端，不会创建、搬迁或删除 PostgreSQL/Redis。默认监听 `0.0.0.0:8080`，安装完成前直接访问公网 HTTP；不需要安装口令、SSH 通道、IP 白名单或 HTTPS。
 
-将下面的 `<所有者>/<仓库>` 替换成实际 GitHub 仓库。Docker 模式要求服务器已经安装 Docker 与 Compose v2：
+Docker 模式要求服务器已经安装 Docker 与 Compose v2：
 
 ```bash
-curl -fsSL https://github.com/<所有者>/<仓库>/releases/latest/download/install.sh | sudo bash
+curl -fsSL https://github.com/Kcmose/yunlume/releases/latest/download/install.sh | sudo bash
 ```
 
 宿主机模式不使用 Docker，要求服务器已经安装 Java 17+、Nginx 和 systemd。这里的“二进制安装”指发布包中的后端可执行 JAR 与编译后的前端静态文件：
 
 ```bash
-curl -fsSL https://github.com/<所有者>/<仓库>/releases/latest/download/install.sh | sudo bash -s -- --mode host
+curl -fsSL https://github.com/Kcmose/yunlume/releases/latest/download/install.sh | sudo bash -s -- --mode host
 ```
 
-两种模式都可增加 `--port 端口`、`--install-dir 绝对路径`。成功后直接打开：
+两种模式都可增加 `--port 端口`、`--install-dir 绝对路径`。成功后安装器会优先输出自动识别到的公网访问地址；无法可靠识别时会明确提示替换占位符：
 
 ```text
 http://服务器公网IP:8080/install
@@ -76,8 +76,8 @@ http://服务器公网IP:8080/install
 已安装实例升级时必须显式指定目标版本，版本号不带 `v`：
 
 ```bash
-curl -fsSL https://github.com/<所有者>/<仓库>/releases/latest/download/install.sh | sudo bash -s -- --mode docker --version 1.2.3
-curl -fsSL https://github.com/<所有者>/<仓库>/releases/latest/download/install.sh | sudo bash -s -- --mode host --version 1.2.3
+curl -fsSL https://github.com/Kcmose/yunlume/releases/latest/download/install.sh | sudo bash -s -- --mode docker --version 1.2.3
+curl -fsSL https://github.com/Kcmose/yunlume/releases/latest/download/install.sh | sudo bash -s -- --mode host --version 1.2.3
 ```
 
 同版本重复执行是幂等恢复；安装器拒绝隐式升级、降级以及在同一目录混用 Docker/宿主机模式。新版本未通过 `/healthz` 与 `/api/health` 时会恢复原配置和服务；如果回滚本身失败，会保留恢复材料并明确报错。代码回滚不撤销数据库变更，升级前仍需按对应 Release 说明处理外部数据库兼容性。

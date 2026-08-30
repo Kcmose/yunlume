@@ -53,7 +53,12 @@ import {
   isValidInstallRedisUsername,
   type InstallRedisFormValue,
 } from '@/utils/installRedis'
-import { isInstallPrimaryActionDisabled, resolveInstallWizardEntry } from '@/utils/installWizard'
+import {
+  installRequestErrorMessage,
+  isInstallPrimaryActionDisabled,
+  resolveInstallWizardEntry,
+  submitInstallCompletion,
+} from '@/utils/installWizard'
 import { copyTextWithFallback } from '@/utils/clipboard'
 import {
   evaluatePasswordPolicy,
@@ -344,10 +349,6 @@ function isValidDatabaseHost(value: string): boolean {
     && !value.includes('..')
   const ipv6 = value.includes(':') && DATABASE_IPV6_HOST_PATTERN.test(value)
   return dns || ipv6
-}
-
-function installRequestErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message ? error.message : fallback
 }
 
 function databaseUsesCaCertificate(): boolean {
@@ -1276,22 +1277,18 @@ async function completeInstallation() {
       ElMessage.error('运行环境检查已发生变化，请修复后重新确认')
       return
     }
-    const payload: CompleteInstallationPayload = {
-      siteName: form.siteName.trim(),
-      siteDescription: form.siteDescription.trim(),
-      username: form.username.trim(),
-      nickname: form.nickname.trim(),
-      password: form.password,
-      confirmPassword: form.confirmPassword,
-    }
-    await completeInstallationApi(payload)
-    submissionFinished.value = true
-    scrubSensitiveFields()
-    environmentCheck.value = null
-    form.confirmationAccepted = false
-    installStore.markInstalled()
-    authStore.clearSession()
-    await router.replace({ name: 'admin-login', query: { installed: '1' } })
+    await submitInstallCompletion(form, {
+      submit: completeInstallationApi,
+      finalizeLocalState: () => {
+        submissionFinished.value = true
+        scrubSensitiveFields()
+        environmentCheck.value = null
+        form.confirmationAccepted = false
+        installStore.markInstalled()
+        authStore.clearSession()
+      },
+      redirect: (route) => router.replace(route),
+    })
     ElMessage.success('安装完成，请使用新管理员账号登录')
   } catch (error) {
     const statusCode = getHttpStatus(error)
