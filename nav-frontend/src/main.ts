@@ -6,5 +6,14 @@ import 'element-plus/dist/index.css'
 import '@/styles/index.scss'
 import App from './App.vue'
 import router from './router'
+import {
+  clearStaleChunkRecoveryMarker,
+  registerStaleChunkRecovery,
+} from '@/utils/staleChunkRecovery'
 
+registerStaleChunkRecovery()
 createApp(App).use(createPinia()).use(router).use(ElementPlus, { locale: zhCn }).mount('#app')
+
+void router.isReady()
+  .then(() => clearStaleChunkRecoveryMarker())
+  .catch(() => undefined)
