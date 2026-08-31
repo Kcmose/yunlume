@@ -59,10 +59,10 @@ Docker 模式要求服务器已经安装 Docker 与 Compose v2：
 curl -fsSL https://github.com/Kcmose/yunlume/releases/latest/download/install.sh | sudo bash
 ```
 
-上面的 `latest` 地址始终下载最新正式 Release 的安装器。需要固定安装入口和目标版本时，可同时固定 Release 下载地址并传入不带 `v` 的版本号：
+上面的 `latest` 地址始终下载最新正式 Release 的安装器；首次安装时安装最新版，已有部署执行时升级到最新版。需要安装、重装或固定操作某个版本时，直接使用该版本的 Release 地址，安装器已经内嵌自己的目标版本，不需要重复传入 `--version`：
 
 ```bash
-curl -fsSL https://github.com/Kcmose/yunlume/releases/download/v1.0.1/install.sh | sudo bash -s -- --mode docker --version 1.0.1
+curl -fsSL https://github.com/Kcmose/yunlume/releases/download/v1.0.7/install.sh | sudo bash -s -- --mode docker
 ```
 
 宿主机模式不使用 Docker，要求服务器已经安装 Java 17+、Nginx 和 systemd。这里的“二进制安装”指发布包中的后端可执行 JAR 与编译后的前端静态文件：
@@ -71,10 +71,10 @@ curl -fsSL https://github.com/Kcmose/yunlume/releases/download/v1.0.1/install.sh
 curl -fsSL https://github.com/Kcmose/yunlume/releases/latest/download/install.sh | sudo bash -s -- --mode host
 ```
 
-宿主机模式同样可以固定安装器和目标版本：
+宿主机模式同样可以使用固定版本安装器：
 
 ```bash
-curl -fsSL https://github.com/Kcmose/yunlume/releases/download/v1.0.1/install.sh | sudo bash -s -- --mode host --version 1.0.1
+curl -fsSL https://github.com/Kcmose/yunlume/releases/download/v1.0.7/install.sh | sudo bash -s -- --mode host
 ```
 
 两种模式都可增加 `--port 端口`、`--install-dir 绝对路径`。成功后安装器会优先输出自动识别到的公网访问地址；无法可靠识别时会明确提示替换占位符：
@@ -85,14 +85,14 @@ http://服务器公网IP:8080/install
 
 安装脚本通过严格发行清单固定同一版本的前后端产物并校验 SHA-256。Docker 模式安装到 `/opt/yunlume`，使用 `yunlume_uploads_data`、`yunlume_backend_logs`、`yunlume_database_config` 三个命名卷；宿主机模式使用 `/opt/yunlume/releases`、`/etc/yunlume`、`/var/lib/yunlume`，后端只监听 `127.0.0.1:18081`，系统 Nginx 对公网提供统一入口。
 
-已安装实例升级时必须显式指定目标版本，版本号不带 `v`：
+已有实例需要升级到最新正式版本时，直接再次执行 `latest` 安装器；选择该入口本身就是升级授权：
 
 ```bash
-curl -fsSL https://github.com/Kcmose/yunlume/releases/latest/download/install.sh | sudo bash -s -- --mode docker --version 1.2.3
-curl -fsSL https://github.com/Kcmose/yunlume/releases/latest/download/install.sh | sudo bash -s -- --mode host --version 1.2.3
+curl -fsSL https://github.com/Kcmose/yunlume/releases/latest/download/install.sh | sudo bash -s -- --mode docker
+curl -fsSL https://github.com/Kcmose/yunlume/releases/latest/download/install.sh | sudo bash -s -- --mode host
 ```
 
-同版本重复执行是幂等恢复；安装器拒绝隐式升级、降级以及在同一目录混用 Docker/宿主机模式。新版本未通过 `/healthz` 与 `/api/health` 时会恢复原配置和服务；如果回滚本身失败，会保留恢复材料并明确报错。代码回滚不撤销数据库变更，升级前仍需按对应 Release 说明处理外部数据库兼容性。
+同版本重复执行是幂等恢复。每个 Release 清单携带正整数 `compatibilityEpoch`，部署记录成功应用过的最高代际：同一代际内允许使用固定版本安装器主动降级；目标代际低于部署记录时拒绝直接降级，必须恢复跨代升级前备份或使用受支持的反向迁移流程。安装器也拒绝在同一目录混用 Docker/宿主机模式。新版本未通过 `/healthz` 与 `/api/health` 时会恢复原配置、版本和服务，且不会提前提高兼容代际；如果回滚本身失败，会保留恢复材料并明确报错。升级前仍需按对应 Release 说明处理外部数据库兼容性。
 
 ### GitHub 自动构建镜像
 

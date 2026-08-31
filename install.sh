@@ -7,11 +7,12 @@ readonly PRODUCT_NAME="yunlume"
 readonly DEFAULT_INSTALL_DIR="/opt/yunlume"
 readonly DEFAULT_PORT="8080"
 readonly DEFAULT_RELEASE_BASE_URL="__YUNLUME_RELEASE_BASE_URL__"
+readonly EMBEDDED_RELEASE_VERSION="__YUNLUME_RELEASE_VERSION__"
 readonly OPERATIONS_LOCK="/run/lock/yunlume-operations.lock"
 
 MODE="docker"
 VERSION=""
-VERSION_EXPLICIT="false"
+REQUESTED_VERSION=""
 APP_PORT="${DEFAULT_PORT}"
 INSTALL_DIR="${DEFAULT_INSTALL_DIR}"
 RELEASE_BASE_URL="${YUNLUME_RELEASE_BASE_URL:-${DEFAULT_RELEASE_BASE_URL}}"
@@ -19,6 +20,7 @@ WORK_DIR=""
 MANIFEST_FILE=""
 RELEASE_ASSET_BASE=""
 MANIFEST_VERSION=""
+MANIFEST_COMPATIBILITY_EPOCH=""
 MANIFEST_COMPOSE=""
 MANIFEST_COMPOSE_SHA256=""
 MANIFEST_BACKEND_IMAGE=""
@@ -44,10 +46,13 @@ HOST_NGINX_BACKUP=""
 HOST_SERVICE_BACKUP=""
 HOST_HAD_VERSION="false"
 HOST_HAD_MANIFEST="false"
+HOST_HAD_COMPATIBILITY_EPOCH="false"
 HOST_VERSION_FILE=""
 HOST_MANIFEST_FILE=""
+HOST_COMPATIBILITY_EPOCH_FILE=""
 HOST_VERSION_BACKUP=""
 HOST_MANIFEST_BACKUP=""
+HOST_COMPATIBILITY_EPOCH_BACKUP=""
 HOST_HAD_APP_ENV="false"
 HOST_APP_ENV_FILE=""
 HOST_APP_ENV_BACKUP=""
@@ -61,14 +66,17 @@ DOCKER_HAD_ENV="false"
 DOCKER_HAD_COMPOSE="false"
 DOCKER_HAD_VERSION="false"
 DOCKER_HAD_MANIFEST="false"
+DOCKER_HAD_COMPATIBILITY_EPOCH="false"
 DOCKER_ENV_FILE=""
 DOCKER_COMPOSE_FILE=""
 DOCKER_VERSION_FILE=""
 DOCKER_MANIFEST_FILE=""
+DOCKER_COMPATIBILITY_EPOCH_FILE=""
 DOCKER_ENV_BACKUP=""
 DOCKER_COMPOSE_BACKUP=""
 DOCKER_VERSION_BACKUP=""
 DOCKER_MANIFEST_BACKUP=""
+DOCKER_COMPATIBILITY_EPOCH_BACKUP=""
 DOCKER_SERVICES_MUTATED="false"
 DOCKER_ROLLBACK_PORT="${DEFAULT_PORT}"
 
@@ -91,7 +99,7 @@ yunlume 安装器
 
 默认值:
   --mode docker
-  --version 当前稳定版本
+  目标版本由下载的正式 Release 安装器固定；--version 仅用于校验，不能改写目标版本
   --port 8080
   --install-dir /opt/yunlume
 EOF
@@ -249,8 +257,7 @@ parse_args() {
         ;;
       --version)
         [[ $# -ge 2 ]] || die "--version 缺少参数"
-        VERSION="${2#v}"
-        VERSION_EXPLICIT="true"
+        REQUESTED_VERSION="${2#v}"
         shift 2
         ;;
       --port)
@@ -290,14 +297,26 @@ validate_args() {
      "${INSTALL_DIR}" != */. && "${INSTALL_DIR}" != *"/../"* &&
      "${INSTALL_DIR}" != */.. ]] ||
     die "--install-dir 不能包含空路径段、. 或 .."
-  if [[ -n "${VERSION}" ]]; then
-    [[ "${VERSION}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] ||
+  if [[ -n "${REQUESTED_VERSION}" ]]; then
+    [[ "${REQUESTED_VERSION}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] ||
       die "--version 必须使用不带 v 的 X.Y.Z 格式"
   fi
   [[ -n "${RELEASE_BASE_URL}" ]] || die "发布地址不能为空"
   local source_placeholder="__YUNLUME_RELEASE_""BASE_URL__"
   [[ "${RELEASE_BASE_URL}" != "${source_placeholder}" ]] ||
     die "当前源码安装脚本尚未写入发布地址，请使用 Release 中的 install.sh 或传入 --release-base-url"
+  local version_placeholder="__YUNLUME_RELEASE_""VERSION__"
+  if [[ "${EMBEDDED_RELEASE_VERSION}" == "${version_placeholder}" ]]; then
+    [[ -n "${REQUESTED_VERSION}" ]] ||
+      die "当前源码安装脚本尚未写入发行版本，请使用 Release 中的 install.sh 或传入 --version"
+    VERSION="${REQUESTED_VERSION}"
+  else
+    [[ "${EMBEDDED_RELEASE_VERSION}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] ||
+      die "安装器内嵌发行版本格式无效"
+    VERSION="${EMBEDDED_RELEASE_VERSION}"
+    [[ -z "${REQUESTED_VERSION}" || "${REQUESTED_VERSION}" == "${VERSION}" ]] ||
+      die "此安装器固定用于版本 ${VERSION}，不能改为 ${REQUESTED_VERSION}"
+  fi
 }
 
 validate_install_directory_boundary() {
@@ -363,8 +382,12 @@ try:
     host = data["host"]
     if not isinstance(docker, dict) or not isinstance(host, dict):
         raise ValueError("docker and host must be objects")
+    compatibility_epoch = data["compatibilityEpoch"]
+    if isinstance(compatibility_epoch, bool) or not isinstance(compatibility_epoch, int) or not 1 <= compatibility_epoch <= 999_999_999:
+        raise ValueError("compatibilityEpoch must be an integer from 1 to 999999999")
     values = [
         data["version"],
+        str(compatibility_epoch),
         docker["compose"],
         docker["composeSha256"],
         docker["backendImage"],
@@ -379,11 +402,11 @@ try:
     version = re.escape(values[0])
     backend_match = re.fullmatch(
         rf"ghcr\.io/([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)/yunlume-backend:{version}",
-        values[3],
+        values[4],
     )
     frontend_match = re.fullmatch(
         rf"ghcr\.io/([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)/yunlume-frontend:{version}",
-        values[4],
+        values[5],
     )
     if not backend_match or not frontend_match:
         raise ValueError("image references must match the manifest version")
@@ -402,14 +425,15 @@ PY
     die "发行清单格式无效"
   fi
   mapfile -t values <"${parsed_values}"
-  (( ${#values[@]} == 7 )) || die "发行清单字段不完整"
+  (( ${#values[@]} == 8 )) || die "发行清单字段不完整"
   MANIFEST_VERSION="${values[0]}"
-  MANIFEST_COMPOSE="${values[1]}"
-  MANIFEST_COMPOSE_SHA256="${values[2]}"
-  MANIFEST_BACKEND_IMAGE="${values[3]}"
-  MANIFEST_FRONTEND_IMAGE="${values[4]}"
-  MANIFEST_HOST_ARCHIVE="${values[5]}"
-  MANIFEST_HOST_ARCHIVE_SHA256="${values[6]}"
+  MANIFEST_COMPATIBILITY_EPOCH="${values[1]}"
+  MANIFEST_COMPOSE="${values[2]}"
+  MANIFEST_COMPOSE_SHA256="${values[3]}"
+  MANIFEST_BACKEND_IMAGE="${values[4]}"
+  MANIFEST_FRONTEND_IMAGE="${values[5]}"
+  MANIFEST_HOST_ARCHIVE="${values[6]}"
+  MANIFEST_HOST_ARCHIVE_SHA256="${values[7]}"
 }
 
 validate_asset_name() {
@@ -437,9 +461,16 @@ load_manifest() {
 ensure_install_mode() {
   local mode_file="${INSTALL_DIR}/.install-mode"
   local existing_mode=""
+  local temporary=""
   [[ ! -L "${INSTALL_DIR}" ]] || die "安装目录不能是符号链接: ${INSTALL_DIR}"
+  [[ ! -L "${mode_file}" ]] || die "模式标记不能是符号链接"
+  if [[ -e "${mode_file}" && ! -f "${mode_file}" ]]; then
+    die "模式标记必须是普通文件"
+  fi
   if [[ -f "${mode_file}" ]]; then
     existing_mode="$(tr -d '\r\n' <"${mode_file}")"
+    [[ "${existing_mode}" == "docker" || "${existing_mode}" == "host" ]] ||
+      die "当前部署模式标记格式无效"
     [[ "${existing_mode}" == "${MODE}" ]] ||
       die "当前目录已使用 ${existing_mode} 模式，不能直接切换为 ${MODE}"
     return
@@ -449,9 +480,10 @@ ensure_install_mode() {
     die "安装目录非空且缺少模式标记: ${INSTALL_DIR}"
   fi
   install -d -m 0755 "${INSTALL_DIR}"
-  printf '%s\n' "${MODE}" >"${mode_file}.tmp"
-  chmod 0644 "${mode_file}.tmp"
-  mv -f -- "${mode_file}.tmp" "${mode_file}"
+  temporary="$(mktemp "${INSTALL_DIR}/.install-mode.tmp.XXXXXXXX")"
+  printf '%s\n' "${MODE}" >"${temporary}"
+  chmod 0644 "${temporary}"
+  mv -f -- "${temporary}" "${mode_file}"
 }
 
 version_is_less() {
@@ -469,18 +501,168 @@ version_is_less() {
   (( left_patch < right_patch ))
 }
 
+read_compatibility_epoch_file() {
+  python3 - "$1" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+try:
+    value = Path(sys.argv[1]).read_bytes()
+except OSError:
+    raise SystemExit(1)
+if re.fullmatch(rb"[1-9][0-9]{0,8}\n?", value) is None:
+    raise SystemExit(1)
+sys.stdout.write(value.rstrip(b"\n").decode("ascii"))
+PY
+}
+
+commit_compatibility_epoch() {
+  local epoch_file="${INSTALL_DIR}/COMPATIBILITY_EPOCH"
+  local current_epoch="0"
+  local temporary=""
+  [[ "${MANIFEST_COMPATIBILITY_EPOCH}" =~ ^[1-9][0-9]{0,8}$ ]] ||
+    die "目标发行版兼容代际无效"
+  [[ ! -L "${epoch_file}" ]] || die "兼容代际标记不能是符号链接"
+  if [[ -e "${epoch_file}" ]]; then
+    [[ -f "${epoch_file}" ]] || die "兼容代际标记必须是普通文件"
+    current_epoch="$(read_compatibility_epoch_file "${epoch_file}")" ||
+      die "当前兼容代际标记格式无效"
+  fi
+  if (( MANIFEST_COMPATIBILITY_EPOCH <= current_epoch )); then
+    return 0
+  fi
+  temporary="$(mktemp "${INSTALL_DIR}/.compatibility-epoch.tmp.XXXXXXXX")"
+  printf '%s\n' "${MANIFEST_COMPATIBILITY_EPOCH}" >"${temporary}"
+  chmod 0644 "${temporary}"
+  mv -f -- "${temporary}" "${epoch_file}"
+}
+
+read_deployment_compatibility_epoch() {
+  local current_version="$1"
+  local epoch_file="${INSTALL_DIR}/COMPATIBILITY_EPOCH"
+  local installed_manifest="${INSTALL_DIR}/release-manifest.json"
+  local epoch manifest_state
+  [[ ! -L "${epoch_file}" ]] || die "兼容代际标记不能是符号链接"
+  if [[ -e "${epoch_file}" ]]; then
+    [[ -f "${epoch_file}" ]] || die "兼容代际标记必须是普通文件"
+    epoch="$(read_compatibility_epoch_file "${epoch_file}")" ||
+      die "当前兼容代际标记格式无效"
+    printf '%s\n' "${epoch}"
+    return 0
+  fi
+
+  [[ ! -L "${installed_manifest}" ]] || die "已安装发行清单不能是符号链接"
+  [[ -f "${installed_manifest}" ]] || die "当前部署缺少兼容代际标记和已安装发行清单"
+  manifest_state="$(python3 - "${installed_manifest}" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+try:
+    data = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError("root must be an object")
+    if "compatibilityEpoch" not in data:
+        if set(data) != {"version", "docker", "host"}:
+            raise ValueError("legacy manifest fields are invalid")
+        version = data.get("version")
+        if not isinstance(version, str):
+            raise ValueError("legacy manifest version must be a string")
+        docker = data.get("docker")
+        host = data.get("host")
+        if not isinstance(docker, dict) or set(docker) != {
+            "compose", "composeSha256", "backendImage", "frontendImage"
+        }:
+            raise ValueError("legacy docker manifest fields are invalid")
+        if not isinstance(host, dict) or set(host) != {"archive", "archiveSha256"}:
+            raise ValueError("legacy host manifest fields are invalid")
+        if docker["compose"] != "yunlume-compose.yml":
+            raise ValueError("legacy compose asset is invalid")
+        if not isinstance(docker["composeSha256"], str) or re.fullmatch(
+            r"[0-9a-f]{64}", docker["composeSha256"]
+        ) is None:
+            raise ValueError("legacy compose digest is invalid")
+        backend = docker["backendImage"]
+        frontend = docker["frontendImage"]
+        if not isinstance(backend, str) or not isinstance(frontend, str):
+            raise ValueError("legacy image references are invalid")
+        image_owner = r"([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)"
+        backend_match = re.fullmatch(
+            rf"ghcr\.io/{image_owner}/yunlume-backend:{re.escape(version)}", backend
+        )
+        frontend_match = re.fullmatch(
+            rf"ghcr\.io/{image_owner}/yunlume-frontend:{re.escape(version)}", frontend
+        )
+        if backend_match is None or frontend_match is None or backend_match.group(1) != frontend_match.group(1):
+            raise ValueError("legacy image references are inconsistent")
+        if host["archive"] != f"yunlume-host-v{version}.tar.gz":
+            raise ValueError("legacy host archive is invalid")
+        if not isinstance(host["archiveSha256"], str) or re.fullmatch(
+            r"[0-9a-f]{64}", host["archiveSha256"]
+        ) is None:
+            raise ValueError("legacy host archive digest is invalid")
+        print(f"legacy:{version}")
+    else:
+        epoch = data["compatibilityEpoch"]
+        if isinstance(epoch, bool) or not isinstance(epoch, int) or not 1 <= epoch <= 999_999_999:
+            raise ValueError("compatibilityEpoch must be an integer from 1 to 999999999")
+        print(f"modern:{epoch}")
+except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+    print(f"invalid installed manifest: {exc}", file=sys.stderr)
+    raise SystemExit(2)
+PY
+  )" || die "已安装发行清单格式无效"
+  case "${manifest_state}" in
+    legacy:*)
+      [[ "${manifest_state#legacy:}" == "${current_version}" ]] ||
+        die "旧版部署的 VERSION 与发行清单不一致"
+      [[ "${current_version}" == "1.0.6" ]] ||
+        die "旧版部署缺少兼容代际且不支持自动迁移"
+      printf '%s\n' 1
+      ;;
+    modern:*) die "当前部署缺少兼容代际标记" ;;
+    *) die "已安装发行清单格式无效" ;;
+  esac
+}
+
 check_version_transition() {
   local version_file="${INSTALL_DIR}/VERSION"
-  local current_version
-  [[ -f "${version_file}" ]] || return 0
+  local current_version current_epoch
+  [[ ! -L "${version_file}" ]] || die "VERSION 文件不能是符号链接"
+  if [[ ! -e "${version_file}" ]]; then
+    if [[ -e "${INSTALL_DIR}/COMPATIBILITY_EPOCH" ||
+          -e "${INSTALL_DIR}/release-manifest.json" ||
+          -e "${INSTALL_DIR}/.env" || -e "${INSTALL_DIR}/compose.yml" ||
+          -e "${INSTALL_DIR}/current" ]]; then
+      die "当前部署缺少 VERSION，不能判断版本兼容性"
+    fi
+    return 0
+  fi
+  [[ -f "${version_file}" ]] || die "VERSION 必须是普通文件"
   current_version="$(tr -d '\r\n' <"${version_file}")"
   [[ "${current_version}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] ||
     die "当前 VERSION 文件格式无效"
-  [[ "${current_version}" != "${VERSION}" ]] || return 0
-  [[ "${VERSION_EXPLICIT}" == "true" ]] ||
-    die "检测到已安装 ${current_version}；升级必须显式传入 --version ${VERSION}"
-  version_is_less "${VERSION}" "${current_version}" &&
-    die "安装器不允许从 ${current_version} 降级到 ${VERSION}"
+  [[ "${MANIFEST_COMPATIBILITY_EPOCH}" =~ ^[1-9][0-9]{0,8}$ ]] ||
+    die "目标发行版兼容代际无效"
+  current_epoch="$(read_deployment_compatibility_epoch "${current_version}")" || return $?
+  if [[ "${current_version}" == "${VERSION}" ]]; then
+    [[ "${MANIFEST_COMPATIBILITY_EPOCH}" == "${current_epoch}" ]] ||
+      die "同一版本的兼容代际与当前部署不一致"
+    return 0
+  fi
+  if version_is_less "${VERSION}" "${current_version}"; then
+    if (( MANIFEST_COMPATIBILITY_EPOCH > current_epoch )); then
+      die "发行元数据不一致：较旧目标版本的兼容代际高于当前部署"
+    fi
+    [[ "${MANIFEST_COMPATIBILITY_EPOCH}" == "${current_epoch}" ]] ||
+      die "拒绝降级：当前部署兼容代际为 ${current_epoch}，目标版本 ${VERSION} 的兼容代际为 ${MANIFEST_COMPATIBILITY_EPOCH}"
+    info "将 yunlume 从 ${current_version} 降级到 ${VERSION}。"
+    return 0
+  fi
+  (( MANIFEST_COMPATIBILITY_EPOCH >= current_epoch )) ||
+    die "拒绝升级：目标版本 ${VERSION} 的兼容代际低于当前部署 ${current_epoch}"
   info "将 yunlume 从 ${current_version} 升级到 ${VERSION}。"
 }
 
@@ -610,6 +792,12 @@ rollback_docker() {
   else
     rm -f -- "${DOCKER_MANIFEST_FILE}" || rollback_failed="true"
   fi
+  if [[ "${DOCKER_HAD_COMPATIBILITY_EPOCH}" == "true" ]]; then
+    cp -p -- "${DOCKER_COMPATIBILITY_EPOCH_BACKUP}" \
+      "${DOCKER_COMPATIBILITY_EPOCH_FILE}" || rollback_failed="true"
+  else
+    rm -f -- "${DOCKER_COMPATIBILITY_EPOCH_FILE}" || rollback_failed="true"
+  fi
   if [[ "${DOCKER_SERVICES_MUTATED}" == "true" &&
         -f "${DOCKER_ENV_FILE}" && -f "${DOCKER_COMPOSE_FILE}" ]]; then
     compose_command=(
@@ -645,13 +833,14 @@ docker_transaction_failed() {
 
 install_docker() {
   local compose_asset compose_sha backend_image frontend_image
-  local compose_download env_file compose_file version_file manifest_target
+  local compose_download env_file compose_file version_file manifest_target epoch_file
   local had_existing="false"
   local install_failed="false"
   local backup_env="${WORK_DIR}/previous.env"
   local backup_compose="${WORK_DIR}/previous.compose.yml"
   local backup_version="${WORK_DIR}/previous.VERSION"
   local backup_manifest="${WORK_DIR}/previous.release-manifest.json"
+  local backup_epoch="${WORK_DIR}/previous.COMPATIBILITY_EPOCH"
 
   require_command docker
   require_command openssl
@@ -675,22 +864,26 @@ install_docker() {
   compose_file="${INSTALL_DIR}/compose.yml"
   version_file="${INSTALL_DIR}/VERSION"
   manifest_target="${INSTALL_DIR}/release-manifest.json"
+  epoch_file="${INSTALL_DIR}/COMPATIBILITY_EPOCH"
   DOCKER_ENV_FILE="${env_file}"
   DOCKER_COMPOSE_FILE="${compose_file}"
   DOCKER_VERSION_FILE="${version_file}"
   DOCKER_MANIFEST_FILE="${manifest_target}"
+  DOCKER_COMPATIBILITY_EPOCH_FILE="${epoch_file}"
   DOCKER_ENV_BACKUP="${backup_env}"
   DOCKER_COMPOSE_BACKUP="${backup_compose}"
   DOCKER_VERSION_BACKUP="${backup_version}"
   DOCKER_MANIFEST_BACKUP="${backup_manifest}"
+  DOCKER_COMPATIBILITY_EPOCH_BACKUP="${backup_epoch}"
   DOCKER_HAD_ENV="false"
   DOCKER_HAD_COMPOSE="false"
   DOCKER_HAD_VERSION="false"
   DOCKER_HAD_MANIFEST="false"
+  DOCKER_HAD_COMPATIBILITY_EPOCH="false"
   DOCKER_SERVICES_MUTATED="false"
   DOCKER_ROLLBACK_PORT="${DEFAULT_PORT}"
   [[ ! -L "${env_file}" && ! -L "${compose_file}" &&
-     ! -L "${version_file}" && ! -L "${manifest_target}" ]] ||
+     ! -L "${version_file}" && ! -L "${manifest_target}" && ! -L "${epoch_file}" ]] ||
     die "Docker 安装器管理的文件不能是符号链接"
   if [[ -f "${env_file}" && -f "${compose_file}" ]]; then
     had_existing="true"
@@ -712,6 +905,10 @@ install_docker() {
   if [[ -f "${manifest_target}" ]]; then
     DOCKER_HAD_MANIFEST="true"
     cp -p -- "${manifest_target}" "${backup_manifest}"
+  fi
+  if [[ -f "${epoch_file}" ]]; then
+    DOCKER_HAD_COMPATIBILITY_EPOCH="true"
+    cp -p -- "${epoch_file}" "${backup_epoch}"
   fi
 
   DOCKER_TRANSACTION_ACTIVE="true"
@@ -760,6 +957,7 @@ install_docker() {
   printf '%s\n' "${VERSION}" >"${version_file}.tmp"
   chmod 0644 "${version_file}.tmp"
   mv -f -- "${version_file}.tmp" "${version_file}"
+  commit_compatibility_epoch
   DOCKER_TRANSACTION_ACTIVE="false"
   trap - ERR
 }
@@ -852,6 +1050,13 @@ rollback_host() {
     cp -p -- "${HOST_MANIFEST_BACKUP}" "${HOST_MANIFEST_FILE}" || rollback_failed="true"
   else
     rm -f -- "${HOST_MANIFEST_FILE}" || rollback_failed="true"
+  fi
+  if [[ "${HOST_HAD_COMPATIBILITY_EPOCH}" == "true" &&
+        -f "${HOST_COMPATIBILITY_EPOCH_BACKUP}" ]]; then
+    cp -p -- "${HOST_COMPATIBILITY_EPOCH_BACKUP}" \
+      "${HOST_COMPATIBILITY_EPOCH_FILE}" || rollback_failed="true"
+  else
+    rm -f -- "${HOST_COMPATIBILITY_EPOCH_FILE}" || rollback_failed="true"
   fi
   if [[ "${HOST_HAD_APP_ENV}" == "true" && -f "${HOST_APP_ENV_BACKUP}" ]]; then
     cp -p -- "${HOST_APP_ENV_BACKUP}" "${HOST_APP_ENV_FILE}" || rollback_failed="true"
@@ -1016,8 +1221,10 @@ install_host() {
   HOST_SERVICE_BACKUP="${WORK_DIR}/previous.service"
   HOST_VERSION_FILE="${INSTALL_DIR}/VERSION"
   HOST_MANIFEST_FILE="${INSTALL_DIR}/release-manifest.json"
+  HOST_COMPATIBILITY_EPOCH_FILE="${INSTALL_DIR}/COMPATIBILITY_EPOCH"
   HOST_VERSION_BACKUP="${WORK_DIR}/previous.VERSION"
   HOST_MANIFEST_BACKUP="${WORK_DIR}/previous.release-manifest.json"
+  HOST_COMPATIBILITY_EPOCH_BACKUP="${WORK_DIR}/previous.COMPATIBILITY_EPOCH"
   HOST_APP_ENV_FILE="${env_file}"
   HOST_APP_ENV_BACKUP="${WORK_DIR}/previous.app.env"
   HOST_HAD_CURRENT="false"
@@ -1029,6 +1236,7 @@ install_host() {
   HOST_NGINX_WAS_ACTIVE="false"
   HOST_HAD_VERSION="false"
   HOST_HAD_MANIFEST="false"
+  HOST_HAD_COMPATIBILITY_EPOCH="false"
   HOST_HAD_APP_ENV="false"
   HOST_NGINX_WAS_ENABLED="false"
   HOST_BACKEND_MUTATED="false"
@@ -1047,6 +1255,9 @@ install_host() {
   [[ ! -L "${nginx_config}" ]] || die "${nginx_config} 不能是符号链接"
   [[ ! -L "${service_file}" ]] || die "${service_file} 不能是符号链接"
   [[ ! -L "${env_file}" ]] || die "${env_file} 不能是符号链接"
+  [[ ! -L "${HOST_VERSION_FILE}" && ! -L "${HOST_MANIFEST_FILE}" &&
+     ! -L "${HOST_COMPATIBILITY_EPOCH_FILE}" ]] ||
+    die "宿主机安装器管理的版本元数据不能是符号链接"
   if [[ -f "${nginx_config}" ]]; then
     HOST_HAD_NGINX_CONFIG="true"
     cp -p -- "${nginx_config}" "${HOST_NGINX_BACKUP}"
@@ -1077,6 +1288,10 @@ install_host() {
   if [[ -f "${HOST_MANIFEST_FILE}" ]]; then
     HOST_HAD_MANIFEST="true"
     cp -p -- "${HOST_MANIFEST_FILE}" "${HOST_MANIFEST_BACKUP}"
+  fi
+  if [[ -f "${HOST_COMPATIBILITY_EPOCH_FILE}" ]]; then
+    HOST_HAD_COMPATIBILITY_EPOCH="true"
+    cp -p -- "${HOST_COMPATIBILITY_EPOCH_FILE}" "${HOST_COMPATIBILITY_EPOCH_BACKUP}"
   fi
   if [[ -f "${env_file}" ]]; then
     HOST_HAD_APP_ENV="true"
@@ -1125,6 +1340,7 @@ install_host() {
   mv -f -- "${INSTALL_DIR}/VERSION.tmp" "${INSTALL_DIR}/VERSION"
   install -m 0644 "${MANIFEST_FILE}" "${INSTALL_DIR}/release-manifest.json.tmp"
   mv -f -- "${INSTALL_DIR}/release-manifest.json.tmp" "${INSTALL_DIR}/release-manifest.json"
+  commit_compatibility_epoch
   HOST_TRANSACTION_ACTIVE="false"
   trap - ERR
 }

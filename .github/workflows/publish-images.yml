@@ -75,6 +75,10 @@ jobs:
           set -euo pipefail
           bash -n install.sh ops/*.sh ops/lib/*.sh
           ops/install-release-url-test.sh
+          ops/version-transition-test.sh
+          ops/mode-protection-test.sh
+          ops/release-manifest-test.sh
+          ops/compatibility-epoch-rollback-test.sh
           sudo ops/operations-lock-test.sh
           for awk_bin in mawk gawk; do
             printf 'Testing installer with %s...\n' "${awk_bin}"
@@ -303,6 +307,7 @@ jobs:
         env:
           VERSION: ${{ steps.release.outputs.version }}
           OWNER: ${{ steps.release.outputs.owner }}
+          COMPATIBILITY_EPOCH: "1"
           RELEASE_BASE_URL: ${{ github.server_url }}/${{ github.repository }}/releases
         run: |
           set -Eeuo pipefail
@@ -311,15 +316,18 @@ jobs:
           OUTPUT_DIR=release ops/package-host-release.sh "$VERSION"
           install -m 0644 docker-compose.yml release/yunlume-compose.yml
 
-          python3 - "$RELEASE_BASE_URL" <<'PY'
+          python3 - "$RELEASE_BASE_URL" "$VERSION" <<'PY'
           import sys
           from pathlib import Path
 
           placeholder = "__YUNLUME_RELEASE_BASE_URL__"
+          version_placeholder = "__YUNLUME_RELEASE_VERSION__"
           source = Path("install.sh").read_text(encoding="utf-8")
           if source.count(placeholder) != 1:
               raise SystemExit("install.sh must contain exactly one release URL placeholder")
-          rendered = source.replace(placeholder, sys.argv[1])
+          if source.count(version_placeholder) != 1:
+              raise SystemExit("install.sh must contain exactly one release version placeholder")
+          rendered = source.replace(placeholder, sys.argv[1]).replace(version_placeholder, sys.argv[2])
           Path("release/install.sh").write_text(rendered, encoding="utf-8", newline="\n")
           PY
           chmod 0755 release/install.sh
@@ -328,35 +336,17 @@ jobs:
             printf 'Rendered installer still contains the release URL placeholder.\n' >&2
             exit 1
           fi
+          if grep -Fq '__YUNLUME_RELEASE_VERSION__' release/install.sh; then
+            printf 'Rendered installer still contains the release version placeholder.\n' >&2
+            exit 1
+          fi
 
           compose_sha="$(sha256sum release/yunlume-compose.yml | awk '{print $1}')"
           archive_name="yunlume-host-v${VERSION}.tar.gz"
           archive_sha="$(sha256sum "release/$archive_name" | awk '{print $1}')"
-          python3 - "$VERSION" "$OWNER" "$compose_sha" "$archive_name" "$archive_sha" <<'PY'
-          import json
-          import sys
-          from pathlib import Path
-
-          version, owner, compose_sha, archive_name, archive_sha = sys.argv[1:]
-          manifest = {
-              "version": version,
-              "docker": {
-                  "compose": "yunlume-compose.yml",
-                  "composeSha256": compose_sha,
-                  "backendImage": f"ghcr.io/{owner}/yunlume-backend:{version}",
-                  "frontendImage": f"ghcr.io/{owner}/yunlume-frontend:{version}",
-              },
-              "host": {
-                  "archive": archive_name,
-                  "archiveSha256": archive_sha,
-              },
-          }
-          Path("release/release-manifest.json").write_text(
-              json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
-              encoding="utf-8",
-              newline="\n",
-          )
-          PY
+          python3 ops/create-release-manifest.py \
+            "$VERSION" "$OWNER" "$compose_sha" "$archive_name" "$archive_sha" \
+            "$COMPATIBILITY_EPOCH" release/release-manifest.json
 
           (
             cd release
