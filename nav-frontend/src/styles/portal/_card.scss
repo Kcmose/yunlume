@@ -36,7 +36,7 @@
   -webkit-backdrop-filter: var(--portal-glass-filter);
   backdrop-filter: var(--portal-glass-filter);
 
-  span {
+  .category-card__icon {
     display: grid;
     width: 15px;
     height: 15px;
@@ -44,6 +44,8 @@
     place-items: center;
     color: var(--portal-text);
     font-size: 15px;
+    line-height: 1;
+    transform: translateY(-1px);
 
     img {
       width: 14px;

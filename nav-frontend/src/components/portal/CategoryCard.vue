@@ -26,7 +26,7 @@ function anchorId(id: string | number) {
 <template>
   <article :id="anchorId(category.id)" class="category-card">
     <h2 class="category-card__title">
-      <span aria-hidden="true">
+      <span class="category-card__icon" aria-hidden="true">
         <img
           v-if="iconUrl"
           :src="iconUrl"
