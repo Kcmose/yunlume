@@ -7,7 +7,7 @@ readonly OPS_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 readonly PROJECT_DIR="$(cd -- "${OPS_DIR}/.." && pwd -P)"
 readonly COMPOSE_PROJECT_NAME="yunlume"
 readonly ENV_FILE="${ENV_FILE:-${PROJECT_DIR}/.env}"
-readonly OPERATIONS_LOCK="${OPERATIONS_LOCK:-/run/lock/yunlume-operations.lock}"
+readonly OPERATIONS_LOCK="/run/lock/yunlume-operations.lock"
 
 die() {
   printf 'ERROR: %s\n' "$*" >&2
@@ -58,9 +58,15 @@ load_environment() {
 
 acquire_operations_lock() {
   require_command flock
-  install -d -m 0755 "$(dirname -- "${OPERATIONS_LOCK}")"
+  local lock_dir
+  lock_dir="$(dirname -- "${OPERATIONS_LOCK}")"
+  [[ ! -L "${lock_dir}" ]] || die "操作锁目录不能是符号链接"
+  install -d -m 0755 "${lock_dir}"
+  [[ "$(stat -c '%u' "${lock_dir}")" == "0" ]] || die "操作锁目录必须属于 root"
+  [[ ! -L "${OPERATIONS_LOCK}" ]] || die "操作锁文件不能是符号链接"
+  [[ ! -e "${OPERATIONS_LOCK}" || -f "${OPERATIONS_LOCK}" ]] || die "操作锁文件必须是普通文件"
   exec 9>"${OPERATIONS_LOCK}"
-  flock -n 9 || die "已有发布操作正在运行"
+  flock -n 9 || die "已有 yunlume 操作正在运行"
 }
 
 compose() {

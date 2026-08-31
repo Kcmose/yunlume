@@ -7,8 +7,7 @@ readonly PRODUCT_NAME="yunlume"
 readonly DEFAULT_INSTALL_DIR="/opt/yunlume"
 readonly DEFAULT_PORT="8080"
 readonly DEFAULT_RELEASE_BASE_URL="__YUNLUME_RELEASE_BASE_URL__"
-readonly INSTALL_LOCK_DIR="/run/lock/yunlume"
-readonly INSTALL_LOCK="${INSTALL_LOCK_DIR}/install.lock"
+readonly OPERATIONS_LOCK="/run/lock/yunlume-operations.lock"
 
 MODE="docker"
 VERSION=""
@@ -317,13 +316,16 @@ validate_install_directory_boundary() {
   done
 }
 
-acquire_lock() {
-  [[ ! -L "${INSTALL_LOCK_DIR}" ]] || die "安装锁目录不能是符号链接"
-  install -d -m 0755 "${INSTALL_LOCK_DIR}"
-  [[ "$(stat -c '%u' "${INSTALL_LOCK_DIR}")" == "0" ]] || die "安装锁目录必须属于 root"
-  [[ ! -L "${INSTALL_LOCK}" ]] || die "安装锁文件不能是符号链接"
-  exec 9>"${INSTALL_LOCK}"
-  flock -n 9 || die "已有 yunlume 安装或升级任务正在运行"
+acquire_operations_lock() {
+  local lock_dir
+  lock_dir="$(dirname -- "${OPERATIONS_LOCK}")"
+  [[ ! -L "${lock_dir}" ]] || die "操作锁目录不能是符号链接"
+  install -d -m 0755 "${lock_dir}"
+  [[ "$(stat -c '%u' "${lock_dir}")" == "0" ]] || die "操作锁目录必须属于 root"
+  [[ ! -L "${OPERATIONS_LOCK}" ]] || die "操作锁文件不能是符号链接"
+  [[ ! -e "${OPERATIONS_LOCK}" || -f "${OPERATIONS_LOCK}" ]] || die "操作锁文件必须是普通文件"
+  exec 9>"${OPERATIONS_LOCK}"
+  flock -n 9 || die "已有 yunlume 操作正在运行"
 }
 
 download_file() {
@@ -1145,7 +1147,7 @@ main() {
   require_command readlink
   validate_install_directory_boundary
   WORK_DIR="$(mktemp -d -t yunlume-install.XXXXXXXX)"
-  acquire_lock
+  acquire_operations_lock
   load_manifest
   info "准备安装 yunlume ${VERSION}（${MODE} 模式）..."
   if [[ "${MODE}" == "docker" ]]; then

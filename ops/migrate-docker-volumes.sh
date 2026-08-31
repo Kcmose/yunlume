@@ -5,8 +5,7 @@ umask 077
 
 readonly DEFAULT_UPLOADS_DESTINATION="yunlume_uploads_data"
 readonly DEFAULT_CONFIG_DESTINATION="yunlume_database_config"
-readonly LOCK_DIR="/run/lock/yunlume"
-readonly LOCK_FILE="${LOCK_DIR}/volume-migration.lock"
+readonly OPERATIONS_LOCK="/run/lock/yunlume-operations.lock"
 
 SOURCE_UPLOADS=""
 SOURCE_CONFIG=""
@@ -163,13 +162,16 @@ validate_args() {
     die "helper 镜像引用无效"
 }
 
-acquire_lock() {
-  [[ ! -L "${LOCK_DIR}" ]] || die "迁移锁目录不能是符号链接"
-  install -d -m 0755 "${LOCK_DIR}"
-  [[ "$(stat -c '%u' "${LOCK_DIR}")" == "0" ]] || die "迁移锁目录必须属于 root"
-  [[ ! -L "${LOCK_FILE}" ]] || die "迁移锁文件不能是符号链接"
-  exec 9>"${LOCK_FILE}"
-  flock -n 9 || die "已有 yunlume 数据卷迁移正在运行"
+acquire_operations_lock() {
+  local lock_dir
+  lock_dir="$(dirname -- "${OPERATIONS_LOCK}")"
+  [[ ! -L "${lock_dir}" ]] || die "操作锁目录不能是符号链接"
+  install -d -m 0755 "${lock_dir}"
+  [[ "$(stat -c '%u' "${lock_dir}")" == "0" ]] || die "操作锁目录必须属于 root"
+  [[ ! -L "${OPERATIONS_LOCK}" ]] || die "操作锁文件不能是符号链接"
+  [[ ! -e "${OPERATIONS_LOCK}" || -f "${OPERATIONS_LOCK}" ]] || die "操作锁文件必须是普通文件"
+  exec 9>"${OPERATIONS_LOCK}"
+  flock -n 9 || die "已有 yunlume 操作正在运行"
 }
 
 assert_source_ready() {
@@ -284,6 +286,7 @@ main() {
   require_command chmod
   require_command mv
   require_command rm
+  acquire_operations_lock
   docker info >/dev/null 2>&1 || die "Docker daemon 不可用"
   HELPER_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "${HELPER_IMAGE}" 2>/dev/null)" ||
     die "本机不存在 helper 镜像，脚本不会自动拉取: ${HELPER_IMAGE}"
@@ -297,8 +300,6 @@ main() {
       done
     ' || die "helper 镜像缺少迁移所需的 Shell 工具"
   RUN_ID="$(date -u +'%Y%m%dT%H%M%SZ')-$$"
-  acquire_lock
-
   assert_source_ready "${SOURCE_UPLOADS}"
   assert_source_ready "${SOURCE_CONFIG}"
   assert_destination_absent "${DESTINATION_UPLOADS}"
