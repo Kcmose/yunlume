@@ -60,7 +60,9 @@
   min-height: 132px;
   padding: 28px 15px 15px;
   background: var(--portal-card-surface);
-  border: 1px solid var(--portal-glass-border);
+  border: 0;
+  border-right: 1px solid var(--portal-glass-border);
+  border-bottom: 1px solid var(--portal-glass-border);
   border-radius: 17px;
   box-shadow: var(--portal-glass-shadow);
   -webkit-backdrop-filter: var(--portal-glass-filter);

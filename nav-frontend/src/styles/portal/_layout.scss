@@ -23,6 +23,7 @@
   --portal-glass-filter-strong: var(--portal-glass-filter);
   --portal-glass-filter-soft: var(--portal-glass-filter);
   --portal-glass-shadow: none;
+  --portal-glass-shadow-strong: var(--portal-glass-shadow);
   position: relative;
   isolation: isolate;
   display: flex;
@@ -60,17 +61,18 @@
     --portal-surface: color-mix(in srgb, var(--portal-background) 48%, transparent);
     --portal-surface-strong: color-mix(in srgb, var(--portal-background) 56%, transparent);
     --portal-surface-hover: color-mix(in srgb, var(--portal-background) 62%, transparent);
-    --portal-search-surface: color-mix(in srgb, var(--portal-background) 56%, transparent);
+    --portal-search-surface: rgba(255, 255, 255, .25);
     --portal-icon-surface: color-mix(in srgb, var(--portal-background) 38%, transparent);
-    --portal-card-surface: color-mix(in srgb, var(--portal-background) 48%, transparent);
-    --portal-card-title-surface: color-mix(in srgb, var(--portal-background) 56%, transparent);
+    --portal-card-surface: transparent;
+    --portal-card-title-surface: transparent;
     --portal-card-title-border: var(--portal-glass-border);
     --portal-bookmark-hover: color-mix(in srgb, var(--portal-background) 32%, transparent);
-    --portal-glass-border: color-mix(in srgb, var(--portal-foreground) 24%, transparent);
-    --portal-glass-filter: blur(16px) saturate(135%);
-    --portal-glass-filter-strong: blur(18px) saturate(140%);
-    --portal-glass-filter-soft: blur(12px) saturate(125%);
-    --portal-glass-shadow: 0 10px 30px rgba(15, 48, 72, .12), inset 0 1px 0 rgba(255, 255, 255, .42);
+    --portal-glass-border: rgba(255, 255, 255, .4);
+    --portal-glass-filter: blur(1.5px);
+    --portal-glass-filter-strong: blur(10px) saturate(150%);
+    --portal-glass-filter-soft: blur(10px);
+    --portal-glass-shadow: -1px -1px 5px rgba(0, 0, 0, .3);
+    --portal-glass-shadow-strong: 0 0 10px rgba(0, 0, 0, .2);
   }
 }
 
@@ -191,7 +193,7 @@
   background: var(--portal-search-surface);
   border: 1px solid var(--portal-glass-border);
   border-radius: 999px;
-  box-shadow: var(--portal-glass-shadow);
+  box-shadow: var(--portal-glass-shadow-strong);
   -webkit-backdrop-filter: var(--portal-glass-filter-strong);
   backdrop-filter: var(--portal-glass-filter-strong);
   transition: background .18s ease, border-color .18s ease, box-shadow .18s ease;
@@ -487,13 +489,13 @@
     --portal-surface: color-mix(in srgb, var(--portal-background) 58%, transparent);
     --portal-surface-strong: color-mix(in srgb, var(--portal-background) 66%, transparent);
     --portal-surface-hover: color-mix(in srgb, var(--portal-background) 72%, transparent);
-    --portal-search-surface: color-mix(in srgb, var(--portal-background) 66%, transparent);
+    --portal-search-surface: rgba(255, 255, 255, .25);
     --portal-icon-surface: color-mix(in srgb, var(--portal-background) 50%, transparent);
-    --portal-card-surface: color-mix(in srgb, var(--portal-background) 58%, transparent);
-    --portal-card-title-surface: color-mix(in srgb, var(--portal-background) 66%, transparent);
-    --portal-glass-filter: blur(10px) saturate(115%);
-    --portal-glass-filter-strong: blur(12px) saturate(120%);
-    --portal-glass-filter-soft: blur(8px) saturate(110%);
+    --portal-card-surface: transparent;
+    --portal-card-title-surface: transparent;
+    --portal-glass-filter: blur(1.5px);
+    --portal-glass-filter-strong: blur(10px) saturate(150%);
+    --portal-glass-filter-soft: blur(10px);
   }
 
   .portal-page::before {
