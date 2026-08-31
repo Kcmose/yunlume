@@ -2,7 +2,7 @@
 
 yunlume 是一个前后端分离的自托管导航站。前台提供搜索、分类和书签入口，后台用于维护当前主题实际使用的站点信息、背景、分类、书签与搜索引擎。
 
-当前正式验收基线为 `v1.0.7`。GitHub Release、Docker/宿主机安装升级、`latest` 升级语义、兼容代际记录和跨代际保护均已通过正式资产验收；证据与边界见 [`ACCEPTANCE.md`](ACCEPTANCE.md)。
+当前正式验收基线为 `v1.0.8`。GitHub Release、Docker/宿主机安装升级、`latest` 升级语义、同代际降级、兼容代际记录和跨代际保护均已通过正式资产验收；证据与边界见 [`ACCEPTANCE.md`](ACCEPTANCE.md)。
 
 ## 项目结构
 
