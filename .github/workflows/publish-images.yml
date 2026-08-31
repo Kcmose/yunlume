@@ -64,13 +64,21 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Install AWK compatibility targets
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes mawk gawk
+
       - name: Verify installer scripts
         shell: bash
         run: |
           set -euo pipefail
           bash -n install.sh ops/*.sh ops/lib/*.sh
           ops/install-release-url-test.sh
-          ops/install-runtime-config-test.sh
+          for awk_bin in mawk gawk; do
+            printf 'Testing installer with %s...\n' "${awk_bin}"
+            AWK_BIN="${awk_bin}" ops/install-runtime-config-test.sh
+          done
 
   frontend-test:
     name: Frontend tests and production build

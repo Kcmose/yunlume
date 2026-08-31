@@ -6,6 +6,13 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly SCRIPT_DIR
 PROJECT_DIR="$(cd -- "${SCRIPT_DIR}/.." && pwd -P)"
 readonly PROJECT_DIR
+AWK_BIN="${AWK_BIN:-awk}"
+readonly AWK_BIN
+AWK_PATH="$(command -v -- "${AWK_BIN}")" || {
+  printf 'Requested awk implementation is unavailable: %s\n' "${AWK_BIN}" >&2
+  exit 1
+}
+readonly AWK_PATH
 TEST_WORK_DIR="$(mktemp -d -t yunlume-install-runtime-config-test.XXXXXXXX)"
 readonly TEST_WORK_DIR
 trap 'rm -rf -- "${TEST_WORK_DIR}"' EXIT
@@ -26,6 +33,7 @@ source "${TEST_WORK_DIR}/install-lib.sh"
 trap 'rm -rf -- "${TEST_WORK_DIR}"' EXIT
 
 mkdir -p "${TEST_WORK_DIR}/bin"
+ln -s -- "${AWK_PATH}" "${TEST_WORK_DIR}/bin/awk"
 cat >"${TEST_WORK_DIR}/bin/ip" <<'SH'
 #!/usr/bin/env bash
 case "${1:-}" in
@@ -41,13 +49,14 @@ case "${1:-}" in
 esac
 SH
 chmod 0755 "${TEST_WORK_DIR}/bin/ip"
+export PATH="${TEST_WORK_DIR}/bin:${PATH}"
 
 is_global_ip_address() {
   [[ "${1:-}" == "198.51.100.42" ]]
 }
 
 set +e
-detected_host="$(PATH="${TEST_WORK_DIR}/bin:${PATH}" detect_public_access_host \
+detected_host="$(detect_public_access_host \
   2>"${TEST_WORK_DIR}/detect-public-host.stderr")"
 detect_status=$?
 set -e
@@ -96,5 +105,5 @@ for name in sys.argv[1:]:
         )
 PY
 
-printf 'Public address detection is portable across awk implementations.\n'
+printf 'Public address detection works with %s.\n' "${AWK_BIN}"
 printf 'Installer and reverse proxies preserve same-origin backend CORS behavior.\n'
