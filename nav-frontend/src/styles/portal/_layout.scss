@@ -74,6 +74,11 @@
   }
 }
 
+.portal-initial-loading {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
 .portal-topbar {
   position: relative;
   display: grid;

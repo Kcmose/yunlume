@@ -60,6 +60,7 @@ const activeEngineId = ref<SearchEngine['id']>(
 const searchEnginesLoading = ref(false)
 const searchEnginesUsingFallback = ref(false)
 const hasRemoteSearchEngines = ref(false)
+const initialPublicDataSettled = ref(false)
 const activeEngine = computed(() =>
   searchEngines.value.find((engine) => isSameSearchEngine(engine.id, activeEngineId.value))
   ?? searchEngines.value[0]
@@ -127,9 +128,11 @@ async function loadPublicData() {
     fetchNavigation(),
     fetchSearchEngines(),
   ])
+  initialPublicDataSettled.value = true
 }
 
 watchEffect(() => {
+  if (!initialPublicDataSettled.value) return
   const siteName = config.value.siteName.trim() || '导航站'
   const description = config.value.siteDescription.trim() || '常用网站导航'
   document.title = siteName
@@ -160,34 +163,39 @@ onBeforeUnmount(() => {
     :data-background-type="config.backgroundType"
     :style="themeStyle"
   >
-    <TopActionBar
-      :announcement-enabled="config.topContentEnabled"
-      :announcement="config.messageText"
-    />
-    <main>
-      <SiteHeader
-        :name="config.siteName"
-        :description="config.siteDescription"
+    <template v-if="initialPublicDataSettled">
+      <TopActionBar
+        :announcement-enabled="config.topContentEnabled"
+        :announcement="config.messageText"
       />
-      <SearchBar
-        v-model="keyword"
-        :result-count="bookmarkCount"
-        :engine="activeEngine"
-        :engines="searchEngines"
-        @select-engine="selectSearchEngine"
-        @submit="submitSearch"
-        @clear="clearSearch"
-      />
-      <CategoryGrid
-        :categories="filteredCategories"
-        :loading="publicDataLoading"
-        :using-fallback="publicDataUsingFallback"
-        :search-active="Boolean(keyword.trim())"
-        @retry="loadPublicData"
-      />
-    </main>
-    <footer class="portal-footer">
-      <p>© {{ year }} {{ config.siteName }}</p>
-    </footer>
+      <main>
+        <SiteHeader
+          :name="config.siteName"
+          :description="config.siteDescription"
+        />
+        <SearchBar
+          v-model="keyword"
+          :result-count="bookmarkCount"
+          :engine="activeEngine"
+          :engines="searchEngines"
+          @select-engine="selectSearchEngine"
+          @submit="submitSearch"
+          @clear="clearSearch"
+        />
+        <CategoryGrid
+          :categories="filteredCategories"
+          :loading="publicDataLoading"
+          :using-fallback="publicDataUsingFallback"
+          :search-active="Boolean(keyword.trim())"
+          @retry="loadPublicData"
+        />
+      </main>
+      <footer class="portal-footer">
+        <p>© {{ year }} {{ config.siteName }}</p>
+      </footer>
+    </template>
+    <div v-else class="portal-initial-loading" role="status" aria-live="polite">
+      <span class="sr-only">正在加载导航内容</span>
+    </div>
   </div>
 </template>

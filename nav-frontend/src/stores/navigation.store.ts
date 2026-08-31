@@ -6,9 +6,9 @@ import { withPublicRequestRetry } from '@/utils/publicRequestRetry'
 
 export const useNavigationStore = defineStore('navigation', {
   state: () => ({
-    // Render a useful first screen immediately while the bounded public API
-    // retry continues in the background.
-    categories: fallbackNavigation as NavigationCategory[],
+    // Do not flash bundled demo bookmarks before the server response arrives.
+    // The fallback is populated only when the bounded initial request fails.
+    categories: [] as NavigationCategory[],
     loading: false,
     // Do not show a failure warning during the normal first synchronization;
     // the fallback becomes explicitly degraded only after all retries fail.

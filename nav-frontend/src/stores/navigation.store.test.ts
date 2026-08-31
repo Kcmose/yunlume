@@ -43,11 +43,11 @@ describe('navigation first-screen reliability', () => {
     setActivePinia(createPinia())
   })
 
-  it('exposes fallback categories before the first remote request settles', () => {
+  it('does not expose bundled demo categories before the first remote request settles', () => {
     const store = useNavigationStore()
 
     expect(store.usingFallback).toBe(false)
-    expect(store.visibleCategories.length).toBeGreaterThan(0)
+    expect(store.visibleCategories).toEqual([])
   })
 
   it('replaces the fallback after a successful request', async () => {
@@ -59,7 +59,7 @@ describe('navigation first-screen reliability', () => {
 
     const request = store.fetchNavigation()
     expect(store.loading).toBe(true)
-    expect(store.visibleCategories.length).toBeGreaterThan(0)
+    expect(store.visibleCategories).toEqual([])
 
     resolveNavigation(remoteNavigation)
     await request
