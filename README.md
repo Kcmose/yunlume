@@ -297,7 +297,7 @@ PostgreSQL 和 Redis 都接管并重启验证后，向导才执行数据库结�
 | `JWT_SECRET` | JWT 签名密钥 | 至少 32 字节随机值 |
 | `JWT_EXPIRATION_MINUTES` | 登录令牌有效期（分钟，允许 5–10080） | `120` |
 | `OPENAPI_ENABLED` | 生产环境是否开放 Swagger/OpenAPI | `false` |
-| `CORS_ALLOWED_ORIGINS` | 允许跨域的来源列表 | 按实际域名修改 |
+| `CORS_ALLOWED_ORIGINS` | 允许真正跨域的前端来源；安装器会按 `APP_PORT` 配置本机来源，同源访问由反向代理保留完整 Host（含端口） | 跨域部署时按实际域名补充 |
 | `NAV_BOOTSTRAP_ENABLED` | 是否使用环境变量自动创建首位管理员 | `false` |
 | `NAV_DEMO_DATA_ENABLED` | 是否由后端补写演示业务数据；生产应关闭 | `false` |
 | `NAV_WEB_INSTALL_ENABLED` | 是否允许未初始化的新库使用网页安装向导 | `true` |

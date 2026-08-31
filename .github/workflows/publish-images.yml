@@ -70,6 +70,7 @@ jobs:
           set -euo pipefail
           bash -n install.sh ops/*.sh ops/lib/*.sh
           ops/install-release-url-test.sh
+          ops/install-runtime-config-test.sh
 
   frontend-test:
     name: Frontend tests and production build

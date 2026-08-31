@@ -127,7 +127,7 @@ http {
 
             proxy_pass http://nav_backend;
             proxy_http_version 1.1;
-            proxy_set_header Host $host;
+            proxy_set_header Host $http_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $remote_addr;
             proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;
@@ -156,7 +156,7 @@ http {
 
         location = /api {
             proxy_pass http://nav_backend;
-            proxy_set_header Host $host;
+            proxy_set_header Host $http_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $remote_addr;
             proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;
@@ -170,7 +170,7 @@ http {
 
             proxy_pass http://nav_backend;
             proxy_http_version 1.1;
-            proxy_set_header Host $host;
+            proxy_set_header Host $http_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $remote_addr;
             proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;
@@ -192,7 +192,7 @@ http {
 
             proxy_pass http://nav_backend;
             proxy_http_version 1.1;
-            proxy_set_header Host $host;
+            proxy_set_header Host $http_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $remote_addr;
             proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;
@@ -217,7 +217,7 @@ http {
 
             proxy_pass http://nav_backend;
             proxy_http_version 1.1;
-            proxy_set_header Host $host;
+            proxy_set_header Host $http_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $remote_addr;
             proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;
@@ -238,7 +238,7 @@ http {
 
             proxy_pass http://nav_backend;
             proxy_http_version 1.1;
-            proxy_set_header Host $host;
+            proxy_set_header Host $http_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $remote_addr;
             proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;
@@ -260,7 +260,7 @@ http {
 
             proxy_pass http://nav_backend;
             proxy_http_version 1.1;
-            proxy_set_header Host $host;
+            proxy_set_header Host $http_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $remote_addr;
             proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;
@@ -282,7 +282,7 @@ http {
 
             proxy_pass http://nav_backend;
             proxy_http_version 1.1;
-            proxy_set_header Host $host;
+            proxy_set_header Host $http_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $remote_addr;
             proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;
@@ -304,7 +304,7 @@ http {
 
             proxy_pass http://nav_backend;
             proxy_http_version 1.1;
-            proxy_set_header Host $host;
+            proxy_set_header Host $http_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $remote_addr;
             proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;
@@ -324,7 +324,7 @@ http {
 
             proxy_pass http://nav_backend;
             proxy_http_version 1.1;
-            proxy_set_header Host $host;
+            proxy_set_header Host $http_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $remote_addr;
             proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;
@@ -347,7 +347,7 @@ http {
 
             proxy_pass http://nav_backend;
             proxy_http_version 1.1;
-            proxy_set_header Host $host;
+            proxy_set_header Host $http_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $remote_addr;
             proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;
@@ -365,7 +365,7 @@ http {
             client_max_body_size 12m;
             proxy_pass http://nav_backend;
             proxy_http_version 1.1;
-            proxy_set_header Host $host;
+            proxy_set_header Host $http_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $remote_addr;
             proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;
@@ -378,7 +378,7 @@ http {
         location ~ ^/(swagger-ui|v3/api-docs|webjars)(/|$) {
             proxy_pass http://nav_backend;
             proxy_http_version 1.1;
-            proxy_set_header Host $host;
+            proxy_set_header Host $http_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $remote_addr;
             proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;
@@ -386,7 +386,7 @@ http {
 
         location = /doc.html {
             proxy_pass http://nav_backend;
-            proxy_set_header Host $host;
+            proxy_set_header Host $http_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $remote_addr;
             proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;
@@ -394,7 +394,7 @@ http {
 
         location = /swagger-ui.html {
             proxy_pass http://nav_backend;
-            proxy_set_header Host $host;
+            proxy_set_header Host $http_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $remote_addr;
             proxy_set_header X-Forwarded-Proto $backend_forwarded_proto;

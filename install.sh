@@ -134,7 +134,7 @@ detect_public_access_host() {
 
   address="$(
     ip -4 route get 1.1.1.1 2>/dev/null |
-      awk '{ for (index = 1; index <= NF; index++) if ($index == "src") { print $(index + 1); exit } }'
+      awk '{ for (field = 1; field <= NF; field++) if ($field == "src") { print $(field + 1); exit } }'
   )" || true
   if [[ -n "${address}" ]] && is_global_ip_address "${address}"; then
     printf '%s\n' "${address}"
@@ -143,7 +143,7 @@ detect_public_access_host() {
 
   address="$(
     ip -6 route get 2001:4860:4860::8888 2>/dev/null |
-      awk '{ for (index = 1; index <= NF; index++) if ($index == "src") { print $(index + 1); exit } }'
+      awk '{ for (field = 1; field <= NF; field++) if ($field == "src") { print $(field + 1); exit } }'
   )" || true
   if [[ -n "${address}" ]] && is_global_ip_address "${address}"; then
     printf '[%s]\n' "${address}"
@@ -501,6 +501,31 @@ upsert_env() {
   mv -f -- "${temporary}" "${file}"
 }
 
+configure_local_cors_origins() {
+  local env_file="$1"
+  local current_origins=""
+  local merged_origins="http://localhost:${APP_PORT},http://127.0.0.1:${APP_PORT}"
+  local origin
+  local -a existing_origins=()
+  if [[ -f "${env_file}" ]]; then
+    current_origins="$(
+      awk 'index($0, "CORS_ALLOWED_ORIGINS=") == 1 {
+        print substr($0, length("CORS_ALLOWED_ORIGINS=") + 1)
+        exit
+      }' "${env_file}"
+    )"
+  fi
+  IFS=, read -r -a existing_origins <<<"${current_origins}"
+  for origin in "${existing_origins[@]}"; do
+    case "${origin}" in
+      ""|http://localhost:*|http://127.0.0.1:*) continue ;;
+    esac
+    [[ ",${merged_origins}," == *",${origin},"* ]] ||
+      merged_origins+=",${origin}"
+  done
+  upsert_env "${env_file}" CORS_ALLOWED_ORIGINS "${merged_origins}"
+}
+
 write_docker_env() {
   local env_file="$1"
   local backend_image="$2"
@@ -524,6 +549,7 @@ NAV_DATABASE_SOURCE=UNCONFIGURED
 NAV_REDIS_SOURCE=UNCONFIGURED
 NAV_ALLOW_INSECURE_DATABASE_SETUP=true
 OPENAPI_ENABLED=false
+CORS_ALLOWED_ORIGINS=http://localhost:${APP_PORT},http://127.0.0.1:${APP_PORT}
 EOF
   chmod 0600 "${env_file}"
 }
@@ -696,6 +722,7 @@ install_docker() {
     upsert_env "${env_file}" FRONTEND_IMAGE "${frontend_image}"
     upsert_env "${env_file}" APP_PORT "${APP_PORT}"
     upsert_env "${env_file}" NAV_ALLOW_INSECURE_DATABASE_SETUP true
+    configure_local_cors_origins "${env_file}"
   fi
   install -m 0644 "${compose_download}" "${compose_file}.tmp"
   mv -f -- "${compose_file}.tmp" "${compose_file}"
@@ -1064,8 +1091,7 @@ install_host() {
   trap 'host_transaction_failed $?' ERR
   if [[ "${HOST_HAD_APP_ENV}" == "true" ]]; then
     upsert_env "${env_file}" NAV_ALLOW_INSECURE_DATABASE_SETUP true
-    upsert_env "${env_file}" CORS_ALLOWED_ORIGINS \
-      "http://localhost:${APP_PORT},http://127.0.0.1:${APP_PORT}"
+    configure_local_cors_origins "${env_file}"
   else
     jwt_secret="$(openssl rand -hex 32)"
     render_template "${staging_root}/deploy/app.env.template" "${env_file}.tmp" "${jwt_secret}"
