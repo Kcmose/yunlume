@@ -37,4 +37,8 @@ describe('portal reference glass effect', () => {
     expect(styles).toMatch(/@media \(max-width:\s*\$portal-mobile\)\s*\{[\s\S]*?\.portal-search-shell\s*\{[\s\S]*?width:\s*calc\(100% - 60px\);/)
     expect(styles).toMatch(/@media \(max-width:\s*\$portal-mobile\)\s*\{[\s\S]*?\.category-section,[\s\S]*?\.portal-footer\s*\{[\s\S]*?width:\s*calc\(100% - 28px\);/)
   })
+
+  it('doubles the mobile gap before the first category folder', () => {
+    expect(styles).toMatch(/@media \(max-width:\s*\$portal-mobile\)\s*\{[\s\S]*?\.category-section\s*\{[\s\S]*?padding:\s*84px 0 48px;/)
+  })
 })
