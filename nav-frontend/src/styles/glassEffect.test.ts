@@ -32,4 +32,9 @@ describe('portal reference glass effect', () => {
     expect(styles).toMatch(/\.portal-page\[data-background-type='image'\]\s*\{[\s\S]*?--portal-search-surface:\s*rgba\(255,\s*255,\s*255,\s*\.25\);/)
     expect(styles).toMatch(/\.portal-page\[data-background-type='image'\]\s*\{[\s\S]*?--portal-glass-filter:\s*blur\(1\.5px\);/)
   })
+
+  it('keeps the mobile search shorter than the category folders', () => {
+    expect(styles).toMatch(/@media \(max-width:\s*\$portal-mobile\)\s*\{[\s\S]*?\.portal-search-shell\s*\{[\s\S]*?width:\s*calc\(100% - 60px\);/)
+    expect(styles).toMatch(/@media \(max-width:\s*\$portal-mobile\)\s*\{[\s\S]*?\.category-section,[\s\S]*?\.portal-footer\s*\{[\s\S]*?width:\s*calc\(100% - 28px\);/)
+  })
 })
