@@ -21,6 +21,12 @@ describe('portal reference glass effect', () => {
     expect(styles).toMatch(/\.portal-search\s*\{[\s\S]*?box-shadow:\s*var\(--portal-glass-shadow-strong\);/)
   })
 
+  it('removes the search outline and deepens only its interactive shadow', () => {
+    expect(styles).toMatch(/\&\[data-background-type='image'\]\s*\{[\s\S]*?--portal-search-shadow-active:\s*0 4px 18px rgba\(0,\s*0,\s*0,\s*\.38\);/)
+    expect(styles).toMatch(/\.portal-search\s*\{[\s\S]*?border:\s*0;[\s\S]*?&:hover,\s*&:focus-within\s*\{[\s\S]*?box-shadow:\s*var\(--portal-search-shadow-active\);/)
+    expect(styles).not.toMatch(/&:focus-within\s*\{[^}]*border-color:/)
+  })
+
   it('keeps the same glass values on mobile image backgrounds', () => {
     expect(styles).toMatch(/\.portal-page\[data-background-type='image'\]\s*\{[\s\S]*?--portal-card-surface:\s*transparent;/)
     expect(styles).toMatch(/\.portal-page\[data-background-type='image'\]\s*\{[\s\S]*?--portal-search-surface:\s*rgba\(255,\s*255,\s*255,\s*\.25\);/)

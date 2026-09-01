@@ -24,6 +24,7 @@
   --portal-glass-filter-soft: var(--portal-glass-filter);
   --portal-glass-shadow: none;
   --portal-glass-shadow-strong: var(--portal-glass-shadow);
+  --portal-search-shadow-active: 0 4px 18px rgba(0, 0, 0, .28);
   position: relative;
   isolation: isolate;
   display: flex;
@@ -73,6 +74,7 @@
     --portal-glass-filter-soft: blur(10px);
     --portal-glass-shadow: -1px -1px 5px rgba(0, 0, 0, .3);
     --portal-glass-shadow-strong: 0 0 10px rgba(0, 0, 0, .2);
+    --portal-search-shadow-active: 0 4px 18px rgba(0, 0, 0, .38);
   }
 }
 
@@ -191,16 +193,16 @@
   align-items: center;
   color: var(--portal-text-strong);
   background: var(--portal-search-surface);
-  border: 1px solid var(--portal-glass-border);
+  border: 0;
   border-radius: 999px;
   box-shadow: var(--portal-glass-shadow-strong);
   -webkit-backdrop-filter: var(--portal-glass-filter-strong);
   backdrop-filter: var(--portal-glass-filter-strong);
-  transition: background .18s ease, border-color .18s ease, box-shadow .18s ease;
+  transition: background .18s ease, box-shadow .18s ease;
 
+  &:hover,
   &:focus-within {
-    border-color: color-mix(in srgb, var(--portal-foreground) 52%, transparent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--portal-foreground) 7%, transparent);
+    box-shadow: var(--portal-search-shadow-active);
   }
 
   input {
