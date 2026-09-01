@@ -11,4 +11,14 @@ describe('portal initial rendering', () => {
     expect(source).toContain('<template v-if="initialPublicDataSettled">')
     expect(source).toContain('class="portal-initial-loading"')
   })
+
+  it('snapshots the background height once instead of following keyboard resize events', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/views/portal/PortalHome.vue'), 'utf8')
+
+    expect(source).toContain("const backgroundViewportHeight = ref('100vh')")
+    expect(source).toContain('backgroundViewportHeight.value = `${window.innerHeight}px`')
+    expect(source).toContain("'--portal-background-viewport-height': backgroundViewportHeight.value")
+    expect(source).toContain(':style="portalStyle"')
+    expect(source).not.toContain("addEventListener('resize'")
+  })
 })

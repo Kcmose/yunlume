@@ -51,6 +51,11 @@ const {
   fetchNavigation,
 } = useBookmarks()
 const { themeStyle } = useTheme(config)
+const backgroundViewportHeight = ref('100vh')
+const portalStyle = computed(() => ({
+  ...themeStyle.value,
+  '--portal-background-viewport-height': backgroundViewportHeight.value,
+}))
 const searchEngines = ref<SearchEngine[]>(fallbackSearchEngines)
 const browserStorage = getBrowserStorage()
 const persistedEngineId = ref(readPersistedSearchEngineId(browserStorage))
@@ -140,7 +145,10 @@ watchEffect(() => {
   themeColorMeta?.setAttribute('content', config.value.backgroundColor || '#050505')
 })
 
-onMounted(() => void loadPublicData())
+onMounted(() => {
+  backgroundViewportHeight.value = `${window.innerHeight}px`
+  void loadPublicData()
+})
 onBeforeUnmount(() => {
   document.title = originalDocumentTitle
   if (descriptionMeta && originalDescription !== null) {
@@ -161,7 +169,7 @@ onBeforeUnmount(() => {
     id="top"
     class="portal-page"
     :data-background-type="config.backgroundType"
-    :style="themeStyle"
+    :style="portalStyle"
   >
     <template v-if="initialPublicDataSettled">
       <TopActionBar

@@ -43,7 +43,7 @@ describe('portal reference glass effect', () => {
   })
 
   it('keeps the fixed background canvas stable when the mobile keyboard opens', () => {
-    expect(styles).toMatch(/&::before\s*\{[\s\S]*?inset:\s*0 auto auto 0;[\s\S]*?width:\s*100%;[\s\S]*?height:\s*100vh;[\s\S]*?height:\s*100lvh;/)
+    expect(styles).toMatch(/&::before\s*\{[\s\S]*?inset:\s*0 auto auto 0;[\s\S]*?width:\s*100%;[\s\S]*?height:\s*var\(--portal-background-viewport-height,\s*100vh\);/)
     expect(styles).not.toMatch(/&::before\s*\{[^}]*inset:\s*0;/)
   })
 })
