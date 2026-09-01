@@ -14,4 +14,11 @@ describe('portal category title alignment', () => {
     expect(styles).toMatch(/\.category-card__icon\s*{[\s\S]*?line-height:\s*1;/)
     expect(styles).toMatch(/\.category-card__icon\s*{[\s\S]*?transform:\s*translateY\(-1px\);/)
   })
+
+  it('places the category label above the folder without overlap', () => {
+    const styles = readSource('src/styles/portal/_card.scss')
+
+    expect(styles).toMatch(/\.category-card__title\s*\{[\s\S]*?margin:\s*0 auto 8px;/)
+    expect(styles).not.toMatch(/\.category-card__title\s*\{[^}]*margin:[^;]*-\d+px;/)
+  })
 })
