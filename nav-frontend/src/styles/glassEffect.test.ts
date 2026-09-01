@@ -41,4 +41,9 @@ describe('portal reference glass effect', () => {
   it('doubles the mobile gap before the first category folder', () => {
     expect(styles).toMatch(/@media \(max-width:\s*\$portal-mobile\)\s*\{[\s\S]*?\.category-section\s*\{[\s\S]*?padding:\s*84px 0 48px;/)
   })
+
+  it('keeps the fixed background canvas stable when the mobile keyboard opens', () => {
+    expect(styles).toMatch(/&::before\s*\{[\s\S]*?inset:\s*0 auto auto 0;[\s\S]*?width:\s*100%;[\s\S]*?height:\s*100vh;[\s\S]*?height:\s*100lvh;/)
+    expect(styles).not.toMatch(/&::before\s*\{[^}]*inset:\s*0;/)
+  })
 })
