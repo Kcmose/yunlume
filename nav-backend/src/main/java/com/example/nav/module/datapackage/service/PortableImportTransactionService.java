@@ -90,77 +90,71 @@ public class PortableImportTransactionService {
         if (parsed == null || !parsed.valid()) {
             throw BusinessException.badRequest("只有通过预检的数据包才能导入");
         }
-        List<BackgroundImageStorageService.ImportedAsset> importedAssets = List.of();
-        try {
-            // Redis only gates scheduling. This row lock is the authoritative
-            // writer serialization point and is held until database completion.
-            commitStore.lockWriter();
-            SiteConfig site = requireSingleSiteForUpdate();
-            if (site.getVersion() == null || site.getVersion() < 0) {
-                throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE,
-                        "站点配置缓存版本超出 0..2147483647 范围");
-            }
-            int oldVersion = site.getVersion();
-            if (oldVersion == Integer.MAX_VALUE) {
-                throw BusinessException.conflict("站点配置版本已达到上限，无法安全导入");
-            }
-            PortableDataSnapshotService.Snapshot transactionSnapshot = snapshotService.capture();
-            if (expectedRevision == null || !expectedRevision.equals(transactionSnapshot.revision())) {
-                throw BusinessException.conflict("业务数据在预检后已变化，请重新预检");
-            }
-            if (beforeWriting != null) beforeWriting.run();
-            importedAssets = importReferencedAssets(parsed, extractionRoot);
-            registerRollbackAssetCleanup(importedAssets);
-            Map<String, String> assetUrls = new HashMap<>();
-            importedAssets.forEach(asset -> assetUrls.put(asset.key(), asset.url()));
-
-            applySite(site, parsed.data().siteConfig(), assetUrls, oldVersion + 1);
-            if (updateSiteForImport(site, oldVersion) != 1) {
-                throw BusinessException.conflict("站点配置在导入时发生变化，请重新预检");
-            }
-
-            // Delete children first so the replacement remains explicit and
-            // does not depend on PostgreSQL cascade behavior.
-            bookmarkMapper.delete(Wrappers.<Bookmark>lambdaQuery());
-            categoryMapper.delete(Wrappers.<Category>lambdaQuery());
-            searchEngineMapper.delete(Wrappers.<SearchEngine>lambdaQuery());
-            customLinkMapper.delete(Wrappers.<CustomLink>lambdaQuery());
-
-            LocalDateTime now = LocalDateTime.now();
-            Map<String, Long> categoryIds = insertCategories(parsed.data().categories(), now);
-            Map<String, Long> bookmarkIds = insertBookmarks(parsed.data().bookmarks(), categoryIds, now);
-            Map<String, Long> searchEngineIds = insertSearchEngines(parsed.data().searchEngines(), now);
-            Map<String, Long> customLinkIds = insertCustomLinks(parsed.data().customLinks(), now);
-            if (beforeVerifying != null) beforeVerifying.run();
-            verifyPersistedState(
-                    parsed.data(), assetUrls, oldVersion + 1,
-                    categoryIds, bookmarkIds, searchEngineIds, customLinkIds);
-            cacheInvalidator.invalidateRecorded(oldVersion + 1L,
-                    PublicDataCacheNames.SITE_CONFIG,
-                    PublicDataCacheNames.NAVIGATION,
-                    PublicDataCacheNames.SEARCH_ENGINES,
-                    PublicDataCacheNames.CUSTOM_LINKS);
-            // This marker commits atomically with every imported business row.
-            commitStore.recordCommitted(
-                    jobId, previewToken, userId, createdAt, startedAt, oldVersion + 1);
-            return new TransactionResult(List.copyOf(importedAssets), oldVersion + 1);
-        } catch (RuntimeException exception) {
-            imageStorageService.deleteImportedAssets(importedAssets);
-            throw exception;
+        List<BackgroundImageStorageService.ImportedAsset> importedAssets = new ArrayList<>();
+        registerRollbackAssetCleanup(importedAssets);
+        // Redis only gates scheduling. This row lock is the authoritative
+        // writer serialization point and is held until database completion.
+        commitStore.lockWriter();
+        SiteConfig site = requireSingleSiteForUpdate();
+        if (site.getVersion() == null || site.getVersion() < 0) {
+            throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "站点配置缓存版本超出 0..2147483647 范围");
         }
+        int oldVersion = site.getVersion();
+        if (oldVersion == Integer.MAX_VALUE) {
+            throw BusinessException.conflict("站点配置版本已达到上限，无法安全导入");
+        }
+        PortableDataSnapshotService.Snapshot transactionSnapshot = snapshotService.capture();
+        if (expectedRevision == null || !expectedRevision.equals(transactionSnapshot.revision())) {
+            throw BusinessException.conflict("业务数据在预检后已变化，请重新预检");
+        }
+        if (beforeWriting != null) beforeWriting.run();
+        importedAssets.addAll(importReferencedAssets(parsed, extractionRoot));
+        Map<String, String> assetUrls = new HashMap<>();
+        importedAssets.forEach(asset -> assetUrls.put(asset.key(), asset.url()));
+
+        applySite(site, parsed.data().siteConfig(), assetUrls, oldVersion + 1);
+        if (updateSiteForImport(site, oldVersion) != 1) {
+            throw BusinessException.conflict("站点配置在导入时发生变化，请重新预检");
+        }
+
+        // Delete children first so the replacement remains explicit and
+        // does not depend on PostgreSQL cascade behavior.
+        bookmarkMapper.delete(Wrappers.<Bookmark>lambdaQuery());
+        categoryMapper.delete(Wrappers.<Category>lambdaQuery());
+        searchEngineMapper.delete(Wrappers.<SearchEngine>lambdaQuery());
+        customLinkMapper.delete(Wrappers.<CustomLink>lambdaQuery());
+
+        LocalDateTime now = LocalDateTime.now();
+        Map<String, Long> categoryIds = insertCategories(parsed.data().categories(), now);
+        Map<String, Long> bookmarkIds = insertBookmarks(parsed.data().bookmarks(), categoryIds, now);
+        Map<String, Long> searchEngineIds = insertSearchEngines(parsed.data().searchEngines(), now);
+        Map<String, Long> customLinkIds = insertCustomLinks(parsed.data().customLinks(), now);
+        if (beforeVerifying != null) beforeVerifying.run();
+        verifyPersistedState(
+                parsed.data(), assetUrls, oldVersion + 1,
+                categoryIds, bookmarkIds, searchEngineIds, customLinkIds);
+        cacheInvalidator.invalidateRecorded(oldVersion + 1L,
+                PublicDataCacheNames.SITE_CONFIG,
+                PublicDataCacheNames.NAVIGATION,
+                PublicDataCacheNames.SEARCH_ENGINES,
+                PublicDataCacheNames.CUSTOM_LINKS);
+        // This marker commits atomically with every imported business row.
+        commitStore.recordCommitted(
+                jobId, previewToken, userId, createdAt, startedAt, oldVersion + 1);
+        return new TransactionResult(List.copyOf(importedAssets), oldVersion + 1);
     }
 
     private void registerRollbackAssetCleanup(
             List<BackgroundImageStorageService.ImportedAsset> importedAssets
     ) {
-        if (importedAssets.isEmpty()) return;
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             throw new IllegalStateException("导入事务同步未启用");
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCompletion(int status) {
-                if (status != TransactionSynchronization.STATUS_COMMITTED) {
+                if (status != TransactionSynchronization.STATUS_COMMITTED && !importedAssets.isEmpty()) {
                     imageStorageService.deleteImportedAssets(importedAssets);
                 }
             }

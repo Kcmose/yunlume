@@ -20,6 +20,7 @@ import com.example.nav.module.search.mapper.SearchEngineMapper;
 import com.example.nav.module.site.entity.SiteConfig;
 import com.example.nav.module.site.mapper.SiteConfigMapper;
 import com.example.nav.module.upload.config.UploadStorageProperties;
+import com.example.nav.module.upload.service.ManagedBackgroundReferences;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -39,12 +40,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 @Service
 public class PortableDataSnapshotService {
-
-    private static final Pattern MANAGED_FILENAME = Pattern.compile("^[a-f0-9]{32}\\.(?:jpg|png)$");
 
     private final SiteConfigMapper siteConfigMapper;
     private final CategoryMapper categoryMapper;
@@ -52,8 +50,7 @@ public class PortableDataSnapshotService {
     private final SearchEngineMapper searchEngineMapper;
     private final CustomLinkMapper customLinkMapper;
     private final ObjectMapper objectMapper;
-    private final Path uploadRoot;
-    private final String managedUrlPrefix;
+    private final ManagedBackgroundReferences backgroundReferences;
 
     public PortableDataSnapshotService(
             SiteConfigMapper siteConfigMapper,
@@ -70,14 +67,7 @@ public class PortableDataSnapshotService {
         this.searchEngineMapper = searchEngineMapper;
         this.customLinkMapper = customLinkMapper;
         this.objectMapper = objectMapper;
-        this.uploadRoot = Path.of(uploadProperties.getDirectory()).toAbsolutePath().normalize();
-        String base = uploadProperties.getBaseUrl() == null || uploadProperties.getBaseUrl().isBlank()
-                ? "/uploads"
-                : uploadProperties.getBaseUrl().trim();
-        while (base.length() > 1 && base.endsWith("/")) {
-            base = base.substring(0, base.length() - 1);
-        }
-        this.managedUrlPrefix = ("/".equals(base) ? "" : base) + "/backgrounds/";
+        this.backgroundReferences = new ManagedBackgroundReferences(uploadProperties);
     }
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
@@ -196,20 +186,15 @@ public class PortableDataSnapshotService {
     }
 
     private AssetReference resolveAsset(String url, Map<String, SnapshotAsset> assets) {
-        if (url == null || url.isBlank() || !url.startsWith(managedUrlPrefix)) {
+        if (!backgroundReferences.isManagedUrl(url)) {
             return new AssetReference(null);
         }
-        String filename = url.substring(managedUrlPrefix.length());
-        if (!MANAGED_FILENAME.matcher(filename).matches()) {
+        String filename = backgroundReferences.filename(url);
+        if (filename == null) {
             throw unavailable("站点配置引用了不符合受管规则的背景图片");
         }
-        Path configuredBackgroundDirectory = uploadRoot.resolve("backgrounds").normalize();
-        Path file = configuredBackgroundDirectory.resolve(filename).normalize();
-        if (!configuredBackgroundDirectory.equals(file.getParent()) || Files.isSymbolicLink(file)
-                || !Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
-            throw unavailable("站点配置引用的背景图片不存在或不是普通文件");
-        }
         try {
+            Path file = backgroundReferences.requireFile(filename);
             long bytes = Files.size(file);
             String sha256 = sha256(file);
             String extension = filename.endsWith(".png") ? "png" : "jpg";

@@ -27,6 +27,7 @@ const emptyForm = (): SearchEnginePayload => ({
 })
 
 const form = reactive<SearchEnginePayload>(emptyForm())
+let formVersion = 0
 
 const rules: FormRules<SearchEnginePayload> = {
   name: [
@@ -66,8 +67,9 @@ const rules: FormRules<SearchEnginePayload> = {
 }
 
 watch(
-  () => props.modelValue,
-  (visible) => {
+  () => [props.modelValue, props.engine] as const,
+  ([visible]) => {
+    formVersion += 1
     if (!visible) return
     Object.assign(
       form,
@@ -84,10 +86,14 @@ watch(
     )
     void nextTick(() => formRef.value?.clearValidate())
   },
+  { flush: 'sync' },
 )
 
 async function submit() {
+  if (props.submitting || !props.modelValue) return
+  const version = formVersion
   if (!(await formRef.value?.validate().catch(() => false))) return
+  if (version !== formVersion || props.submitting || !props.modelValue) return
   const icon = form.icon.trim()
   emit('submit', {
     ...form,

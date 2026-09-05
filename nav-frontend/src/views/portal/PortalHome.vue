@@ -66,6 +66,9 @@ const activeEngineId = ref<SearchEngine['id']>(
 const searchEnginesLoading = ref(false)
 const searchEnginesUsingFallback = ref(false)
 const hasRemoteSearchEngines = ref(false)
+let disposed = false
+let searchRequestVersion = 0
+let searchSelectionVersion = 0
 const activeEngine = computed(() =>
   searchEngines.value.find((engine) => isSameSearchEngine(engine.id, activeEngineId.value))
   ?? searchEngines.value[0]
@@ -90,9 +93,13 @@ const originalDescription = descriptionMeta?.getAttribute('content') ?? null
 const originalThemeColor = themeColorMeta?.getAttribute('content') ?? null
 
 async function fetchSearchEngines() {
+  const requestVersion = ++searchRequestVersion
+  const selectionVersion = searchSelectionVersion
+  const isCurrentRequest = () => !disposed && requestVersion === searchRequestVersion
   searchEnginesLoading.value = true
   try {
     const engines = await withPublicRequestRetry(getPublicSearchEngines)
+    if (!isCurrentRequest()) return
     if (!engines.length) {
       searchEnginesUsingFallback.value = !hasRemoteSearchEngines.value
       return
@@ -105,22 +112,27 @@ async function fetchSearchEngines() {
     searchEngines.value = engines
     if (nextEngineId !== null) {
       activeEngineId.value = nextEngineId
-      persistedEngineId.value = String(nextEngineId)
-      persistSearchEngineId(browserStorage, nextEngineId)
+      // 请求期间产生的用户选择优先，自动回退不能改写这次选择的持久偏好。
+      if (selectionVersion === searchSelectionVersion) {
+        persistedEngineId.value = String(nextEngineId)
+        persistSearchEngineId(browserStorage, nextEngineId)
+      }
     }
     hasRemoteSearchEngines.value = true
     searchEnginesUsingFallback.value = false
   } catch {
+    if (!isCurrentRequest()) return
     // Preserve the last successful result. On first load the ref contains a
     // safe fallback, but make that degraded state visible to the visitor.
     searchEnginesUsingFallback.value = !hasRemoteSearchEngines.value
   } finally {
-    searchEnginesLoading.value = false
+    if (isCurrentRequest()) searchEnginesLoading.value = false
   }
 }
 
 function selectSearchEngine(engineId: SearchEngine['id']) {
   if (searchEngines.value.some((engine) => isSameSearchEngine(engine.id, engineId))) {
+    searchSelectionVersion += 1
     activeEngineId.value = engineId
     persistedEngineId.value = String(engineId)
     persistSearchEngineId(browserStorage, engineId)
@@ -155,6 +167,8 @@ onMounted(() => {
   void loadPublicData()
 })
 onBeforeUnmount(() => {
+  disposed = true
+  searchRequestVersion += 1
   window.removeEventListener('resize', syncBackgroundViewportHeight)
   document.title = originalDocumentTitle
   if (descriptionMeta && originalDescription !== null) {

@@ -49,6 +49,7 @@ const sortVisible = ref(false)
 const savingSort = ref(false)
 const visibilityUpdatingIds = ref(new Set<string>())
 let restoringTableSelection = false
+let dialogGeneration = 0
 
 function visibilityUpdating(row: Bookmark) {
   return visibilityUpdatingIds.value.has(entityKey(row.id))
@@ -121,22 +122,28 @@ function openCreate() {
     ElMessage.warning('请先创建一个分类')
     return
   }
+  dialogGeneration += 1
   editing.value = null
   dialogVisible.value = true
 }
 
 function openEdit(row: Bookmark) {
+  dialogGeneration += 1
   editing.value = row
   dialogVisible.value = true
 }
 
 async function save(payload: BookmarkPayload) {
+  if (submitting.value || !dialogVisible.value) return
+  const generation = dialogGeneration
+  const target = editing.value
   submitting.value = true
   try {
-    if (editing.value) await updateBookmark(editing.value.id, payload)
+    if (target) await updateBookmark(target.id, payload)
     else await createBookmark(payload)
-    ElMessage.success(editing.value ? '书签已更新' : '书签已创建')
-    dialogVisible.value = false
+    ElMessage.success(target ? '书签已更新' : '书签已创建')
+    // 关闭仅属于本次保存的弹窗，取消后重新打开的草稿由新代数持有。
+    if (generation === dialogGeneration) dialogVisible.value = false
     await load()
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '保存失败')

@@ -106,4 +106,14 @@ public class PortableDataPackageController {
     public Result<JobResponse> currentJob(Authentication authentication) {
         return Result.success(dataPackageService.currentJob(authentication));
     }
+
+    @GetMapping("/import/previews/{previewToken}/job")
+    @Operation(summary = "按已确认的预检令牌恢复导入结果（只读）")
+    public ResponseEntity<Result<JobResponse>> jobByPreviewToken(
+            @PathVariable String previewToken,
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(Result.success(dataPackageService.queryByPreviewToken(previewToken, authentication)));
+    }
 }

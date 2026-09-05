@@ -68,8 +68,10 @@ class PortableDataPackagePostCommitTruthTest {
 
         service.confirm(preview, auth);
 
-        try (var entries = Files.list(previews)) {
-            assertEquals(0L, entries.count());
+        try (var entries = Files.walk(previews)) {
+            assertEquals(0L, entries.filter(path -> path.getFileName().toString().equals("package.zip")
+                    || path.getFileName().toString().equals("preview.json")
+                    || path.getFileName().toString().startsWith("work-")).count());
         }
     }
 

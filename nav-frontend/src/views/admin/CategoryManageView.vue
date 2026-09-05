@@ -27,6 +27,7 @@ const keyword = ref('')
 const sortVisible = ref(false)
 const savingSort = ref(false)
 const visibilityUpdatingIds = ref(new Set<string>())
+let dialogGeneration = 0
 
 function visibilityUpdating(row: Category) {
   return visibilityUpdatingIds.value.has(String(row.id))
@@ -56,22 +57,28 @@ async function load() {
 }
 
 function openCreate() {
+  dialogGeneration += 1
   editing.value = null
   dialogVisible.value = true
 }
 
 function openEdit(row: Category) {
+  dialogGeneration += 1
   editing.value = row
   dialogVisible.value = true
 }
 
 async function save(payload: CategoryPayload) {
+  if (submitting.value || !dialogVisible.value) return
+  const generation = dialogGeneration
+  const target = editing.value
   submitting.value = true
   try {
-    if (editing.value) await updateCategory(editing.value.id, payload)
+    if (target) await updateCategory(target.id, payload)
     else await createCategory(payload)
-    ElMessage.success(editing.value ? '分类已更新' : '分类已创建')
-    dialogVisible.value = false
+    ElMessage.success(target ? '分类已更新' : '分类已创建')
+    // 关闭仅属于本次保存的弹窗，取消后重新打开的草稿由新代数持有。
+    if (generation === dialogGeneration) dialogVisible.value = false
     await load()
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '保存失败')

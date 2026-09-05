@@ -52,8 +52,13 @@ const imageValidationError = computed(() => (
     : ''
 ))
 const rules: FormRules<SiteConfig> = {
-  siteName: [{ required: true, message: '请输入站点名称', trigger: 'blur' }],
-  siteDescription: [{ required: true, message: '请输入站点简介', trigger: 'blur' }],
+  siteName: [
+    { required: true, whitespace: true, message: '请输入站点名称', trigger: 'blur' },
+    { max: 50, message: '站点名称不能超过 50 个字符', trigger: ['blur', 'change'] },
+  ],
+  siteDescription: [
+    { max: 255, message: '站点简介不能超过 255 个字符', trigger: ['blur', 'change'] },
+  ],
 }
 
 async function load() {
@@ -243,8 +248,8 @@ onBeforeUnmount(() => {
           <div><h2>基础信息</h2><p>访客第一眼看到的站点身份与介绍</p></div>
         </header>
         <div class="settings-section__body">
-          <el-form-item label="站点名称" prop="siteName"><el-input v-model="form.siteName" maxlength="30" show-word-limit /></el-form-item>
-          <el-form-item label="站点简介" prop="siteDescription"><el-input v-model="form.siteDescription" maxlength="120" show-word-limit /></el-form-item>
+          <el-form-item label="站点名称" prop="siteName"><el-input v-model="form.siteName" maxlength="50" show-word-limit /></el-form-item>
+          <el-form-item label="站点简介（可选）" prop="siteDescription"><el-input v-model="form.siteDescription" maxlength="255" show-word-limit /></el-form-item>
           <el-form-item label="顶部公告"><el-input v-model="form.messageText" maxlength="100" show-word-limit /></el-form-item>
         </div>
       </section>

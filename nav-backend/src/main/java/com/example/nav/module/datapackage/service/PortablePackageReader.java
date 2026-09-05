@@ -22,6 +22,8 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -40,7 +42,6 @@ public class PortablePackageReader {
 
     private static final Pattern SAFE_ASSET_PATH = Pattern.compile("^assets/[A-Za-z0-9][A-Za-z0-9._-]{0,180}\\.(?:jpg|png)$");
     private static final Pattern SHA256 = Pattern.compile("^[a-f0-9]{64}$");
-    private static final int MAX_JSON_BYTES = 4 * 1024 * 1024;
     private static final Set<String> REQUIRED_ROOT_FILES = Set.of("manifest.json", "data.json");
 
     private final ObjectMapper objectMapper;
@@ -65,9 +66,9 @@ public class PortablePackageReader {
             Path realRoot = extractionRoot.toRealPath();
             ExtractedArchive extracted = extract(archive, realRoot);
             Manifest manifest = readJson(
-                    extracted.entries().get("manifest.json"), Manifest.class, MAX_JSON_BYTES, "manifest.json");
+                    extracted.entries().get("manifest.json"), Manifest.class, PortablePackageModels.MAX_JSON_BYTES, "manifest.json");
             PortableData data = readJson(
-                    extracted.entries().get("data.json"), PortableData.class, MAX_JSON_BYTES, "data.json");
+                    extracted.entries().get("data.json"), PortableData.class, PortablePackageModels.MAX_JSON_BYTES, "data.json");
 
             List<Issue> errors = new ArrayList<>();
             List<Issue> warnings = new ArrayList<>();
@@ -99,72 +100,87 @@ public class PortablePackageReader {
      * smuggled into the otherwise path-confined extractor.
      */
     private void inspectCentralDirectory(Path archive) throws IOException {
-        byte[] bytes = Files.readAllBytes(archive);
-        int eocd = findEndOfCentralDirectory(bytes);
-        if (eocd < 0) {
-            throw badArchive("ZIP 中央目录无效");
-        }
-        int disk = unsignedShort(bytes, eocd + 4);
-        int centralDisk = unsignedShort(bytes, eocd + 6);
-        int entriesOnDisk = unsignedShort(bytes, eocd + 8);
-        int entryCount = unsignedShort(bytes, eocd + 10);
-        long centralSize = unsignedInt(bytes, eocd + 12);
-        long centralOffset = unsignedInt(bytes, eocd + 16);
-        if (disk != 0 || centralDisk != 0 || entriesOnDisk != entryCount) {
-            throw badArchive("不支持分卷 ZIP 数据包");
-        }
-        if (entryCount == 0xffff || centralSize == 0xffff_ffffL || centralOffset == 0xffff_ffffL) {
-            throw badArchive("不支持 ZIP64 数据包");
-        }
-        if (entryCount > PortablePackageModels.MAX_ENTRIES) {
-            throw badArchive("ZIP 文件条目不能超过 100 个");
-        }
-        long centralEnd = centralOffset + centralSize;
-        if (centralOffset < 0 || centralEnd < centralOffset || centralEnd > eocd) {
-            throw badArchive("ZIP 中央目录范围无效");
-        }
+        try (FileChannel channel = FileChannel.open(archive, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
+            // EOCD 最多占64KiB；中央目录按固定头和文件名读取，避免每次解析额外复制整个64MiB归档。
+            long tailOffset = Math.max(0, channel.size() - 22 - 0xffff);
+            byte[] bytes = readAt(channel, tailOffset, Math.toIntExact(channel.size() - tailOffset));
+            int eocd = findEndOfCentralDirectory(bytes);
+            if (eocd < 0) {
+                throw badArchive("ZIP 中央目录无效");
+            }
+            int disk = unsignedShort(bytes, eocd + 4);
+            int centralDisk = unsignedShort(bytes, eocd + 6);
+            int entriesOnDisk = unsignedShort(bytes, eocd + 8);
+            int entryCount = unsignedShort(bytes, eocd + 10);
+            long centralSize = unsignedInt(bytes, eocd + 12);
+            long centralOffset = unsignedInt(bytes, eocd + 16);
+            if (disk != 0 || centralDisk != 0 || entriesOnDisk != entryCount) {
+                throw badArchive("不支持分卷 ZIP 数据包");
+            }
+            if (entryCount == 0xffff || centralSize == 0xffff_ffffL || centralOffset == 0xffff_ffffL) {
+                throw badArchive("不支持 ZIP64 数据包");
+            }
+            if (entryCount > PortablePackageModels.MAX_ENTRIES) {
+                throw badArchive("ZIP 文件条目不能超过 100 个");
+            }
+            long centralEnd = centralOffset + centralSize;
+            if (centralOffset < 0 || centralEnd < centralOffset || centralEnd > tailOffset + eocd) {
+                throw badArchive("ZIP 中央目录范围无效");
+            }
 
-        int cursor = Math.toIntExact(centralOffset);
-        int expectedEnd = Math.toIntExact(centralEnd);
-        Set<String> centralNames = new HashSet<>();
-        for (int index = 0; index < entryCount; index++) {
-            if (cursor > expectedEnd - 46 || unsignedInt(bytes, cursor) != 0x02014b50L) {
-                throw badArchive("ZIP 中央目录条目无效");
-            }
-            int versionMadeBy = unsignedShort(bytes, cursor + 4);
-            int flags = unsignedShort(bytes, cursor + 8);
-            int filenameLength = unsignedShort(bytes, cursor + 28);
-            int extraLength = unsignedShort(bytes, cursor + 30);
-            int commentLength = unsignedShort(bytes, cursor + 32);
-            long externalAttributes = unsignedInt(bytes, cursor + 38);
-            long next = (long) cursor + 46L + filenameLength + extraLength + commentLength;
-            if (next > expectedEnd) {
-                throw badArchive("ZIP 中央目录条目长度无效");
-            }
-            if ((flags & 0x0001) != 0) {
-                throw badArchive("不支持加密 ZIP 条目");
-            }
-            int hostSystem = (versionMadeBy >>> 8) & 0xff;
-            if (hostSystem == 3) {
-                int unixMode = (int) ((externalAttributes >>> 16) & 0xffff);
-                int fileType = unixMode & 0xf000;
-                if (fileType == 0xa000) {
-                    throw badArchive("ZIP 不允许符号链接条目");
+            int cursor = Math.toIntExact(centralOffset);
+            int expectedEnd = Math.toIntExact(centralEnd);
+            Set<String> centralNames = new HashSet<>();
+            for (int index = 0; index < entryCount; index++) {
+                if (cursor > expectedEnd - 46) throw badArchive("ZIP 中央目录条目无效");
+                byte[] header = readAt(channel, cursor, 46);
+                if (unsignedInt(header, 0) != 0x02014b50L) {
+                    throw badArchive("ZIP 中央目录条目无效");
                 }
-                if (fileType != 0 && fileType != 0x8000 && fileType != 0x4000) {
-                    throw badArchive("ZIP 不允许特殊文件条目");
+                int versionMadeBy = unsignedShort(header, 4);
+                int flags = unsignedShort(header, 8);
+                int filenameLength = unsignedShort(header, 28);
+                int extraLength = unsignedShort(header, 30);
+                int commentLength = unsignedShort(header, 32);
+                long externalAttributes = unsignedInt(header, 38);
+                long next = (long) cursor + 46L + filenameLength + extraLength + commentLength;
+                if (next > expectedEnd) {
+                    throw badArchive("ZIP 中央目录条目长度无效");
                 }
+                if ((flags & 0x0001) != 0) {
+                    throw badArchive("不支持加密 ZIP 条目");
+                }
+                int hostSystem = (versionMadeBy >>> 8) & 0xff;
+                if (hostSystem == 3) {
+                    int unixMode = (int) ((externalAttributes >>> 16) & 0xffff);
+                    int fileType = unixMode & 0xf000;
+                    if (fileType == 0xa000) {
+                        throw badArchive("ZIP 不允许符号链接条目");
+                    }
+                    if (fileType != 0 && fileType != 0x8000 && fileType != 0x4000) {
+                        throw badArchive("ZIP 不允许特殊文件条目");
+                    }
+                }
+                String filename = new String(readAt(channel, cursor + 46, filenameLength), StandardCharsets.UTF_8)
+                        .toLowerCase(java.util.Locale.ROOT);
+                if (!centralNames.add(filename)) {
+                    throw badArchive("ZIP 存在重复条目: " + filename);
+                }
+                cursor = Math.toIntExact(next);
             }
-            String filename = new String(bytes, cursor + 46, filenameLength, StandardCharsets.UTF_8)
-                    .toLowerCase(java.util.Locale.ROOT);
-            if (!centralNames.add(filename)) {
-                throw badArchive("ZIP 存在重复条目: " + filename);
+            if (cursor != expectedEnd) {
+                throw badArchive("ZIP 中央目录包含未知记录");
             }
-            cursor = Math.toIntExact(next);
         }
-        if (cursor != expectedEnd) {
-            throw badArchive("ZIP 中央目录包含未知记录");
+    }
+
+    private byte[] readAt(FileChannel channel, long offset, int length) throws IOException {
+        ByteBuffer buffer = ByteBuffer.allocate(length);
+        while (buffer.hasRemaining()) {
+            int read = channel.read(buffer, offset + buffer.position());
+            if (read < 0) throw badArchive("ZIP 元数据截断");
         }
+        return buffer.array();
     }
 
     private int findEndOfCentralDirectory(byte[] bytes) {

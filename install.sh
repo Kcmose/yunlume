@@ -61,6 +61,13 @@ HOST_NGINX_WAS_ENABLED="false"
 HOST_BACKEND_MUTATED="false"
 HOST_NGINX_MUTATED="false"
 HOST_ROLLBACK_PORT="${DEFAULT_PORT}"
+HOST_ROLLBACK_BIND_ADDRESS="0.0.0.0"
+HOST_ROLLBACK_INSTALL_STATE=""
+HOST_BIND_ADDRESS="0.0.0.0"
+HOST_LISTEN_ADDRESS="0.0.0.0"
+HOST_TRUST_PROXY_HEADERS="false"
+HOST_TRUSTED_PROXY_CIDR="127.0.0.1/32"
+HOST_EFFECTIVE_TRUSTED_PROXY="unix:"
 HOST_TEMPORARY_RELEASE=""
 DOCKER_TRANSACTION_ACTIVE="false"
 DOCKER_HAD_ENV="false"
@@ -82,6 +89,8 @@ DOCKER_SERVICES_MUTATED="false"
 DOCKER_ROLLBACK_PORT="${DEFAULT_PORT}"
 DOCKER_BIND_ADDRESS="0.0.0.0"
 INSTALL_MODE_WAS_PRESENT="false"
+INSTALL_RETRY_ELIGIBLE="false"
+INSTALL_RETRY_MODE_ID=""
 EXISTING_MANAGED_DEPLOYMENT="false"
 
 die() {
@@ -165,7 +174,9 @@ detect_public_access_host() {
 
 print_access_url() {
   local public_host=""
-  if public_host="$(detect_public_access_host)"; then
+  if [[ "${MODE}" == "host" && "${HOST_BIND_ADDRESS}" != "0.0.0.0" && "${HOST_BIND_ADDRESS}" != "::" ]]; then
+    info "HTTP 地址仅用于连通性诊断: $(docker_probe_base_url "${HOST_BIND_ADDRESS}" "${APP_PORT}")/healthz"
+  elif public_host="$(detect_public_access_host)"; then
     info "HTTP 地址仅用于连通性诊断: http://${public_host}:${APP_PORT}/healthz"
   else
     info "未能可靠识别服务器公网地址。"
@@ -177,8 +188,10 @@ print_access_url() {
 
 cleanup() {
   local status=$?
+  local original_status="${status}"
   local rollback_failed="false"
   local preserve_failed="false"
+  local cleanup_failed="false"
   trap - EXIT ERR
   trap '' INT TERM
   set +e
@@ -189,6 +202,7 @@ cleanup() {
     rollback_host || rollback_failed="true"
   fi
   if [[ "${rollback_failed}" == "true" ]]; then
+    cleanup_failed="true"
     if ! preserve_rollback_material; then
       preserve_failed="true"
       info "回滚与恢复材料归档均未完成；原始材料保留在 ${WORK_DIR}" >&2
@@ -198,14 +212,26 @@ cleanup() {
   if [[ -n "${HOST_TEMPORARY_RELEASE}" ]]; then
     if ! remove_temporary_host_release; then
       info "未能清理宿主机临时版本目录: ${HOST_TEMPORARY_RELEASE}" >&2
+      cleanup_failed="true"
       status=1
     fi
   fi
   if [[ "${preserve_failed}" != "true" && -n "${WORK_DIR}" && -d "${WORK_DIR}" ]]; then
     if ! rm -rf -- "${WORK_DIR}"; then
       info "未能清理安装临时目录: ${WORK_DIR}" >&2
+      cleanup_failed="true"
       status=1
     fi
+  fi
+  if [[ "${original_status}" -ne 0 && "${cleanup_failed}" != "true" &&
+        "${INSTALL_RETRY_ELIGIBLE}" == "true" ]] && install_retry_is_clean; then
+    if ! write_install_retry_record; then
+      info "未能记录首次安装的安全重试状态；保留模式标记并拒绝自动重试" >&2
+      status=1
+    fi
+  fi
+  if [[ "${original_status}" -eq 130 || "${original_status}" -eq 143 ]]; then
+    status="${original_status}"
   fi
   exit "${status}"
 }
@@ -472,10 +498,50 @@ load_manifest() {
   RELEASE_ASSET_BASE="${RELEASE_BASE_URL}/download/v${VERSION}"
 }
 
+install_retry_is_clean() {
+  local name
+  for name in VERSION .env compose.yml current COMPATIBILITY_EPOCH release-manifest.json recovery; do
+    [[ ! -e "${INSTALL_DIR}/${name}" && ! -L "${INSTALL_DIR}/${name}" ]] || return 1
+  done
+  if [[ "${MODE}" == "host" ]]; then
+    for name in /etc/yunlume/app.env /etc/yunlume/nginx.conf \
+      /etc/nginx/conf.d/yunlume.conf /etc/systemd/system/yunlume-backend.service; do
+      [[ ! -e "${name}" && ! -L "${name}" ]] || return 1
+    done
+  fi
+}
+
+install_retry_mode_identity() {
+  local mode_file="${INSTALL_DIR}/.install-mode"
+  [[ ! -L "${INSTALL_DIR}" && -f "${mode_file}" && ! -L "${mode_file}" ]] || return 1
+  [[ "$(stat -c '%u:%a' -- "${mode_file}")" == "0:644" ]] || return 1
+  [[ "$(cat -- "${mode_file}")" == "${MODE}" ]] || return 1
+  stat -c '%d:%i' -- "${mode_file}"
+}
+
+write_install_retry_record() {
+  local retry_file="${INSTALL_DIR}/.install-retry"
+  local identity temporary
+  identity="$(install_retry_mode_identity)" || return 1
+  [[ "${identity}" == "${INSTALL_RETRY_MODE_ID}" ]] || return 1
+  [[ ! -e "${retry_file}" && ! -L "${retry_file}" ]] || return 1
+  temporary="$(mktemp "${INSTALL_DIR}/.install-retry.tmp.XXXXXXXX")" || return 1
+  if ! printf 'v1 %s %s\n' "${MODE}" "${identity}" >"${temporary}" ||
+     ! chmod 0600 "${temporary}" || ! mv -f -- "${temporary}" "${retry_file}"; then
+    rm -f -- "${temporary}" || true
+    return 1
+  fi
+  info "首次安装已清理完成，可使用相同模式重新运行安装器。"
+}
+
 ensure_install_mode() {
   local mode_file="${INSTALL_DIR}/.install-mode"
+  local retry_file="${INSTALL_DIR}/.install-retry"
   local existing_mode=""
   local temporary=""
+  local identity=""
+  INSTALL_RETRY_ELIGIBLE="false"
+  INSTALL_RETRY_MODE_ID=""
   [[ ! -L "${INSTALL_DIR}" ]] || die "安装目录不能是符号链接: ${INSTALL_DIR}"
   [[ ! -L "${mode_file}" ]] || die "模式标记不能是符号链接"
   if [[ -e "${mode_file}" && ! -f "${mode_file}" ]]; then
@@ -488,6 +554,20 @@ ensure_install_mode() {
     [[ "${existing_mode}" == "${MODE}" ]] ||
       die "当前目录已使用 ${existing_mode} 模式，不能直接切换为 ${MODE}"
     INSTALL_MODE_WAS_PRESENT="true"
+    if [[ -e "${retry_file}" || -L "${retry_file}" ]]; then
+      [[ -f "${retry_file}" && ! -L "${retry_file}" &&
+         "$(stat -c '%u:%a' -- "${retry_file}")" == "0:600" ]] ||
+        die "首次安装重试记录必须是 root 私有普通文件"
+      identity="$(install_retry_mode_identity)" || die "首次安装重试模式标记已改变"
+      [[ "$(cat -- "${retry_file}")" == "v1 ${MODE} ${identity}" ]] ||
+        die "首次安装重试记录与模式标记不匹配"
+      install_retry_is_clean || die "首次安装仍有部署或恢复状态，不能自动重试"
+      # 先消费许可；进程被强制终止而未完成清理时，下次继续拒绝不明状态。
+      rm -f -- "${retry_file}" || die "无法消费首次安装重试记录"
+      INSTALL_RETRY_MODE_ID="${identity}"
+      INSTALL_RETRY_ELIGIBLE="true"
+      INSTALL_MODE_WAS_PRESENT="false"
+    fi
     return
   fi
   if [[ -d "${INSTALL_DIR}" ]] &&
@@ -500,6 +580,8 @@ ensure_install_mode() {
   chmod 0644 "${temporary}"
   mv -f -- "${temporary}" "${mode_file}"
   INSTALL_MODE_WAS_PRESENT="false"
+  INSTALL_RETRY_MODE_ID="$(install_retry_mode_identity)" || die "无法记录首次安装模式标记"
+  INSTALL_RETRY_ELIGIBLE="true"
 }
 
 version_is_less() {
@@ -1072,7 +1154,182 @@ render_template() {
     -e "s|__INSTALL_DIR__|${INSTALL_DIR}|g" \
     -e "s|__JAVA_BIN__|${JAVA_BIN}|g" \
     -e "s|__JWT_SECRET__|${jwt_secret}|g" \
+    -e "s|__HOST_LISTEN_ADDRESS__|${HOST_LISTEN_ADDRESS}|g" \
+    -e "s|__HOST_TRUST_PROXY_HEADERS__|${HOST_TRUST_PROXY_HEADERS}|g" \
+    -e "s|__HOST_TRUSTED_PROXY_CIDR__|${HOST_TRUSTED_PROXY_CIDR}|g" \
+    -e "s|__HOST_EFFECTIVE_TRUSTED_PROXY__|${HOST_EFFECTIVE_TRUSTED_PROXY}|g" \
     "${source_file}" >"${destination}"
+}
+
+load_host_proxy_config() {
+  local env_file="$1"
+  local parsed
+  local -a values=()
+  # 只读取固定键，不 source 管理员环境文件；其余应用凭据不输出。
+  parsed="$(python3 - "${env_file}" <<'PY'
+import ipaddress
+import stat
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+try:
+    metadata = path.lstat()
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0 or metadata.st_mode & 0o022:
+        raise ValueError("环境文件必须是 root 所有且其他用户不可写的普通文件")
+    values = {
+        "HOST_BIND_ADDRESS": "0.0.0.0",
+        "HOST_TRUST_PROXY_HEADERS": "false",
+        "HOST_TRUSTED_PROXY_CIDR": "127.0.0.1/32",
+    }
+    seen = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        key, separator, value = line.partition("=")
+        if key not in values:
+            if key.startswith("HOST_"):
+                raise ValueError("存在未知的 HOST_ 代理配置项")
+            continue
+        if not separator or key in seen:
+            raise ValueError("代理配置项重复或缺少值")
+        seen.add(key)
+        values[key] = value
+    trust = values["HOST_TRUST_PROXY_HEADERS"]
+    if trust not in {"true", "false"}:
+        raise ValueError("HOST_TRUST_PROXY_HEADERS 只接受 true 或 false")
+    bind_text = values["HOST_BIND_ADDRESS"]
+    peer_text = values["HOST_TRUSTED_PROXY_CIDR"]
+    if "%" in bind_text or "%" in peer_text:
+        raise ValueError("代理地址不接受接口作用域")
+    bind = ipaddress.ip_address(bind_text)
+    peer = ipaddress.ip_network(peer_text, strict=False)
+    if bind.is_multicast or peer.prefixlen == 0 or peer.network_address.is_multicast:
+        raise ValueError("代理地址不能使用组播或全网段")
+    private_networks = [ipaddress.ip_network(value) for value in
+                        ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7")]
+    private_bind = bind.is_loopback or any(bind in network for network in private_networks)
+    if trust == "true" and (bind.is_unspecified or not private_bind):
+        raise ValueError("信任代理头时必须绑定明确的 loopback 或私网地址")
+    print(str(bind))
+    print(f"[{bind}]" if bind.version == 6 else str(bind))
+    print(trust)
+    print(str(peer))
+    # TCP listener 不接收 Unix socket 请求；禁用时也不继承全局 real_ip 信任范围。
+    print(str(peer) if trust == "true" else "unix:")
+except (OSError, UnicodeError, ValueError):
+    print("Host 代理配置无效；请检查 HOST_* 地址、信任范围及文件权限", file=sys.stderr)
+    raise SystemExit(1)
+PY
+  )" || return 1
+  mapfile -t values <<<"${parsed}"
+  (( ${#values[@]} == 5 )) || return 1
+  HOST_BIND_ADDRESS="${values[0]}"
+  HOST_LISTEN_ADDRESS="${values[1]}"
+  HOST_TRUST_PROXY_HEADERS="${values[2]}"
+  HOST_TRUSTED_PROXY_CIDR="${values[3]}"
+  HOST_EFFECTIVE_TRUSTED_PROXY="${values[4]}"
+}
+
+read_host_listener() {
+  # 已有监听用于端口继承和失败恢复；不猜测管理员手改的 TLS/listener 配置。
+  python3 - "$1" <<'PY'
+import ipaddress
+import re
+import sys
+from pathlib import Path
+
+try:
+    source = Path(sys.argv[1]).read_text(encoding="utf-8")
+    listeners = re.findall(r"^\s*listen\s+([^;]+);", source, re.MULTILINE)
+    if len(listeners) != 1:
+        raise ValueError("listener count")
+    match = re.fullmatch(r"(\[[0-9a-fA-F:]+\]|[0-9.]+):([0-9]+)", listeners[0].strip())
+    if not match or not 1 <= int(match[2]) <= 65535:
+        raise ValueError("listener format")
+    print(str(ipaddress.ip_address(match[1].strip("[]"))))
+    print(str(int(match[2])))
+except (OSError, UnicodeError, ValueError):
+    print("无法识别受管 Host 监听；请先将手工 TLS 配置迁到外层代理，使用 app.env 的 HOST_* 配置", file=sys.stderr)
+    raise SystemExit(1)
+PY
+}
+
+render_host_nginx_config() {
+  load_host_proxy_config "$3" || return 1
+  render_template "$1" "$2" || return 1
+}
+
+read_host_install_state() {
+  local response
+  # 不经环境代理读取本机受管实例，UNKNOWN/格式不符不能授权放宽完成状态门禁。
+  response="$(curl --noproxy '*' --fail --silent --show-error --connect-timeout 2 --max-time 5 \
+    --max-filesize 16384 "$1/api/install/status")" || return 1
+  INSTALL_JSON="${response}" python3 <<'PY'
+import json
+import os
+import sys
+
+try:
+    response = json.loads(os.environ["INSTALL_JSON"])
+    if not isinstance(response, dict) or type(response.get("code")) is not int or response["code"] != 200:
+        raise ValueError("response code")
+    data = response.get("data")
+    if not isinstance(data, dict) or any(type(data.get(key)) is not bool for key in
+                                       ("installationRequired", "webInstallEnabled", "ready")):
+        raise ValueError("status fields")
+    state = data.get("state")
+    if state == "COMPLETED":
+        if data["installationRequired"]:
+            raise ValueError("completed flags")
+    elif state in {"DATABASE_REQUIRED", "REDIS_REQUIRED", "REQUIRED"}:
+        if not data["installationRequired"] or not data["webInstallEnabled"] or data["ready"] != (state == "REQUIRED"):
+            raise ValueError("pending flags")
+    else:
+        raise ValueError("unknown installation state")
+    print(state)
+except (KeyError, TypeError, ValueError):
+    print("Host 安装状态不可确认，拒绝更改现有部署的完成状态门禁", file=sys.stderr)
+    raise SystemExit(1)
+PY
+}
+
+wait_for_host_pending_install() {
+  local base_url="$1" previous_state="$2" attempts="${3:-90}"
+  local index health_json current_state
+  for ((index = 1; index <= attempts; index++)); do
+    if curl --noproxy '*' --fail --silent --show-error --connect-timeout 2 --max-time 5 \
+         "${base_url}/healthz" >/dev/null 2>&1 &&
+       health_json="$(curl --noproxy '*' --fail --silent --show-error --connect-timeout 2 --max-time 5 \
+         --max-filesize 16384 "${base_url}/api/health" 2>/dev/null)" &&
+       current_state="$(read_host_install_state "${base_url}" 2>/dev/null)" &&
+       HEALTH_JSON="${health_json}" python3 - "${previous_state}" "${current_state}" <<'PY'
+import json
+import os
+import sys
+
+try:
+    stages = ("DATABASE_REQUIRED", "REDIS_REQUIRED", "REQUIRED", "COMPLETED")
+    previous, current = sys.argv[1:]
+    if previous == "COMPLETED" or stages.index(current) < stages.index(previous):
+        raise ValueError("installation state regressed")
+    health = json.loads(os.environ["HEALTH_JSON"])
+    if not isinstance(health, dict) or type(health.get("code")) is not int or health["code"] != 200:
+        raise ValueError("health response")
+    data = health.get("data")
+    accepted = {"UP"} if current == "COMPLETED" else {"UP", "INSTALLING"}
+    if not isinstance(data, dict) or data.get("status") not in accepted:
+        raise ValueError("health state")
+except (TypeError, ValueError):
+    raise SystemExit(1)
+PY
+    then
+      return 0
+    fi
+    sleep 2
+  done
+  return 1
 }
 
 ensure_service_user() {
@@ -1177,7 +1434,16 @@ rollback_host() {
   fi
   if [[ "${HOST_SERVICE_WAS_ACTIVE}" == "true" ]]; then
     if [[ "${HOST_NGINX_WAS_ACTIVE}" == "true" ]]; then
-      wait_for_http "http://127.0.0.1:${HOST_ROLLBACK_PORT}" 20 true || rollback_failed="true"
+      case "${HOST_ROLLBACK_INSTALL_STATE}" in
+        DATABASE_REQUIRED|REDIS_REQUIRED|REQUIRED)
+          wait_for_host_pending_install \
+            "$(docker_probe_base_url "${HOST_ROLLBACK_BIND_ADDRESS}" "${HOST_ROLLBACK_PORT}")" \
+            "${HOST_ROLLBACK_INSTALL_STATE}" 20 || rollback_failed="true"
+          ;;
+        *)
+          wait_for_http "$(docker_probe_base_url "${HOST_ROLLBACK_BIND_ADDRESS}" "${HOST_ROLLBACK_PORT}")" 20 true || rollback_failed="true"
+          ;;
+      esac
     else
       wait_for_url "http://127.0.0.1:18081/api/health" 20 || rollback_failed="true"
     fi
@@ -1199,7 +1465,8 @@ install_host() {
   local archive_name archive_sha archive_file staging_root package_version
   local release_root release_dir temporary_release current_link
   local env_file jwt_secret nginx_config nginx_link service_file
-  local major existing_nginx_target
+  local major existing_nginx_target listener previous_install_state=""
+  local -a previous_listener=()
 
   require_command java
   require_command nginx
@@ -1250,6 +1517,10 @@ install_host() {
   ensure_install_mode
   check_version_transition
   validate_managed_runtime_config host "${env_file}"
+  # 必须在任何 upsert/chmod/替换之前校验原文件，避免重写把不可信权限洗成 root:0600。
+  if [[ "${EXISTING_MANAGED_DEPLOYMENT}" == "true" ]]; then
+    load_host_proxy_config "${env_file}" || die "现有 Host 环境文件或代理配置不可信"
+  fi
   ensure_service_user
   [[ ! -L "${INSTALL_DIR}/releases" ]] || die "releases 目录不能是符号链接"
   [[ ! -L /etc/yunlume ]] || die "/etc/yunlume 不能是符号链接"
@@ -1332,6 +1603,8 @@ install_host() {
   HOST_BACKEND_MUTATED="false"
   HOST_NGINX_MUTATED="false"
   HOST_ROLLBACK_PORT="${DEFAULT_PORT}"
+  HOST_ROLLBACK_BIND_ADDRESS="0.0.0.0"
+  HOST_ROLLBACK_INSTALL_STATE=""
   if [[ -L "${current_link}" ]]; then
     HOST_PREVIOUS_CURRENT="$(readlink -f "${current_link}" || true)"
     [[ -n "${HOST_PREVIOUS_CURRENT}" && -d "${HOST_PREVIOUS_CURRENT}" ]] ||
@@ -1351,12 +1624,10 @@ install_host() {
   if [[ -f "${nginx_config}" ]]; then
     HOST_HAD_NGINX_CONFIG="true"
     cp -p -- "${nginx_config}" "${HOST_NGINX_BACKUP}"
-    HOST_ROLLBACK_PORT="$(sed -n \
-      's/^[[:space:]]*listen[[:space:]]\+0\.0\.0\.0:\([0-9]\+\);.*/\1/p' \
-      "${HOST_NGINX_BACKUP}" | head -n 1)"
-    [[ "${HOST_ROLLBACK_PORT}" =~ ^[0-9]+$ &&
-       "${HOST_ROLLBACK_PORT}" -ge 1 && "${HOST_ROLLBACK_PORT}" -le 65535 ]] ||
-      HOST_ROLLBACK_PORT="${DEFAULT_PORT}"
+    listener="$(read_host_listener "${HOST_NGINX_BACKUP}")" || die "无法安全继承 Host 监听配置"
+    mapfile -t previous_listener <<<"${listener}"
+    HOST_ROLLBACK_BIND_ADDRESS="${previous_listener[0]}"
+    HOST_ROLLBACK_PORT="${previous_listener[1]}"
     inherit_existing_port "${HOST_ROLLBACK_PORT}"
   fi
   if [[ -f "${service_file}" ]]; then
@@ -1395,6 +1666,18 @@ install_host() {
   systemctl is-active nginx.service >/dev/null 2>&1 && HOST_NGINX_WAS_ACTIVE="true"
   systemctl is-enabled nginx.service >/dev/null 2>&1 && HOST_NGINX_WAS_ENABLED="true"
 
+  if [[ "${EXISTING_MANAGED_DEPLOYMENT}" == "true" &&
+        "$(tr -d '\r\n' <"${HOST_VERSION_BACKUP}")" == "${VERSION}" ]]; then
+    [[ "${HOST_HAD_CURRENT}" == "true" && "${HOST_HAD_NGINX_CONFIG}" == "true" &&
+       "${HOST_HAD_SERVICE_FILE}" == "true" && "${HOST_SERVICE_WAS_ACTIVE}" == "true" ]] ||
+      die "同版本 Host 配置更新必须先确认旧受管后端正在运行"
+    # Host 模板和 Nginx 上游固定使用此 loopback 地址；不能从待应用的 HOST_* 推断旧状态。
+    previous_install_state="$(read_host_install_state 'http://127.0.0.1:18081')" ||
+      die "无法确认旧 Host 安装状态，未应用配置"
+    # EXIT 回滚不能依赖 install_host 的局部变量；只记录本次可信同版本旧实例的状态。
+    HOST_ROLLBACK_INSTALL_STATE="${previous_install_state}"
+  fi
+
   HOST_TRANSACTION_ACTIVE="true"
   trap 'host_transaction_failed $?' ERR
   if [[ "${EXISTING_MANAGED_DEPLOYMENT}" == "true" ]]; then
@@ -1410,7 +1693,7 @@ install_host() {
   fi
   ln -sfn -- "${release_dir}" "${current_link}.new"
   mv -Tf -- "${current_link}.new" "${current_link}"
-  render_template "${staging_root}/deploy/yunlume.nginx.conf" "${nginx_config}.tmp"
+  render_host_nginx_config "${staging_root}/deploy/yunlume.nginx.conf" "${nginx_config}.tmp" "${env_file}"
   install -m 0644 "${nginx_config}.tmp" "${nginx_config}"
   rm -f -- "${nginx_config}.tmp"
   render_template "${staging_root}/deploy/yunlume-backend.service" "${service_file}.tmp"
@@ -1426,7 +1709,13 @@ install_host() {
   HOST_NGINX_MUTATED="true"
   systemctl enable --now nginx.service >/dev/null
   systemctl reload nginx.service
-  wait_for_http "http://127.0.0.1:${APP_PORT}" 90 "${EXISTING_MANAGED_DEPLOYMENT}"
+  if [[ -n "${previous_install_state}" && "${previous_install_state}" != "COMPLETED" ]]; then
+    # 只为已确认未完成初始化的同版本实例应用配置，不能降级已完成部署的检查。
+    wait_for_host_pending_install "$(docker_probe_base_url "${HOST_BIND_ADDRESS}" "${APP_PORT}")" \
+      "${previous_install_state}" 90
+  else
+    wait_for_http "$(docker_probe_base_url "${HOST_BIND_ADDRESS}" "${APP_PORT}")" 90 "${EXISTING_MANAGED_DEPLOYMENT}"
+  fi
 
   printf '%s\n' "${VERSION}" >"${INSTALL_DIR}/VERSION.tmp"
   chmod 0644 "${INSTALL_DIR}/VERSION.tmp"

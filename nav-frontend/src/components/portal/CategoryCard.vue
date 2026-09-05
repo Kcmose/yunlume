@@ -2,21 +2,14 @@
 import { computed } from 'vue'
 import type { NavigationCategory } from '@/types/category'
 import BookmarkItem from './BookmarkItem.vue'
+import { navigationIconLabel, navigationIconUrl } from '@/utils/adminNavigationManage'
 
 const props = defineProps<{
   category: NavigationCategory
 }>()
 
-const iconLabel = computed(() => {
-  const icon = props.category.icon?.trim()
-  if (icon && icon.length <= 3 && !/^https?:\/\//i.test(icon)) return icon
-  return '◈'
-})
-
-const iconUrl = computed(() => {
-  const icon = props.category.icon?.trim()
-  return icon && /^https?:\/\//i.test(icon) ? icon : ''
-})
+const iconLabel = computed(() => navigationIconLabel(props.category.icon ?? '', '◈'))
+const iconUrl = computed(() => navigationIconUrl(props.category.icon ?? ''))
 
 function anchorId(id: string | number) {
   return `category-${String(id).replace(/[^a-zA-Z0-9_-]/g, '-')}`

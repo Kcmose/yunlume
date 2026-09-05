@@ -10,6 +10,7 @@ import com.example.nav.module.datapackage.model.PortablePackageModels.PortableDa
 import com.example.nav.module.datapackage.model.PortablePackageModels.SearchEngineData;
 import com.example.nav.module.datapackage.model.PortablePackageModels.SiteConfigData;
 import com.example.nav.module.upload.config.UploadStorageProperties;
+import com.example.nav.module.upload.service.ManagedBackgroundReferences;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
@@ -29,17 +30,11 @@ final class PortableDataValidator {
     private static final Pattern COLOR = Pattern.compile("^#[0-9a-fA-F]{6}$");
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{([^{}]+)}");
 
-    private final String managedUrlPrefix;
+    private final ManagedBackgroundReferences backgroundReferences;
     private final long maxAssetBytes;
 
     PortableDataValidator(UploadStorageProperties properties) {
-        String base = properties.getBaseUrl() == null || properties.getBaseUrl().isBlank()
-                ? "/uploads"
-                : properties.getBaseUrl().trim();
-        while (base.length() > 1 && base.endsWith("/")) {
-            base = base.substring(0, base.length() - 1);
-        }
-        this.managedUrlPrefix = ("/".equals(base) ? "" : base) + "/backgrounds/";
+        this.backgroundReferences = new ManagedBackgroundReferences(properties);
         this.maxAssetBytes = properties.getMaxBytes();
     }
 
@@ -244,7 +239,7 @@ final class PortableDataValidator {
         if (!blank(url) && !safeHttpOrInternal(url)) {
             collector.error("BACKGROUND_URL", path, "背景图片必须是安全的 HTTP(S) 地址或站内绝对路径");
         }
-        if (!blank(url) && url.startsWith(managedUrlPrefix) && blank(assetKey)) {
+        if (backgroundReferences.isManagedUrl(url) && blank(assetKey)) {
             collector.error("MANAGED_ASSET_MISSING", path, "受管背景图片必须随数据包携带资产");
         }
     }

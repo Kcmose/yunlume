@@ -113,12 +113,11 @@ public class CustomLinkServiceImpl implements CustomLinkService {
     @Override
     @Transactional
     public CustomLinkVO setVisible(Long id, boolean visible) {
-        CustomLink link = requireLink(id);
-        link.setVisible(visible);
-        link.setUpdatedAt(LocalDateTime.now());
-        customLinkMapper.updateById(link);
+        if (customLinkMapper.updateVisible(id, visible, LocalDateTime.now()) != 1) {
+            throw BusinessException.notFound("自定义链接不存在");
+        }
         invalidatePublicCustomLinks();
-        return toVO(link);
+        return toVO(requireLink(id));
     }
 
     @Override
@@ -145,10 +144,9 @@ public class CustomLinkServiceImpl implements CustomLinkService {
 
         LocalDateTime now = LocalDateTime.now();
         for (SortItemDTO item : items) {
-            CustomLink link = linksById.get(item.id());
-            link.setSortOrder(item.sortOrder());
-            link.setUpdatedAt(now);
-            customLinkMapper.updateById(link);
+            if (customLinkMapper.updateSortOrder(item.id(), item.sortOrder(), now) != 1) {
+                throw BusinessException.conflict("自定义链接状态已变化，请刷新后重试");
+            }
         }
         invalidatePublicCustomLinks();
         return listAll();
@@ -226,7 +224,12 @@ public class CustomLinkServiceImpl implements CustomLinkService {
                 .orderByDesc(CustomLink::getSortOrder)
                 .orderByDesc(CustomLink::getId)
                 .last("LIMIT 1"));
-        return last == null || last.getSortOrder() == null ? 0 : last.getSortOrder() + 10;
+        if (last == null || last.getSortOrder() == null) return 0;
+        long next = (long) last.getSortOrder() + 10;
+        if (next > Integer.MAX_VALUE) {
+            throw BusinessException.conflict("自定义链接排序值已达到上限，请先调整排序");
+        }
+        return (int) Math.max(0L, next);
     }
 
     private CustomLink requireLink(Long id) {

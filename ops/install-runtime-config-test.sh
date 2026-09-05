@@ -189,7 +189,7 @@ from pathlib import Path
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
 required = [
     'wait_for_http "$(docker_probe_base_url "${DOCKER_BIND_ADDRESS}" "${APP_PORT}")" 90 "${EXISTING_MANAGED_DEPLOYMENT}"',
-    'wait_for_http "http://127.0.0.1:${APP_PORT}" 90 "${EXISTING_MANAGED_DEPLOYMENT}"',
+    'wait_for_http "$(docker_probe_base_url "${HOST_BIND_ADDRESS}" "${APP_PORT}")" 90 "${EXISTING_MANAGED_DEPLOYMENT}"',
     'validate_managed_runtime_config docker "${env_file}" "${compose_file}"',
     'validate_managed_runtime_config host "${env_file}"',
 ]

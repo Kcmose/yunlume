@@ -5,10 +5,12 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly SCRIPT_DIR
 workflow_source="$(<"${SCRIPT_DIR}/../.github/workflows/publish-images.yml")"
 
+validation_source="${workflow_source}"$'\n'"$(<"${SCRIPT_DIR}/release-preflight.sh")"$'\n'"$(<"${SCRIPT_DIR}/lib/publish-workflow.sh")"
+
 require_workflow_text() {
   local description="$1"
   local expected="$2"
-  if [[ "${workflow_source}" != *"${expected}"* ]]; then
+  if [[ "${validation_source}" != *"${expected}"* ]]; then
     printf 'Release workflow is missing %s: %s\n' "${description}" "${expected}" >&2
     exit 1
   fi
@@ -46,11 +48,11 @@ if [[ "${workflow_source}" == *'release-candidate-${{ github.run_id }}-${{ githu
 fi
 
 require_workflow_text 'remote tag object lookup' \
-  'gh api "repos/$REPOSITORY/git/ref/tags/$RELEASE_TAG"'
+  'gh api "repos/$repository/git/ref/tags/$tag"'
 require_workflow_text 'annotated tag dereference' \
-  'gh api "repos/$REPOSITORY/git/tags/$tag_object_sha"'
-require_workflow_text 'lightweight or dereferenced commit validation' \
-  '[[ "$tag_object_type" == commit && "$tag_object_sha" == "$GITHUB_SHA" ]]'
+  'gh api "repos/$repository/git/tags/$sha"'
+require_workflow_text 'shared tag guard at publication boundaries' \
+  'assert_release_tag_commit "$REPOSITORY" "$RELEASE_TAG" "$GITHUB_SHA" || exit 1'
 require_workflow_text 'approved default branch lookup' \
   'default_branch="$(gh api "repos/$REPOSITORY"'
 require_workflow_text 'tagged commit ancestry comparison' \
@@ -94,11 +96,9 @@ require_workflow_text 'final tag identity guard immediately before publication' 
   '# Final remote tag identity guard: keep immediately before draft=false.'
 
 final_guard="${workflow_source##*# Final remote tag identity guard: keep immediately before draft=false.}"
-if [[ "${final_guard}" != *'gh api "repos/$REPOSITORY/git/ref/tags/$RELEASE_TAG"'* ||
-      "${final_guard}" != *'gh api "repos/$REPOSITORY/git/tags/$tag_object_sha"'* ||
+if [[ "${final_guard}" != *'assert_release_tag_commit "$REPOSITORY" "$RELEASE_TAG" "$GITHUB_SHA" || exit 1'* ||
       "${final_guard}" != *'gh api "repos/$REPOSITORY/compare/$GITHUB_SHA...$default_branch_ref"'* ||
       "${final_guard}" != *'[[ "$default_branch_status" == "ahead" || "$default_branch_status" == "identical" ]]'* ||
-      "${final_guard}" != *'[[ "$tag_object_type" == commit && "$tag_object_sha" == "$GITHUB_SHA" ]]'* ||
       "${final_guard}" != *'publish_release_by_id "$REPOSITORY" "$release_id"'* ]]; then
   printf 'Release workflow final publication guard does not recursively validate the remote tag.\n' >&2
   exit 1
@@ -128,7 +128,7 @@ if (( ${#readback_offset} >= ${#rolling_offset} )); then
   exit 1
 fi
 require_workflow_text 'post-publication remote tag verification' \
-  'Remote tag moved immediately before rolling alias publication'
+  'assert_release_tag_commit "$REPOSITORY" "$RELEASE_TAG" "$GITHUB_SHA" || exit 1'
 
 require_workflow_text 'revision-bound PostgreSQL migration runtime test' \
   'test "$(git rev-parse HEAD)" = "$GITHUB_SHA"'
@@ -366,7 +366,30 @@ for token in mutating_tokens:
     assert token not in jobs['release-preflight'], ('preflight mutation', token)
 assert "published_release != 'true'" in jobs['release-reserve']
 assert "published_release == 'true'" in jobs['published-release-verify']
-print('Published route mutation recorder: 0 external writes')
+# A release-only rerun retains old needs outputs. The release job must use its fresh local guard.
+release=jobs['release']
+assert 'id: release-state' in release and 'run: bash ops/release-preflight.sh' in release
+assert 'steps.release-state.outputs.published_release' in release
+assert 'needs.release-reserve.outputs.canonical_current' not in release
+assert 'needs.release-reserve.outputs.canonical_run_attempt' not in release
+assert 'resolve_canonical_owner "$REPOSITORY" "$RELEASE_ID" "$GITHUB_SHA"' in release
+# Exact producer IDs, never a consumer-attempt artifact name, feed downloads.
+for name in ('backend-attest','publish','release'):
+    blocks=re.findall(r'uses: actions/download-artifact@[^\n]+\n(.*?)(?=\n      - name:|\Z)', jobs[name], re.S)
+    assert blocks, name
+    for block in blocks:
+        assert 'artifact-ids:' in block and 'run-id:' in block and 'github-token:' in block, name
+        assert 'github.run_attempt' not in block, name
+publish=jobs['publish']
+for permission in ('attestations: write','id-token: write','contents: write','packages: write'):
+    assert permission in publish, permission
+# Preflight helper must also stay read-only after extraction.
+from pathlib import Path
+preflight=Path(sys.argv[1]).resolve().parents[2].joinpath('ops/release-preflight.sh').read_text()
+for token in mutating_tokens:
+    assert token not in preflight, ('preflight helper mutation', token)
+assert 'verify_rolling_aliases' in preflight
+print('Published route graph gates are present; external writes are exercised by the behavior suite')
 PY
 
 printf 'Release workflow isolates mutable tags, validates tag identity, and supports safe recovery.\n'

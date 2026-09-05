@@ -122,6 +122,17 @@ public final class RedisPortableImportScripts {
                     return redis.error_reply('exact production import ACL capability missing')
                   end
                 end
+                -- 共享预检仅使用既有命令；检查每个固定slot/chunk，避免键模式ACL只放行旧token索引。
+                for slot = 0, 7 do
+                  local metadata = 'nav:portable-import:preview:pending:slot:' .. slot
+                  for chunk = -1, 63 do
+                    local key = chunk == -1 and metadata or metadata .. ':chunk:' .. chunk
+                    if not require_acl('get', key) or not require_acl('psetex', key, ttl, value)
+                      or not require_acl('pexpire', key, ttl) or not require_acl('del', key) then
+                      return redis.error_reply('exact production preview ACL capability missing')
+                    end
+                  end
+                end
                 local cache_names = {'publicSiteConfig', 'publicNavigation', 'publicSearchEngines', 'publicCustomLinks'}
                 for _, cache_name in ipairs(cache_names) do
                   local version_key = 'nav:public-cache-version:' .. cache_name

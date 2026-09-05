@@ -90,3 +90,9 @@ export async function getCurrentNavigationDataImportJob(): Promise<DataImportJob
     '/admin/data/import/jobs/current',
   )))
 }
+
+export async function getNavigationDataImportJobByPreviewToken(previewToken: string): Promise<DataImportJob> {
+  return parseDataImportJob(unwrapApiData<unknown>(await request.get(
+    `/admin/data/import/previews/${encodeURIComponent(previewToken)}/job`,
+  )))
+}

@@ -16,6 +16,7 @@ const props = defineProps<{
   modelValue: boolean
   preview: DataImportPreview | null
   submitting: boolean
+  confirmable: boolean
   requestError?: string
 }>()
 
@@ -41,7 +42,7 @@ const resources: Array<{ key: DataTransferResourceKey; label: string }> = [
 
 const errorGroups = computed(() => groupImportIssues(props.preview?.errors ?? []))
 const warningGroups = computed(() => groupImportIssues(props.preview?.warnings ?? []))
-const confirmEnabled = computed(() => canConfirmImport({
+const confirmEnabled = computed(() => props.confirmable && canConfirmImport({
   preview: props.preview,
   backupConfirmed: backupConfirmed.value,
   confirmationText: confirmationText.value,
@@ -83,11 +84,15 @@ watch(
     backupConfirmed.value = false
     confirmationText.value = ''
   },
+  { immediate: true },
 )
 
-watch(previewExpired, (expired) => {
-  if (expired) emit('expired')
-})
+watch(
+  [previewExpired, () => props.submitting, () => props.modelValue],
+  ([expired, submitting, visible]) => {
+    if (expired && visible && !submitting) emit('expired')
+  },
+)
 
 onBeforeUnmount(clearExpiryTimer)
 
@@ -172,7 +177,7 @@ function issueLabel(issue: DataImportIssue) {
         <WarningFilled /><span>服务端未返回可用的预检令牌或过期时间，为防止误写入，当前不允许确认导入。</span>
       </p>
 
-      <p v-else-if="previewExpired" class="data-transfer-error" role="alert">
+      <p v-else-if="previewExpired && !submitting" class="data-transfer-error" role="alert">
         <WarningFilled /><span>预检结果已过期，请关闭窗口后重新上传并预检；当前不能导入。</span>
       </p>
 
@@ -205,7 +210,7 @@ function issueLabel(issue: DataImportIssue) {
     <template #footer>
       <el-button :disabled="submitting" @click="updateVisible(false)">{{ preview?.errors.length ? '关闭' : '取消' }}</el-button>
       <el-button
-        v-if="preview && !preview.errors.length && !previewUnavailable"
+        v-if="preview && !preview.errors.length && (!previewUnavailable || submitting)"
         type="danger"
         :loading="submitting"
         :disabled="!confirmEnabled"

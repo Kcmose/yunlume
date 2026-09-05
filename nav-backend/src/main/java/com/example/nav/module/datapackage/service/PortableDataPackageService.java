@@ -32,14 +32,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -48,6 +48,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -67,7 +68,10 @@ public class PortableDataPackageService {
     private final TaskExecutor taskExecutor;
     private final Clock clock;
     private final Path previewRoot;
-    private final Map<String, PreviewState> previews = new ConcurrentHashMap<>();
+    private final PortablePreviewStore previewStore;
+    // 同一节点只允许两个正在展开/解析的数据包；等待确认的记录不保留解析对象。
+    private final Semaphore processingSlots = new Semaphore(2);
+    private final Map<String, PortablePreviewStore.Entry> processingPreviews = new ConcurrentHashMap<>();
     private final PortableImportJobStore jobStore;
     private final PortableImportCommitStore commitStore;
     private final Object confirmationMonitor = new Object();
@@ -83,7 +87,8 @@ public class PortableDataPackageService {
             ObjectMapper objectMapper,
             @Qualifier("applicationTaskExecutor") TaskExecutor taskExecutor,
             PortableImportJobStore jobStore,
-            PortableImportCommitStore commitStore
+            PortableImportCommitStore commitStore,
+            PortablePreviewStore previewStore
     ) {
         this(
                 packageWriter,
@@ -96,7 +101,8 @@ public class PortableDataPackageService {
                 jobStore,
                 commitStore,
                 Clock.systemUTC(),
-                Path.of(System.getProperty("java.io.tmpdir"), "yunlume-import-previews")
+                Path.of(System.getProperty("java.io.tmpdir"), "yunlume-import-previews"),
+                previewStore
         );
     }
 
@@ -113,6 +119,18 @@ public class PortableDataPackageService {
             Clock clock,
             Path previewRoot
     ) {
+        this(packageWriter, packageReader, snapshotService, transactionService, userMapper, objectMapper,
+                taskExecutor, jobStore, commitStore, clock, previewRoot,
+                new FilePortablePreviewStore(objectMapper, clock, previewRoot.resolve("stored")));
+    }
+
+    PortableDataPackageService(
+            PortablePackageWriter packageWriter, PortablePackageReader packageReader,
+            PortableDataSnapshotService snapshotService, PortableImportTransactionService transactionService,
+            UserMapper userMapper, ObjectMapper objectMapper, TaskExecutor taskExecutor,
+            PortableImportJobStore jobStore, PortableImportCommitStore commitStore,
+            Clock clock, Path previewRoot, PortablePreviewStore previewStore
+    ) {
         this.packageWriter = packageWriter;
         this.packageReader = packageReader;
         this.snapshotService = snapshotService;
@@ -123,7 +141,9 @@ public class PortableDataPackageService {
         this.jobStore = jobStore;
         this.commitStore = commitStore;
         this.clock = clock;
-        this.previewRoot = previewRoot.toAbsolutePath().normalize();
+        this.previewRoot = previewRoot.toAbsolutePath().normalize().resolve("work");
+        this.previewStore = previewStore;
+        PortablePreviewWorkspace.reap(this.previewRoot, clock);
     }
 
     public ExportedPackage exportPackage() {
@@ -139,48 +159,44 @@ public class PortableDataPackageService {
             throw new BusinessException(HttpStatus.PAYLOAD_TOO_LARGE, "ZIP 上传文件不能超过 64MiB");
         }
 
-        cleanupExpired();
-        Path directory = createPreviewDirectory();
-        Path archive = directory.resolve("package.zip");
-        Path extracted = directory.resolve("extracted");
+        if (!processingSlots.tryAcquire()) throw PortablePreviewStore.full();
+        PortablePreviewStore.Entry reservation = null;
+        Path workingDirectory = null;
+        boolean creationClean = false;
+        boolean published = false;
         try {
-            file.transferTo(archive);
-            long actualBytes = Files.size(archive);
-            if (actualBytes <= 0 || actualBytes > PortablePackageModels.MAX_ARCHIVE_BYTES) {
-                throw new BusinessException(HttpStatus.PAYLOAD_TOO_LARGE, "ZIP 上传文件不能超过 64MiB");
-            }
-            ParsedPackage parsed = packageReader.read(archive, extracted);
-            Snapshot current = snapshotService.capture();
-            PreviewResponse response = buildPreview(parsed, current, null, null);
-            if (!parsed.valid()) {
-                deleteTree(directory);
-                return response;
-            }
-
             String token = randomId();
             Instant expiresAt = clock.instant().plus(PREVIEW_TTL_MINUTES, ChronoUnit.MINUTES);
-            PreviewState state = new PreviewState(
-                    token,
-                    userId,
-                    parsed.archiveSha256(),
-                    current.revision(),
-                    expiresAt,
-                    directory,
-                    archive,
-                    extracted,
-                    parsed
-            );
-            previews.put(token, state);
-            return buildPreview(parsed, current, token, expiresAt);
-        } catch (BusinessException exception) {
-            deleteTree(directory);
-            throw exception;
-        } catch (RuntimeException exception) {
-            deleteTree(directory);
-            throw exception;
+            reservation = previewStore.reserve(token, userId, file.getSize(), expiresAt);
+            processingPreviews.put(token, reservation);
+            try (PortablePreviewWorkspace workspace = PortablePreviewWorkspace.create(previewRoot, clock)) {
+                workingDirectory = workspace.directory();
+                copyUpload(file, workspace.archive());
+                ParsedPackage parsed = packageReader.read(workspace.archive(), workspace.directory().resolve("extracted"));
+                Snapshot current = snapshotService.capture();
+                if (!parsed.valid()) return buildPreview(parsed, current, null, null);
+                // 可跨节点确认前先回收预检工作副本，预算只需覆盖一个解压目录。
+                PortablePreviewStore.Entry ready = previewStore.publish(reservation, parsed.archiveSha256(),
+                        current.revision(), workspace.archive(), workspace::close);
+                published = true;
+                return buildPreview(parsed, current, token, ready.expiresAt());
+            }
+        } catch (PortablePreviewWorkspace.CreationException exception) {
+            creationClean = !exception.hasResidue();
+            throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE, "无法创建导入预检工作目录");
         } catch (IOException exception) {
-            deleteTree(directory);
             throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, "无法保存导入预检文件");
+        } finally {
+            if (reservation != null) processingPreviews.remove(reservation.token(), reservation);
+            try {
+                // 清理未完成时保留活动预留；不能把仍占用的工作目录字节视为已释放。
+                if (!published && reservation != null && (creationClean || workingDirectory != null
+                        && !Files.exists(workingDirectory, java.nio.file.LinkOption.NOFOLLOW_LINKS))) {
+                    previewStore.release(reservation);
+                }
+            } finally {
+                processingSlots.release();
+            }
         }
     }
 
@@ -200,55 +216,68 @@ public class PortableDataPackageService {
                 return new ConfirmResponse(existingJob.jobId());
             }
 
-            PreviewState preview = previews.get(token);
-            if (preview == null || !preview.expiresAt().isAfter(clock.instant())) {
-                discardPreview(token, preview);
-                throw BusinessException.notFound("导入预检不存在或已过期");
-            }
-            if (preview.userId() != userId) {
-                throw BusinessException.notFound("导入预检不存在或已过期");
-            }
-            if (!preview.archiveSha256().equals(sha256(preview.archive()))) {
-                discardPreview(token, preview);
-                throw BusinessException.conflict("预检文件已变化，请重新上传");
-            }
-            Snapshot current = snapshotService.capture();
-            if (!preview.businessRevision().equals(current.revision())) {
-                throw BusinessException.conflict("业务数据在预检后已变化，请重新预检");
-            }
+            PortablePreviewStore.Entry preview = previewStore.find(token, userId)
+                    .orElseThrow(PortablePreviewStore::missing);
             String jobId = randomId();
             JobState job = new JobState(jobId, token, userId, clock.instant());
-            PortableImportJobStore.ClaimResult claim = jobStore.claim(job.stored());
-            if (claim.outcome() == PortableImportJobStore.ClaimOutcome.PREVIEW_ALREADY_CLAIMED) {
-                PortableImportJobStore.StoredJob claimed = jobStore.findByPreviewToken(token)
-                        .orElseThrow(() -> new BusinessException(
-                                HttpStatus.SERVICE_UNAVAILABLE,
-                                "导入任务已创建但状态暂时不可用"
-                        ));
-                if (claimed.userId() != userId) {
-                    throw BusinessException.notFound("导入预检不存在或已过期");
-                }
-                return new ConfirmResponse(claimed.jobId());
-            }
-            if (claim.outcome() == PortableImportJobStore.ClaimOutcome.IMPORT_RUNNING) {
-                throw BusinessException.conflict("已有导入任务正在执行，请稍后重试");
-            }
-            job.lease = claim.lease();
-            if (!previews.remove(token, preview)) {
-                jobStore.abandon(job.lease, job.stored());
-                throw BusinessException.conflict("该预检已被确认或失效");
-            }
-            activeJob = job;
+            if (!processingSlots.tryAcquire()) throw PortablePreviewStore.full();
+            boolean submitted = false;
             try {
-                taskExecutor.execute(() -> runImport(preview, job));
-            } catch (RuntimeException exception) {
-                activeJob = null;
-                jobStore.abandon(job.lease, job.stored());
-                deleteTree(preview.directory());
-                throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE, "导入任务暂时无法启动");
+                Snapshot current = snapshotService.capture();
+                if (!preview.businessRevision().equals(current.revision())) {
+                    throw BusinessException.conflict("业务数据在预检后已变化，请重新预检");
+                }
+                PortableImportJobStore.ClaimResult claim = jobStore.claim(job.stored());
+                if (claim.outcome() == PortableImportJobStore.ClaimOutcome.PREVIEW_ALREADY_CLAIMED) {
+                    PortableImportJobStore.StoredJob claimed = jobStore.findByPreviewToken(token)
+                            .orElseThrow(() -> new BusinessException(
+                                    HttpStatus.SERVICE_UNAVAILABLE,
+                                    "导入任务已创建但状态暂时不可用"
+                            ));
+                    if (claimed.userId() != userId) {
+                        throw BusinessException.notFound("导入预检不存在或已过期");
+                    }
+                    return new ConfirmResponse(claimed.jobId());
+                }
+                if (claim.outcome() == PortableImportJobStore.ClaimOutcome.IMPORT_RUNNING) {
+                    throw BusinessException.conflict("已有导入任务正在执行，请稍后重试");
+                }
+                job.lease = claim.lease();
+                try {
+                    job.preview = previewStore.activate(preview, jobId);
+                    activeJob = job;
+                    taskExecutor.execute(() -> runImport(job.preview, job));
+                    submitted = true;
+                } catch (RuntimeException exception) {
+                    activeJob = null;
+                    // 保留已确认的任务身份，网络未知后的只读查询可得到失败终态。
+                    job.stage = JobStage.FAILED;
+                    job.finishedAt = clock.instant();
+                    job.message = "导入任务未能启动，业务数据未修改";
+                    job.error = safeError(exception);
+                    try {
+                        persist(job);
+                    } finally {
+                        try { jobStore.release(job.lease); }
+                        finally { previewStore.release(job.preview == null ? preview : job.preview); }
+                    }
+                    throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE, "导入任务暂时无法启动");
+                }
+                return new ConfirmResponse(jobId);
+            } finally {
+                if (!submitted) processingSlots.release();
             }
-            return new ConfirmResponse(jobId);
         }
+    }
+
+    public JobResponse queryByPreviewToken(String token, Authentication authentication) {
+        long userId = currentAdminId(authentication);
+        if (token == null || token.isBlank()) throw PortablePreviewStore.missing();
+        PortableImportJobStore.StoredJob job = commitStore.findByPreviewToken(token)
+                .map(PortableImportCommitStore.CommittedImport::asCompletedJob)
+                .or(() -> jobStore.findByPreviewToken(token)).orElse(null);
+        if (job == null || job.userId() != userId) throw PortablePreviewStore.missing();
+        return job.response();
     }
 
     public JobResponse job(String jobId, Authentication authentication) {
@@ -273,16 +302,21 @@ public class PortableDataPackageService {
         return selected.response();
     }
 
-    private void runImport(PreviewState preview, JobState job) {
+    private void runImport(PortablePreviewStore.Entry preview, JobState job) {
         job.startedAt = clock.instant();
         job.stage = JobStage.PREPARING;
         job.message = "正在复核数据包与业务版本";
+        PortablePreviewWorkspace workspace = null;
         try {
             persist(job);
-            if (!preview.expiresAt().isAfter(clock.instant())) {
-                throw BusinessException.conflict("预检已过期，请重新上传");
+            // 确认已原子转为活动预留，后续以活动租约保护，不再按预检15分钟截止时间中止。
+            try {
+                workspace = PortablePreviewWorkspace.create(previewRoot, clock);
+            } catch (IOException exception) {
+                throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE, "无法创建导入工作目录");
             }
-            if (!preview.archiveSha256().equals(sha256(preview.archive()))) {
+            previewStore.copyArchive(preview, workspace.archive());
+            if (!preview.archiveSha256().equals(sha256(workspace.archive()))) {
                 throw BusinessException.conflict("预检文件已变化，请重新上传");
             }
             Snapshot before = snapshotService.capture();
@@ -290,8 +324,8 @@ public class PortableDataPackageService {
                 throw BusinessException.conflict("业务数据在导入开始前已变化，请重新预检");
             }
 
-            Path confirmedExtraction = preview.directory().resolve("confirmed-extracted-" + randomId());
-            ParsedPackage confirmed = packageReader.read(preview.archive(), confirmedExtraction);
+            Path confirmedExtraction = workspace.directory().resolve("extracted");
+            ParsedPackage confirmed = packageReader.read(workspace.archive(), confirmedExtraction);
             if (!confirmed.valid() || !preview.archiveSha256().equals(confirmed.archiveSha256())) {
                 throw BusinessException.conflict("数据包复核失败，请重新上传并预检");
             }
@@ -349,7 +383,7 @@ public class PortableDataPackageService {
             job.finishedAt = clock.instant();
             try {
                 persist(job);
-            } catch (BusinessException staleLease) {
+            } catch (RuntimeException staleLease) {
                 log.warn("Portable data import job {} could not persist failure state after losing its lease",
                         job.jobId);
             }
@@ -365,7 +399,14 @@ public class PortableDataPackageService {
                         job.jobId, releaseFailure);
             } finally {
                 if (activeJob == job) activeJob = null;
-                deleteTree(preview.directory());
+                try {
+                    if (workspace != null) workspace.close();
+                    previewStore.release(preview);
+                } catch (RuntimeException cleanupFailure) {
+                    log.warn("Portable import {} could not release its preview reservation", job.jobId, cleanupFailure);
+                } finally {
+                    processingSlots.release();
+                }
             }
         }
     }
@@ -503,16 +544,22 @@ public class PortableDataPackageService {
         return new DiffCounts(added, updated, deleted, unchanged);
     }
 
-    private Path createPreviewDirectory() {
-        try {
-            Files.createDirectories(previewRoot);
-            if (Files.isSymbolicLink(previewRoot)) {
-                throw new IOException("预检根目录不能是符号链接");
+    private void copyUpload(MultipartFile file, Path archive) throws IOException {
+        try (InputStream input = file.getInputStream();
+             var output = Files.newOutputStream(archive, StandardOpenOption.CREATE_NEW)) {
+            byte[] buffer = new byte[8192];
+            long total = 0;
+            int read;
+            while ((read = input.read(buffer)) != -1) {
+                total += read;
+                if (total > file.getSize() || total > PortablePackageModels.MAX_ARCHIVE_BYTES) {
+                    throw BusinessException.badRequest("上传文件大小与预检预留不符");
+                }
+                output.write(buffer, 0, read);
             }
-            return Files.createTempDirectory(previewRoot, "preview-");
-        } catch (IOException exception) {
-            throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE, "无法创建导入预检目录");
+            if (total != file.getSize()) throw BusinessException.badRequest("上传文件大小与预检预留不符");
         }
+        PortablePreviewWorkspace.privateFile(archive);
     }
 
     private long currentAdminId(Authentication authentication) {
@@ -531,8 +578,15 @@ public class PortableDataPackageService {
 
     @Scheduled(fixedRate = 30_000, initialDelay = 30_000)
     public void renewActiveImportLease() {
+        processingPreviews.values().forEach(entry -> {
+            try { previewStore.renewProcessing(entry); }
+            catch (RuntimeException failure) {
+                log.warn("Cannot renew processing preview reservation {}", entry.token(), failure);
+            }
+        });
         JobState running = activeJob;
         if (running != null && running.stage != JobStage.COMPLETED && running.stage != JobStage.FAILED) {
+            if (running.preview != null) previewStore.renew(running.preview);
             if (!jobStore.heartbeat(running.lease)) {
                 activeJob = null;
                 log.warn("Portable data import job {} lost its Redis mutex", running.jobId);
@@ -542,33 +596,10 @@ public class PortableDataPackageService {
 
     @Scheduled(fixedDelay = 300_000, initialDelay = 300_000)
     public void cleanupExpired() {
-        Instant now = clock.instant();
-        previews.forEach((token, preview) -> {
-            if (!preview.expiresAt().isAfter(now) && previews.remove(token, preview)) {
-                deleteTree(preview.directory());
-            }
-        });
-    }
-
-    private void discardPreview(String token, PreviewState preview) {
-        if (preview != null && previews.remove(token, preview)) deleteTree(preview.directory());
-    }
-
-    private void deleteTree(Path root) {
-        if (root == null || !root.toAbsolutePath().normalize().startsWith(previewRoot)) return;
         try {
-            if (!Files.exists(root)) return;
-            try (var paths = Files.walk(root)) {
-                paths.sorted(Comparator.reverseOrder()).forEach(path -> {
-                    try {
-                        Files.deleteIfExists(path);
-                    } catch (IOException exception) {
-                        log.warn("Failed to delete portable import temporary file {}", path.getFileName());
-                    }
-                });
-            }
-        } catch (IOException exception) {
-            log.warn("Failed to clean portable import temporary directory");
+            previewStore.cleanupExpired();
+        } finally {
+            PortablePreviewWorkspace.reap(previewRoot, clock);
         }
     }
 
@@ -603,19 +634,6 @@ public class PortableDataPackageService {
         return values == null ? List.of() : values;
     }
 
-    private record PreviewState(
-            String token,
-            long userId,
-            String archiveSha256,
-            String businessRevision,
-            Instant expiresAt,
-            Path directory,
-            Path archive,
-            Path extracted,
-            ParsedPackage parsed
-    ) {
-    }
-
     private static final class JobState {
         private final String jobId;
         private final String previewToken;
@@ -628,6 +646,7 @@ public class PortableDataPackageService {
         private volatile Issue error;
         private volatile Instant heartbeatAt;
         private volatile PortableImportJobStore.Lease lease;
+        private volatile PortablePreviewStore.Entry preview;
 
         private JobState(String jobId, String previewToken, long userId, Instant createdAt) {
             this.jobId = jobId;

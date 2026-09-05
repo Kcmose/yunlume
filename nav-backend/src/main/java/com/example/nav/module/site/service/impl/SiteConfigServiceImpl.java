@@ -8,6 +8,8 @@ import com.example.nav.module.site.entity.SiteConfig;
 import com.example.nav.module.site.mapper.SiteConfigMapper;
 import com.example.nav.module.site.service.SiteConfigService;
 import com.example.nav.module.site.vo.SiteConfigVO;
+import com.example.nav.module.upload.config.UploadStorageProperties;
+import com.example.nav.module.upload.service.ManagedBackgroundReferences;
 import com.example.nav.module.publicdata.PublicDataCacheNames;
 import com.example.nav.module.publicdata.PublicDataCacheInvalidator;
 import org.springframework.cache.annotation.CacheEvict;
@@ -16,19 +18,24 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.http.HttpStatus;
 
 import java.time.LocalDateTime;
+import java.io.IOException;
+import java.util.List;
 
 @Service
 public class SiteConfigServiceImpl implements SiteConfigService {
 
     private final SiteConfigMapper siteConfigMapper;
     private final PublicDataCacheInvalidator cacheInvalidator;
+    private final ManagedBackgroundReferences backgroundReferences;
 
     public SiteConfigServiceImpl(
             SiteConfigMapper siteConfigMapper,
-            PublicDataCacheInvalidator cacheInvalidator
+            PublicDataCacheInvalidator cacheInvalidator,
+            UploadStorageProperties uploadProperties
     ) {
         this.siteConfigMapper = siteConfigMapper;
         this.cacheInvalidator = cacheInvalidator;
+        this.backgroundReferences = new ManagedBackgroundReferences(uploadProperties);
     }
 
     @Override
@@ -43,7 +50,8 @@ public class SiteConfigServiceImpl implements SiteConfigService {
         if (dto == null || dto.expectedVersion() == null) {
             throw BusinessException.badRequest("配置版本不能为空");
         }
-        SiteConfig config = getRequiredConfig();
+        // 与 GC/导入共享 site 行锁；引用校验至配置提交期间不允许删除图片。
+        SiteConfig config = requireSingleConfig(siteConfigMapper.selectAllForUpdate());
         int persistedVersion = config.getVersion();
         if (persistedVersion == Integer.MAX_VALUE) {
             throw BusinessException.conflict("站点配置版本已达到上限，无法安全更新");
@@ -67,6 +75,9 @@ public class SiteConfigServiceImpl implements SiteConfigService {
                 && (effectiveBackgroundImage == null || effectiveBackgroundImage.isBlank())) {
             throw BusinessException.badRequest("图片背景模式必须配置 PC 背景图片");
         }
+        validateBackgroundReference(effectiveBackgroundImage);
+        validateBackgroundReference(dto.mobileBackgroundImage() == null
+                ? config.getMobileBackgroundImage() : dto.mobileBackgroundImage());
 
         LocalDateTime now = LocalDateTime.now();
         LambdaUpdateWrapper<SiteConfig> update = Wrappers.<SiteConfig>lambdaUpdate()
@@ -101,8 +112,21 @@ public class SiteConfigServiceImpl implements SiteConfigService {
     }
 
     private SiteConfig getRequiredConfig() {
-        var configs = siteConfigMapper.selectList(Wrappers.<SiteConfig>lambdaQuery()
-                .orderByAsc(SiteConfig::getId));
+        return requireSingleConfig(siteConfigMapper.selectList(Wrappers.<SiteConfig>lambdaQuery()
+                .orderByAsc(SiteConfig::getId)));
+    }
+
+    private void validateBackgroundReference(String url) {
+        String filename = backgroundReferences.filename(url);
+        if (filename == null) return;
+        try {
+            backgroundReferences.requireFile(filename);
+        } catch (IOException exception) {
+            throw BusinessException.badRequest("受管背景图片已不存在或不可用，请重新上传后保存");
+        }
+    }
+
+    private SiteConfig requireSingleConfig(List<SiteConfig> configs) {
         if (configs != null && configs.size() == 1 && configs.get(0) != null
                 && Long.valueOf(1L).equals(configs.get(0).getId())
                 && configs.get(0).getVersion() != null

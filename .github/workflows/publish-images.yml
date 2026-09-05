@@ -60,252 +60,7 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
           REPOSITORY: ${{ github.repository }}
           GITHUB_SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          source ops/lib/release-transaction.sh
-          assert_pinned_gh_capabilities
-          if [[ ! "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-            printf 'Release tag must use vX.Y.Z without leading zeroes: %s\n' "$RELEASE_TAG" >&2
-            exit 1
-          fi
-          tag_object="$(gh api "repos/$REPOSITORY/git/ref/tags/$RELEASE_TAG" \
-            --jq '[.object.type, .object.sha] | @tsv')"
-          IFS=$'\t' read -r tag_object_type tag_object_sha <<< "$tag_object"
-          for ((depth = 0; depth < 16 && tag_object_type == "tag"; depth++)); do
-            tag_object="$(gh api "repos/$REPOSITORY/git/tags/$tag_object_sha" \
-              --jq '[.object.type, .object.sha] | @tsv')"
-            IFS=$'\t' read -r tag_object_type tag_object_sha <<< "$tag_object"
-          done
-          [[ "$tag_object_type" == commit && "$tag_object_sha" == "$GITHUB_SHA" ]] || {
-            printf 'Remote release tag does not resolve to workflow commit.\n' >&2
-            exit 1
-          }
-          default_branch="$(gh api "repos/$REPOSITORY" --jq '.default_branch')"
-          encoded_default_branch="$(jq -rn --arg value "$default_branch" '$value|@uri')"
-          default_branch_status="$(gh api \
-            "repos/$REPOSITORY/compare/$GITHUB_SHA...$encoded_default_branch" --jq '.status')"
-          [[ "$default_branch_status" == ahead || "$default_branch_status" == identical ]] || {
-            printf 'Release commit is not in the approved default-branch history.\n' >&2
-            exit 1
-          }
-
-          releases_json="$(gh api -H 'X-GitHub-Api-Version: 2026-03-10' --paginate "repos/$REPOSITORY/releases")"
-          matching_text="$(jq --arg tag "$RELEASE_TAG" -r \
-            '.[] | select(.tag_name == $tag) | [.id, .draft, .target_commitish, .prerelease, .immutable] | @tsv' \
-            <<<"$releases_json")"
-          matching_releases=()
-          [[ -z "$matching_text" ]] || mapfile -t matching_releases <<<"$matching_text"
-          if (( ${#matching_releases[@]} > 1 )); then
-            printf 'Multiple releases use tag %s; refusing ambiguous recovery.\n' "$RELEASE_TAG" >&2
-            exit 1
-          fi
-          published_release=false
-          if (( ${#matching_releases[@]} == 1 )); then
-            IFS=$'\t' read -r existing_release_id existing_release_draft existing_release_target existing_release_prerelease existing_release_immutable \
-              <<< "${matching_releases[0]}"
-            release_body="$(gh api "repos/$REPOSITORY/releases/$existing_release_id" --jq '.body // ""')"
-            recovery_marker="<!-- yunlume-release-reservation-v3:${GITHUB_SHA} -->"
-            [[ "$release_body" == "$recovery_marker" ]] || {
-              printf 'Existing release does not have the exact unowned reservation marker for %s.\n' "$GITHUB_SHA" >&2
-              exit 1
-            }
-            resolve_target_commitish() {
-              local encoded_target
-              encoded_target="$(jq -rn --arg value "$1" '$value|@uri')"
-              gh api "repos/$REPOSITORY/commits/$encoded_target" --jq '.sha'
-            }
-            resolved_release_target="$(resolve_target_commitish "$existing_release_target")"
-            [[ "$resolved_release_target" == "$GITHUB_SHA" ]] || {
-              printf 'Existing release target %s resolves to %s, not workflow commit %s.\n' \
-                "$existing_release_target" "$resolved_release_target" "$GITHUB_SHA" >&2
-              exit 1
-            }
-            [[ "$existing_release_prerelease" == false ]] || {
-              printf 'Existing release is unexpectedly marked as a prerelease.\n' >&2
-              exit 1
-            }
-            if [[ "$existing_release_draft" == false ]]; then
-              [[ "$existing_release_immutable" == true ]] || {
-                printf 'Published Release is mutable; immutable releases are required.\n' >&2
-                exit 1
-              }
-              published_release=true
-              archive_name="yunlume-host-${RELEASE_TAG}.tar.gz"
-              expected_names=(install.sh release-manifest.json release-provenance.json release-assets.sigstore.json canonical-owner.json candidate-commitment-backend.json candidate-commitment-frontend.json candidate-oci-backend.tar candidate-oci-frontend.tar yunlume-compose.yml "$archive_name" "$archive_name.sha256" SHA256SUMS)
-              mapfile -t expected_names_sorted < <(printf '%s\n' "${expected_names[@]}" | sort)
-              mapfile -t remote_asset_rows < <(
-                gh api "repos/$REPOSITORY/releases/$existing_release_id/assets" --paginate \
-                  --jq '.[] | [.name, .size, .id] | @tsv' | sort
-              )
-              remote_names=()
-              declare -A remote_asset_bytes=() remote_asset_ids=()
-              for row in "${remote_asset_rows[@]}"; do
-                IFS=$'\t' read -r asset_name asset_bytes asset_id <<< "$row"
-                [[ "$asset_bytes" =~ ^[1-9][0-9]*$ ]] || {
-                  printf 'Published asset %s has invalid or empty byte metadata.\n' "$asset_name" >&2
-                  exit 1
-                }
-                remote_names+=("$asset_name")
-                remote_asset_bytes["$asset_name"]="$asset_bytes"
-                remote_asset_ids["$asset_name"]="$asset_id"
-              done
-              [[ "${remote_names[*]}" == "${expected_names_sorted[*]}" ]] || {
-                printf 'Published release asset set is incomplete or contains unexpected files.\n' >&2
-                exit 1
-              }
-              verify_dir="$(mktemp -d)"
-              trap 'rm -rf -- "$verify_dir"' EXIT
-              for asset_name in "${expected_names[@]}"; do
-                gh api "repos/$REPOSITORY/releases/assets/${remote_asset_ids[$asset_name]}" \
-                  -H 'Accept: application/octet-stream' > "$verify_dir/$asset_name"
-                actual_bytes="$(stat -c '%s' "$verify_dir/$asset_name")"
-                [[ "$actual_bytes" == "${remote_asset_bytes[$asset_name]}" ]] || {
-                  printf 'Published asset byte count changed: %s.\n' "$asset_name" >&2
-                  exit 1
-                }
-              done
-              gh release verify "$RELEASE_TAG" --repo "$REPOSITORY" >/dev/null
-              for asset_name in "${expected_names[@]}"; do
-                gh release verify-asset "$RELEASE_TAG" "$verify_dir/$asset_name" \
-                  --repo "$REPOSITORY" >/dev/null
-              done
-              canonical_text="$(jq -er --arg sha "$GITHUB_SHA" \
-                'select(type == "object" and .schemaVersion == 1 and .sourceSha == $sha) | .runId,.runAttempt' \
-                "$verify_dir/canonical-owner.json")"
-              readarray -t canonical_identity <<<"$canonical_text"
-              (( ${#canonical_identity[@]} == 2 )) || exit 1
-              canonical_run_id="${canonical_identity[0]}"
-              canonical_run_attempt="${canonical_identity[1]}"
-              canonical_backend_digest="$(jq -er '.digest' "$verify_dir/candidate-commitment-backend.json")"
-              canonical_frontend_digest="$(jq -er '.digest' "$verify_dir/candidate-commitment-frontend.json")"
-              verify_candidate_archive_commitment "$verify_dir/candidate-oci-backend.tar" \
-                "$verify_dir/candidate-commitment-backend.json" backend "$GITHUB_SHA"
-              verify_candidate_archive_commitment "$verify_dir/candidate-oci-frontend.tar" \
-                "$verify_dir/candidate-commitment-frontend.json" frontend "$GITHUB_SHA"
-              verify_canonical_provenance "$verify_dir" "$verify_dir/release-provenance.json" \
-                "$verify_dir/release-assets.sigstore.json" "$canonical_run_id" \
-                "$canonical_run_attempt" "$GITHUB_SHA" "refs/tags/$RELEASE_TAG" \
-                "$REPOSITORY/.github/workflows/publish-images.yml" \
-                "$REPOSITORY/.github/workflows/publish-images.yml@refs/tags/$RELEASE_TAG" \
-                "$canonical_backend_digest" "$canonical_frontend_digest"
-              for asset_name in "${expected_names[@]}"; do
-                attestation_args=()
-                case "$asset_name" in
-                  release-provenance.json|release-assets.sigstore.json) ;;
-                  *) attestation_args=(--bundle "$verify_dir/release-assets.sigstore.json") ;;
-                esac
-                gh attestation verify "$verify_dir/$asset_name" \
-                  "${attestation_args[@]}" \
-                  --repo "$REPOSITORY" \
-                  --signer-workflow "$REPOSITORY/.github/workflows/publish-images.yml" \
-                  --source-ref "refs/tags/$RELEASE_TAG" \
-                  --source-digest "$GITHUB_SHA" >/dev/null
-              done
-              expected_checksum_names=(install.sh release-manifest.json yunlume-compose.yml "$archive_name" "$archive_name.sha256")
-              mapfile -t expected_checksum_names_sorted < <(printf '%s\n' "${expected_checksum_names[@]}" | sort)
-              mapfile -t checksum_names < <(awk '{print $2}' "$verify_dir/SHA256SUMS" | sort)
-              [[ "${checksum_names[*]}" == "${expected_checksum_names_sorted[*]}" ]] || {
-                printf 'Published SHA256SUMS does not cover exactly the expected assets.\n' >&2
-                exit 1
-              }
-              (cd "$verify_dir" && sha256sum --check --quiet --strict SHA256SUMS)
-              manifest_values="$(python3 - "$verify_dir" "$GITHUB_SHA" "$RELEASE_TAG" "$REPOSITORY" <<'PY'
-          import hashlib, json, re, sys
-          from pathlib import Path
-
-          root, github_sha, tag, repository = Path(sys.argv[1]), *sys.argv[2:]
-          version = tag.removeprefix("v")
-          archive_name = f"yunlume-host-{tag}.tar.gz"
-          asset_names = {
-              "install.sh", "release-manifest.json", "yunlume-compose.yml",
-              archive_name, f"{archive_name}.sha256", "SHA256SUMS",
-              "candidate-commitment-backend.json", "candidate-commitment-frontend.json",
-              "candidate-oci-backend.tar", "candidate-oci-frontend.tar", "canonical-owner.json",
-          }
-          baseline = json.loads((root / "release-provenance.json").read_text(encoding="utf-8"))
-          if set(baseline) != {"schemaVersion", "canonicalIdentity", "attestationBundleSha256", "predicateSha256", "backendJarSha256", "assets", "manifest"}:
-              raise SystemExit("release provenance schema mismatch")
-          if baseline["schemaVersion"] != 3:
-              raise SystemExit("release provenance identity mismatch")
-          if re.fullmatch(r"[0-9a-f]{64}", baseline["backendJarSha256"]) is None:
-              raise SystemExit("release provenance backend JAR digest mismatch")
-          if set(baseline["assets"]) != asset_names:
-              raise SystemExit("release provenance asset set mismatch")
-          for name in sorted(asset_names):
-              content = (root / name).read_bytes()
-              record = baseline["assets"][name]
-              if set(record) != {"sha256", "size"} or record["sha256"] != hashlib.sha256(content).hexdigest():
-                  raise SystemExit(f"release provenance digest mismatch: {name}")
-              if record["size"] != len(content):
-                  raise SystemExit(f"release provenance size mismatch: {name}")
-          manifest = json.loads((root / "release-manifest.json").read_text(encoding="utf-8"))
-          if baseline["manifest"] != manifest:
-              raise SystemExit("release provenance manifest mismatch")
-          if set(manifest) != {"version", "compatibilityEpoch", "docker", "host"} or manifest.get("version") != version:
-              raise SystemExit("published manifest version mismatch")
-          if manifest.get("compatibilityEpoch") != 1:
-              raise SystemExit("manifest compatibilityEpoch mismatch")
-          docker = manifest.get("docker")
-          host = manifest.get("host")
-          if not isinstance(docker, dict) or set(docker) != {"compose", "composeSha256", "backendImage", "frontendImage"}:
-              raise SystemExit("published manifest docker schema mismatch")
-          if not isinstance(host, dict) or set(host) != {"archive", "archiveSha256"}:
-              raise SystemExit("published manifest host schema mismatch")
-          if docker["compose"] != "yunlume-compose.yml" or host["archive"] != archive_name:
-              raise SystemExit("manifest asset name mismatch")
-          digest = lambda path: hashlib.sha256((root / path).read_bytes()).hexdigest()
-          if docker["composeSha256"] != digest("yunlume-compose.yml"):
-              raise SystemExit("manifest composeSha256 mismatch")
-          archive_sha = digest(archive_name)
-          if host["archiveSha256"] != archive_sha:
-              raise SystemExit("manifest archiveSha256 mismatch")
-          if (root / f"{archive_name}.sha256").read_text(encoding="utf-8") != f"{archive_sha}  {archive_name}\n":
-              raise SystemExit("archive sidecar mismatch")
-          owner = repository.split("/", 1)[0].lower()
-          for component in ("backend", "frontend"):
-              value = docker[f"{component}Image"]
-              match = re.fullmatch(rf"ghcr\.io/{re.escape(owner)}/yunlume-{component}@(sha256:[0-9a-f]{{64}})", value)
-              if match is None:
-                  raise SystemExit("published manifest image is not immutable or belongs to another owner")
-              print(match.group(1))
-          PY
-              )"
-              mapfile -t published_digests <<< "$manifest_values"
-              (( ${#published_digests[@]} == 2 )) || exit 1
-              published_backend_digest="${published_digests[0]}"
-              published_frontend_digest="${published_digests[1]}"
-              published_backend_jar_sha="$(jq -r '.backendJarSha256' "$verify_dir/release-provenance.json")"
-              verify_host_archive_jar_sha "$verify_dir/$archive_name" "$published_backend_jar_sha"
-              owner="${REPOSITORY%%/*}"
-              owner="$(printf '%s' "$owner" | tr '[:upper:]' '[:lower:]')"
-              verify_immutable_image() {
-                local component="$1" expected_digest="$2" actual_digest
-                actual_digest="$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' \
-                  "ghcr.io/${owner}/yunlume-${component}:${RELEASE_TAG#v}")"
-                [[ "$actual_digest" == "$expected_digest" ]] || {
-                  printf 'Published %s immutable tag digest mismatch.\n' "$component" >&2
-                  exit 1
-                }
-                if [[ "$component" == backend ]]; then
-                  verify_container_jar_sha "ghcr.io/${owner}/yunlume-backend@${actual_digest}" "$published_backend_jar_sha"
-                fi
-              }
-              verify_immutable_image backend "$published_backend_digest"
-              verify_immutable_image frontend "$published_frontend_digest"
-              printf 'backend_digest=%s\nfrontend_digest=%s\n' \
-                "$published_backend_digest" "$published_frontend_digest" >> "$GITHUB_OUTPUT"
-            elif [[ "$existing_release_draft" != true ]]; then
-              printf 'Existing release state is invalid.\n' >&2
-              exit 1
-            fi
-          fi
-          printf 'published_release=%s\n' "$published_release" >> "$GITHUB_OUTPUT"
-
-          published_text="$(jq --arg tag "$RELEASE_TAG" -r \
-            '.[] | select(.draft == false and .tag_name != $tag) | .tag_name' <<<"$releases_json")"
-          published_tags=()
-          [[ -z "$published_text" ]] || mapfile -t published_tags <<<"$published_text"
-          python3 ops/validate-release-version.py "$RELEASE_TAG" "${published_tags[@]}"
+        run: bash ops/release-preflight.sh
 
   release-reserve:
     name: Reserve exact draft release transaction
@@ -346,6 +101,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           source ops/lib/release-transaction.sh
+          source ops/lib/publish-workflow.sh
           assert_pinned_gh_capabilities
           IMMUTABLE_RELEASES_READ_TOKEN="${{ secrets.IMMUTABLE_RELEASES_READ_TOKEN }}" ops/check-immutable-releases-policy.sh "$REPOSITORY"
           releases_json="$(gh api -H 'X-GitHub-Api-Version: 2026-03-10' --paginate "repos/$REPOSITORY/releases")"
@@ -410,15 +166,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bash -n install.sh ops/*.sh ops/lib/*.sh
+          for script in install.sh ops/*.sh ops/lib/*.sh nav-frontend/nginx/*.envsh; do
+            bash -n "$script"
+          done
           ops/install-release-url-test.sh
           ops/version-transition-test.sh
+          bash ops/ci-shell-syntax-test.sh
+          bash ops/install-e2e-cleanup-test.sh
           ops/mode-protection-test.sh
           ops/release-manifest-test.sh
           ops/release-version-test.sh
           ops/publish-workflow-test.sh
+          bash ops/publish-workflow-behavior-test.sh
           ops/immutable-release-policy-test.sh
           ops/release-transaction-test.sh
+          bash ops/release-failure-propagation-test.sh
+          sudo bash ops/host-proxy-config-test.sh
+          sudo bash ops/host-proxy-apply-test.sh
+          bash ops/install-first-retry-test.sh
           ops/rollback-release-test.sh
           ops/compatibility-epoch-rollback-test.sh
           sudo ops/operations-lock-test.sh
@@ -477,6 +242,11 @@ jobs:
       contents: read
     outputs:
       jar_sha256: ${{ steps.backend-jar.outputs.sha256 }}
+      artifact_id: ${{ steps.raw-jar-upload.outputs.artifact-id }}
+      artifact_digest: ${{ steps.raw-jar-upload.outputs.artifact-digest }}
+      producer_run_id: ${{ github.run_id }}
+      producer_run_attempt: ${{ github.run_attempt }}
+      source_sha: ${{ github.sha }}
     services:
       redis:
         image: redis:7.4
@@ -566,9 +336,11 @@ jobs:
           set -euo pipefail
           install -d -m 0755 tested-backend-jar
           install -m 0644 nav-backend/target/nav-backend-0.1.0.jar tested-backend-jar/app.jar
-          printf 'sha256=%s\n' "$JAR_SHA256" > tested-backend-jar/identity.txt
+          printf 'sha256=%s\nsource_sha=%s\nrun_id=%s\nrun_attempt=%s\n' \
+            "$JAR_SHA256" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" > tested-backend-jar/identity.txt
 
       - name: Upload exact tested backend JAR
+        id: raw-jar-upload
         if: >-
           github.event_name == 'push' &&
           (github.ref_type == 'tag' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
@@ -578,7 +350,7 @@ jobs:
           path: tested-backend-jar
           if-no-files-found: error
           overwrite: false
-          retention-days: 1
+          retention-days: 90
 
   backend-attest:
     name: Attest exact tested backend JAR
@@ -592,26 +364,76 @@ jobs:
       github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      artifact_id: ${{ steps.attested-jar-upload.outputs.artifact-id }}
+      artifact_digest: ${{ steps.attested-jar-upload.outputs.artifact-digest }}
+      producer_run_id: ${{ github.run_id }}
+      producer_run_attempt: ${{ github.run_attempt }}
+      source_sha: ${{ github.sha }}
+      jar_sha256: ${{ needs.backend-test.outputs.jar_sha256 }}
     permissions:
       actions: read
       attestations: write
       contents: read
       id-token: write
     steps:
+      - name: Verify raw JAR artifact producer before signing
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ needs.backend-test.outputs.artifact_id }}
+          ARTIFACT_DIGEST: ${{ needs.backend-test.outputs.artifact_digest }}
+          PRODUCER_RUN_ID: ${{ needs.backend-test.outputs.producer_run_id }}
+          PRODUCER_RUN_ATTEMPT: ${{ needs.backend-test.outputs.producer_run_attempt }}
+          SOURCE_SHA: ${{ needs.backend-test.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$ARTIFACT_ID" =~ ^[1-9][0-9]*$ && "$PRODUCER_RUN_ID" =~ ^[1-9][0-9]*$ && "$PRODUCER_RUN_ATTEMPT" =~ ^[1-9][0-9]*$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID" > artifact.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PRODUCER_RUN_ID/attempts/$PRODUCER_RUN_ATTEMPT" > attempt.json
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs/$PRODUCER_RUN_ID/attempts/$PRODUCER_RUN_ATTEMPT/jobs" > jobs.json
+          python3 - <<'PY'
+          import datetime, json, os
+          e = os.environ; a = json.load(open('artifact.json')); r = json.load(open('attempt.json'))
+          origin = a.get('workflow_run', {})
+          assert e['SOURCE_SHA'] == e['GITHUB_SHA']
+          assert a.get('id') == int(e['ARTIFACT_ID']) and a.get('expired') is False
+          assert a.get('digest') == 'sha256:' + e['ARTIFACT_DIGEST']
+          assert a.get('name') == f"tested-backend-jar-raw-{e['SOURCE_SHA']}-{e['PRODUCER_RUN_ID']}-{e['PRODUCER_RUN_ATTEMPT']}"
+          assert origin.get('id') == int(e['PRODUCER_RUN_ID']) and origin.get('head_sha') == e['SOURCE_SHA']
+          assert r.get('id') == int(e['PRODUCER_RUN_ID']) and r.get('run_attempt') == int(e['PRODUCER_RUN_ATTEMPT'])
+          assert r.get('head_sha') == e['SOURCE_SHA'] and r.get('event') == 'push'
+          assert r.get('path', '').split('@', 1)[0] == '.github/workflows/publish-images.yml'
+          assert r.get('repository', {}).get('full_name', '').lower() == e['GITHUB_REPOSITORY'].lower()
+          assert origin.get('repository_id') == origin.get('head_repository_id') == r['repository']['id']
+          # The endpoint already scopes this list to the exact producer attempt.
+          jobs = [j for p in json.load(open('jobs.json')) for j in p['jobs'] if j.get('name') == 'Backend tests and package']
+          assert len(jobs) == 1 and jobs[0].get('conclusion') == 'success'
+          assert jobs[0].get('run_id') == int(e['PRODUCER_RUN_ID']) and jobs[0].get('head_sha') == e['SOURCE_SHA']
+          instant = lambda s: datetime.datetime.fromisoformat(s.replace('Z', '+00:00'))
+          assert instant(jobs[0]['started_at']) <= instant(a['created_at']) <= instant(jobs[0]['completed_at'])
+          PY
+
       - name: Download exact tested backend JAR
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: tested-backend-jar-raw-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          artifact-ids: ${{ needs.backend-test.outputs.artifact_id }}
+          run-id: ${{ needs.backend-test.outputs.producer_run_id }}
+          github-token: ${{ github.token }}
+          merge-multiple: true
           path: tested-backend-jar
 
       - name: Verify exact tested backend JAR
         shell: bash
         env:
           EXPECTED_SHA256: ${{ needs.backend-test.outputs.jar_sha256 }}
+          PRODUCER_RUN_ID: ${{ needs.backend-test.outputs.producer_run_id }}
+          PRODUCER_RUN_ATTEMPT: ${{ needs.backend-test.outputs.producer_run_attempt }}
         run: |
           set -euo pipefail
           mapfile -t identity < tested-backend-jar/identity.txt
-          [[ "${identity[0]}" == "sha256=$EXPECTED_SHA256" && "${#identity[@]}" -eq 1 ]]
+          [[ "${identity[0]}" == "sha256=$EXPECTED_SHA256" && "${identity[1]}" == "source_sha=$GITHUB_SHA" &&
+             "${identity[2]}" == "run_id=$PRODUCER_RUN_ID" && "${identity[3]}" == "run_attempt=$PRODUCER_RUN_ATTEMPT" && "${#identity[@]}" -eq 4 ]]
           [[ "$(sha256sum tested-backend-jar/app.jar | awk '{print $1}')" == "$EXPECTED_SHA256" ]]
 
       - name: Create backend JAR provenance
@@ -631,10 +453,12 @@ jobs:
           install -d -m 0755 backend-jar-transaction
           install -m 0644 tested-backend-jar/app.jar backend-jar-transaction/app.jar
           install -m 0644 "$BUNDLE_PATH" backend-jar-transaction/attestation.sigstore.json
-          printf 'sha256=%s\nattestation_id=%s\n' "$JAR_SHA256" "$ATTESTATION_ID" \
+          printf 'sha256=%s\nsource_sha=%s\nrun_id=%s\nrun_attempt=%s\nattestation_id=%s\n' \
+            "$JAR_SHA256" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$ATTESTATION_ID" \
             > backend-jar-transaction/identity.txt
 
       - name: Upload attested backend JAR transaction
+        id: attested-jar-upload
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: tested-backend-jar-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -661,7 +485,9 @@ jobs:
     timeout-minutes: 120
     permissions:
       actions: read
-      contents: read
+      attestations: write
+      contents: write
+      id-token: write
       packages: write
     strategy:
       fail-fast: false
@@ -690,11 +516,65 @@ jobs:
       - name: Install pinned GitHub CLI
         run: ops/install-pinned-gh.sh
 
+      - name: Refuse mutation of a Release published since preflight
+        if: github.ref_type == 'tag'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_ID: ${{ needs.release-reserve.outputs.release_id }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_MARKER: ${{ needs.release-reserve.outputs.marker }}
+        run: |
+          set -euo pipefail
+          source ops/lib/release-transaction.sh
+          assert_expected_draft_release_by_id "$REPOSITORY" "$RELEASE_ID" "$RELEASE_TAG" "$GITHUB_SHA" "$RELEASE_MARKER"
+
+      - name: Select immutable backend JAR producer
+        id: jar-producer
+        if: matrix.image == 'backend'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_ID: ${{ needs.release-reserve.outputs.release_id }}
+          PRODUCER_ARTIFACT_ID: ${{ needs.backend-attest.outputs.artifact_id }}
+          PRODUCER_ARTIFACT_DIGEST: ${{ needs.backend-attest.outputs.artifact_digest }}
+          PRODUCER_RUN_ID: ${{ needs.backend-attest.outputs.producer_run_id }}
+          PRODUCER_RUN_ATTEMPT: ${{ needs.backend-attest.outputs.producer_run_attempt }}
+          PRODUCER_JAR_SHA: ${{ needs.backend-attest.outputs.jar_sha256 }}
+        run: |
+          set -euo pipefail
+          source ops/lib/release-transaction.sh
+          source ops/lib/publish-workflow.sh
+          descriptor=backend-jar-producer.json
+          asset_id=''
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            asset_id="$(list_release_asset_ids "$REPOSITORY" "$RELEASE_ID" "$descriptor")"
+            [[ "$asset_id" != *$'\n'* ]]
+          fi
+          if [[ -n "$asset_id" ]]; then
+            gh api "repos/$REPOSITORY/releases/assets/$asset_id" -H 'Accept: application/octet-stream' > "$descriptor"
+          else
+            if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+              for name in candidate-oci-backend.tar candidate-commitment-backend.json; do
+                existing="$(list_release_asset_ids "$REPOSITORY" "$RELEASE_ID" "$name")"
+                [[ -z "$existing" ]] || { printf 'Existing backend candidate has no durable JAR producer; refusing substitution.\n' >&2; exit 1; }
+              done
+            fi
+            write_backend_jar_producer "$descriptor"
+          fi
+          verify_backend_jar_producer "$descriptor" "$REPOSITORY" "$GITHUB_SHA"
+          emit_backend_jar_producer "$descriptor" >> "$GITHUB_OUTPUT"
+
       - name: Download exact tested backend JAR
         if: matrix.image == 'backend'
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: tested-backend-jar-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          artifact-ids: ${{ steps.jar-producer.outputs.artifact_id }}
+          run-id: ${{ steps.jar-producer.outputs.run_id }}
+          github-token: ${{ github.token }}
+          merge-multiple: true
           path: backend-jar-transaction
 
       - name: Verify attested backend JAR and stage image context
@@ -702,22 +582,19 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          EXPECTED_SHA256: ${{ needs.backend-test.outputs.jar_sha256 }}
           RELEASE_TAG: ${{ github.ref_name }}
           REPOSITORY: ${{ github.repository }}
+          RELEASE_ID: ${{ needs.release-reserve.outputs.release_id }}
+          RELEASE_MARKER: ${{ needs.release-reserve.outputs.marker }}
         run: |
           set -euo pipefail
-          mapfile -t identity < backend-jar-transaction/identity.txt
-          [[ "${identity[0]}" == "sha256=$EXPECTED_SHA256" &&
-             "${identity[1]}" == attestation_id=* && "${identity[1]}" != attestation_id= &&
-             "${#identity[@]}" -eq 2 ]]
-          [[ "$(sha256sum backend-jar-transaction/app.jar | awk '{print $1}')" == "$EXPECTED_SHA256" ]]
-          gh attestation verify backend-jar-transaction/app.jar \
-            --bundle backend-jar-transaction/attestation.sigstore.json \
-            --repo "$REPOSITORY" \
-            --signer-workflow "$REPOSITORY/.github/workflows/publish-images.yml" \
-            --source-ref "${{ github.ref }}" \
-            --source-digest "$GITHUB_SHA" >/dev/null
+          source ops/lib/release-transaction.sh
+          source ops/lib/publish-workflow.sh
+          verify_attested_backend_jar backend-jar-producer.json backend-jar-transaction "$REPOSITORY" "$GITHUB_REF" "$GITHUB_SHA"
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            ensure_release_asset_once_by_id "$REPOSITORY" "$RELEASE_ID" backend-jar-producer.json \
+              "$RELEASE_TAG" "$GITHUB_SHA" "$RELEASE_MARKER"
+          fi
           install -d -m 0755 backend-image-context
           install -m 0644 backend-jar-transaction/app.jar backend-image-context/app.jar
           install -m 0644 ops/backend-release.Dockerfile backend-image-context/Dockerfile
@@ -764,6 +641,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           source ops/lib/release-transaction.sh
+          source ops/lib/publish-workflow.sh
           commitment_name="candidate-commitment-${COMPONENT}.json"
           archive_name="candidate-oci-${COMPONENT}.tar"
           archive_path="/tmp/release-candidate-${COMPONENT}.oci.tar"
@@ -891,6 +769,7 @@ jobs:
         run: |
           set -euo pipefail
           source ops/lib/release-transaction.sh
+          source ops/lib/publish-workflow.sh
           [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { printf 'Candidate digest is invalid.\n' >&2; exit 1; }
           root_digest="$(oci_archive_root_digest "$OCI_ARCHIVE")"
           archive_file_sha256="$(oci_archive_file_sha256 "$OCI_ARCHIVE")"
@@ -921,6 +800,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           source ops/lib/release-transaction.sh
+          source ops/lib/publish-workflow.sh
           IMMUTABLE_RELEASES_READ_TOKEN="${{ secrets.IMMUTABLE_RELEASES_READ_TOKEN }}" ops/check-immutable-releases-policy.sh "$REPOSITORY"
           durable_name="candidate-oci-${COMPONENT}.tar"
           install -m 0644 "$OCI_ARCHIVE" "$durable_name"
@@ -944,6 +824,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           source ops/lib/release-transaction.sh
+          source ops/lib/publish-workflow.sh
           IMMUTABLE_RELEASES_READ_TOKEN="${{ secrets.IMMUTABLE_RELEASES_READ_TOKEN }}" ops/check-immutable-releases-policy.sh "$REPOSITORY"
           name="candidate-commitment-${COMPONENT}.json"
           jq -n --arg component "$COMPONENT" --arg digest "$DIGEST" --arg sha "$GITHUB_SHA" \
@@ -969,10 +850,11 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
           RELEASE_TAG: ${{ github.ref_name }}
           COMPONENT: ${{ matrix.image }}
-          BACKEND_JAR_SHA: ${{ needs.backend-test.outputs.jar_sha256 }}
+          BACKEND_JAR_SHA: ${{ steps.jar-producer.outputs.jar_sha256 }}
         run: |
           set -euo pipefail
           source ops/lib/release-transaction.sh
+          source ops/lib/publish-workflow.sh
           published_digest="$(publish_candidate_transaction "$IMAGE" "$CANDIDATE_TAG" "$OCI_ARCHIVE" "$DIGEST")"
           if [[ "$COMPONENT" == backend ]]; then
             verify_container_jar_sha "${IMAGE}@${published_digest}" "$BACKEND_JAR_SHA"
@@ -983,6 +865,7 @@ jobs:
     needs:
       - frontend-test
       - backend-test
+      - backend-attest
       - installer-test
       - release-preflight
       - release-reserve
@@ -1013,6 +896,43 @@ jobs:
       - name: Install pinned GitHub CLI
         run: ops/install-pinned-gh.sh
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Recheck live Release state before any release mutation
+        id: release-state
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: bash ops/release-preflight.sh
+
+      - name: Resolve canonical owner from live draft assets
+        id: canonical
+        if: steps.release-state.outputs.published_release != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_ID: ${{ needs.release-reserve.outputs.release_id }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_MARKER: ${{ needs.release-reserve.outputs.marker }}
+        run: |
+          set -euo pipefail
+          source ops/lib/release-transaction.sh
+          source ops/lib/publish-workflow.sh
+          assert_expected_draft_release_by_id "$REPOSITORY" "$RELEASE_ID" "$RELEASE_TAG" "$GITHUB_SHA" "$RELEASE_MARKER"
+          resolve_canonical_owner "$REPOSITORY" "$RELEASE_ID" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+
       - name: Validate immutable release tag
         id: release
         shell: bash
@@ -1023,6 +943,7 @@ jobs:
         run: |
           set -euo pipefail
           source ops/lib/release-transaction.sh
+          source ops/lib/publish-workflow.sh
           assert_pinned_gh_capabilities
           if [[ ! "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
             printf 'Release tag must use vX.Y.Z without leading zeroes: %s\n' "$RELEASE_TAG" >&2
@@ -1035,8 +956,8 @@ jobs:
       - name: Recover first invocation assets from exact draft ID
         id: recover-canonical
         if: >-
-          needs.release-preflight.outputs.published_release != 'true' &&
-          needs.release-reserve.outputs.canonical_current != 'true'
+          steps.release-state.outputs.published_release != 'true' &&
+          steps.canonical.outputs.canonical_current != 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1046,9 +967,10 @@ jobs:
         run: |
           set -Eeuo pipefail
           source ops/lib/release-transaction.sh
+          source ops/lib/publish-workflow.sh
           install -d -m 0755 release
           archive="yunlume-host-v${VERSION}.tar.gz"
-          names=(install.sh release-manifest.json release-provenance.json release-assets.sigstore.json canonical-owner.json \
+          names=(install.sh release-manifest.json release-provenance.json release-assets.sigstore.json canonical-owner.json backend-jar-producer.json \
             candidate-commitment-backend.json candidate-commitment-frontend.json candidate-oci-backend.tar candidate-oci-frontend.tar yunlume-compose.yml \
             "$archive" "$archive.sha256" SHA256SUMS)
           for name in "${names[@]}"; do
@@ -1061,42 +983,57 @@ jobs:
               -H 'Accept: application/octet-stream' > "release/$name"
           done
           canonical_jar_sha="$(jq -er '.backendJarSha256 | select(test("^[0-9a-f]{64}$"))' release/release-provenance.json)"
+          python3 ops/validate-artifact-producer.py release/backend-jar-producer.json "$GITHUB_SHA" >/dev/null
+          [[ "$(jq -er '.jarSha256' release/backend-jar-producer.json)" == "$canonical_jar_sha" ]]
           printf 'backend_jar_sha=%s\n' "$canonical_jar_sha" >> "$GITHUB_OUTPUT"
           verify_host_archive_jar_sha "release/$archive" "$canonical_jar_sha"
 
+      - name: Recover durable backend JAR producer for release
+        id: jar-producer
+        if: >-
+          steps.release-state.outputs.published_release != 'true' &&
+          steps.canonical.outputs.canonical_current == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_ID: ${{ needs.release-reserve.outputs.release_id }}
+        run: |
+          set -euo pipefail
+          source ops/lib/release-transaction.sh
+          source ops/lib/publish-workflow.sh
+          asset_id="$(list_release_asset_ids "$REPOSITORY" "$RELEASE_ID" backend-jar-producer.json)"
+          [[ -n "$asset_id" && "$asset_id" != *$'\n'* ]]
+          gh api "repos/$REPOSITORY/releases/assets/$asset_id" -H 'Accept: application/octet-stream' > backend-jar-producer.json
+          verify_backend_jar_producer backend-jar-producer.json "$REPOSITORY" "$GITHUB_SHA"
+          emit_backend_jar_producer backend-jar-producer.json >> "$GITHUB_OUTPUT"
+
       - name: Download exact tested backend JAR for release
         if: >-
-          needs.release-preflight.outputs.published_release != 'true' &&
-          needs.release-reserve.outputs.canonical_current == 'true'
+          steps.release-state.outputs.published_release != 'true' &&
+          steps.canonical.outputs.canonical_current == 'true'
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: tested-backend-jar-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          artifact-ids: ${{ steps.jar-producer.outputs.artifact_id }}
+          run-id: ${{ steps.jar-producer.outputs.run_id }}
+          github-token: ${{ github.token }}
+          merge-multiple: true
           path: backend-jar-transaction
 
       - name: Reverify exact tested backend JAR for release
         if: >-
-          needs.release-preflight.outputs.published_release != 'true' &&
-          needs.release-reserve.outputs.canonical_current == 'true'
+          steps.release-state.outputs.published_release != 'true' &&
+          steps.canonical.outputs.canonical_current == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY: ${{ github.repository }}
           GITHUB_SHA: ${{ github.sha }}
           RELEASE_TAG: ${{ github.ref_name }}
-          EXPECTED_SHA256: ${{ needs.backend-test.outputs.jar_sha256 }}
         run: |
           set -euo pipefail
-          mapfile -t identity < backend-jar-transaction/identity.txt
-          [[ "${identity[0]}" == "sha256=$EXPECTED_SHA256" &&
-             "${identity[1]}" == attestation_id=* && "${identity[1]}" != attestation_id= &&
-             "${#identity[@]}" -eq 2 ]]
-          [[ "$(sha256sum backend-jar-transaction/app.jar | awk '{print $1}')" == "$EXPECTED_SHA256" ]]
-          gh attestation verify backend-jar-transaction/app.jar \
-            --bundle backend-jar-transaction/attestation.sigstore.json \
-            --repo "$REPOSITORY" \
-            --signer-workflow "$REPOSITORY/.github/workflows/publish-images.yml" \
-            --source-ref "refs/tags/$RELEASE_TAG" \
-            --source-digest "$GITHUB_SHA" >/dev/null
+          source ops/lib/publish-workflow.sh
+          verify_attested_backend_jar backend-jar-producer.json backend-jar-transaction "$REPOSITORY" "refs/tags/$RELEASE_TAG" "$GITHUB_SHA"
 
       - name: Set up Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
@@ -1106,19 +1043,9 @@ jobs:
           cache-dependency-path: nav-frontend/package-lock.json
           package-manager-cache: true
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Resolve candidate digests from durable GitHub attestations
         id: image-digests
-        if: needs.release-preflight.outputs.published_release != 'true'
+        if: steps.release-state.outputs.published_release != 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1128,44 +1055,46 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
           RELEASE_TAG: ${{ github.ref_name }}
           RELEASE_ID: ${{ needs.release-reserve.outputs.release_id }}
-          CANONICAL_RUN_ID: ${{ needs.release-reserve.outputs.canonical_run_id }}
-          CANONICAL_RUN_ATTEMPT: ${{ needs.release-reserve.outputs.canonical_run_attempt }}
+          CANONICAL_RUN_ID: ${{ steps.canonical.outputs.canonical_run_id }}
+          CANONICAL_RUN_ATTEMPT: ${{ steps.canonical.outputs.canonical_run_attempt }}
         run: |
           set -euo pipefail
           source ops/lib/release-transaction.sh
+          source ops/lib/publish-workflow.sh
           owner="$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')"
           install -d -m 0755 candidate-commitments
           resolve_digest() {
             local component="$1"
             local image="ghcr.io/${owner}/yunlume-${component}"
-            local name="candidate-commitment-${component}.json" archive_name="candidate-oci-${component}.tar" asset_id archive_id committed locator
-            asset_id="$(list_release_asset_ids "$REPOSITORY" "$RELEASE_ID" "$name")"
+            local name="candidate-commitment-${component}.json" archive_name="candidate-oci-${component}.tar" asset_id archive_id committed locator candidate_digest
+            asset_id="$(list_release_asset_ids "$REPOSITORY" "$RELEASE_ID" "$name")" || return
             [[ -n "$asset_id" && "$asset_id" != *$'\n'* ]] || {
               printf 'Exact draft candidate commitment is missing or duplicated: %s.\n' "$component" >&2; return 1;
             }
             gh api "repos/$REPOSITORY/releases/assets/$asset_id" \
-              -H 'Accept: application/octet-stream' > "candidate-commitments/$name"
+              -H 'Accept: application/octet-stream' > "candidate-commitments/$name" || return
             committed="$(jq -er --arg component "$component" --arg sha "$GITHUB_SHA" \
               'select(.schemaVersion == 2 and .component == $component and .sourceSha == $sha) | .digest | select(test("^sha256:[0-9a-f]{64}$"))' \
-              "candidate-commitments/$name")"
-            archive_id="$(list_release_asset_ids "$REPOSITORY" "$RELEASE_ID" "$archive_name")"
+              "candidate-commitments/$name")" || return
+            archive_id="$(list_release_asset_ids "$REPOSITORY" "$RELEASE_ID" "$archive_name")" || return
             [[ -n "$archive_id" && "$archive_id" != *$'\n'* ]] || return 1
             gh api "repos/$REPOSITORY/releases/assets/$archive_id" \
-              -H 'Accept: application/octet-stream' > "candidate-commitments/$archive_name"
+              -H 'Accept: application/octet-stream' > "candidate-commitments/$archive_name" || return
             verify_candidate_archive_commitment "candidate-commitments/$archive_name" \
-              "candidate-commitments/$name" "$component" "$GITHUB_SHA"
-            locator="$(candidate_registry_digest "$image" "$CANDIDATE_TAG")"
-            candidate_digest="$(select_committed_candidate_digest "$committed" "$locator")"
-            candidate_verify_attestation "$image" "$candidate_digest"
+              "candidate-commitments/$name" "$component" "$GITHUB_SHA" || return
+            locator="$(candidate_registry_digest "$image" "$CANDIDATE_TAG")" || return
+            candidate_digest="$(select_committed_candidate_digest "$committed" "$locator")" || return
+            candidate_verify_attestation "$image" "$candidate_digest" || return
             printf '%s' "$candidate_digest"
           }
-          printf 'backend=%s\n' "$(resolve_digest backend)" >> "$GITHUB_OUTPUT"
-          printf 'frontend=%s\n' "$(resolve_digest frontend)" >> "$GITHUB_OUTPUT"
+          backend_digest="$(resolve_digest backend)"
+          frontend_digest="$(resolve_digest frontend)"
+          printf 'backend=%s\nfrontend=%s\n' "$backend_digest" "$frontend_digest" >> "$GITHUB_OUTPUT"
 
       - name: Build release frontend
         if: >-
-          needs.release-preflight.outputs.published_release != 'true' &&
-          needs.release-reserve.outputs.canonical_current == 'true'
+          steps.release-state.outputs.published_release != 'true' &&
+          steps.canonical.outputs.canonical_current == 'true'
         working-directory: nav-frontend
         run: |
           npm ci
@@ -1173,20 +1102,21 @@ jobs:
 
       - name: Assemble release assets
         if: >-
-          needs.release-preflight.outputs.published_release != 'true' &&
-          needs.release-reserve.outputs.canonical_current == 'true'
+          steps.release-state.outputs.published_release != 'true' &&
+          steps.canonical.outputs.canonical_current == 'true'
         shell: bash
         env:
           VERSION: ${{ steps.release.outputs.version }}
           OWNER: ${{ steps.release.outputs.owner }}
           BACKEND_DIGEST: ${{ steps.image-digests.outputs.backend }}
           FRONTEND_DIGEST: ${{ steps.image-digests.outputs.frontend }}
-          BACKEND_JAR_SHA: ${{ needs.backend-test.outputs.jar_sha256 }}
+          BACKEND_JAR_SHA: ${{ steps.jar-producer.outputs.jar_sha256 }}
           COMPATIBILITY_EPOCH: "1"
           RELEASE_BASE_URL: ${{ github.server_url }}/${{ github.repository }}/releases
         run: |
           set -Eeuo pipefail
           install -d -m 0755 release
+          install -m 0644 backend-jar-producer.json release/
           install -m 0644 candidate-commitments/candidate-commitment-backend.json release/
           install -m 0644 candidate-commitments/candidate-commitment-frontend.json release/
           install -m 0644 candidate-commitments/candidate-oci-backend.tar release/
@@ -1224,6 +1154,7 @@ jobs:
           compose_sha="$(sha256sum release/yunlume-compose.yml | awk '{print $1}')"
           archive_name="yunlume-host-v${VERSION}.tar.gz"
           source ops/lib/release-transaction.sh
+          source ops/lib/publish-workflow.sh
           verify_host_archive_jar_sha "release/$archive_name" "$BACKEND_JAR_SHA"
           archive_sha="$(sha256sum "release/$archive_name" | awk '{print $1}')"
           python3 ops/create-release-manifest.py \
@@ -1245,16 +1176,16 @@ jobs:
 
       - name: Generate canonical signed invocation predicate
         if: >-
-          needs.release-preflight.outputs.published_release != 'true' &&
-          needs.release-reserve.outputs.canonical_current == 'true'
+          steps.release-state.outputs.published_release != 'true' &&
+          steps.canonical.outputs.canonical_current == 'true'
         shell: bash
         env:
           GITHUB_SHA: ${{ github.sha }}
           SOURCE_REF: ${{ github.ref }}
           WORKFLOW_IDENTITY: ${{ github.repository }}/.github/workflows/publish-images.yml
           WORKFLOW_REF: ${{ github.workflow_ref }}
-          CANONICAL_RUN_ID: ${{ needs.release-reserve.outputs.canonical_run_id }}
-          CANONICAL_RUN_ATTEMPT: ${{ needs.release-reserve.outputs.canonical_run_attempt }}
+          CANONICAL_RUN_ID: ${{ steps.canonical.outputs.canonical_run_id }}
+          CANONICAL_RUN_ATTEMPT: ${{ steps.canonical.outputs.canonical_run_attempt }}
           CURRENT_RUN_ID: ${{ github.run_id }}
           CURRENT_RUN_ATTEMPT: ${{ github.run_attempt }}
           BACKEND_DIGEST: ${{ steps.image-digests.outputs.backend }}
@@ -1280,7 +1211,7 @@ jobs:
           names = ["install.sh", "release-manifest.json", "yunlume-compose.yml", archive,
                    f"{archive}.sha256", "SHA256SUMS", "candidate-commitment-backend.json",
                    "candidate-commitment-frontend.json", "candidate-oci-backend.tar",
-                   "candidate-oci-frontend.tar", "canonical-owner.json"]
+                   "candidate-oci-frontend.tar", "canonical-owner.json", "backend-jar-producer.json"]
           subjects = {name: hashlib.sha256((release / name).read_bytes()).hexdigest() for name in names}
           predicate = {"schemaVersion": 1, "githubRunId": run_id, "githubRunAttempt": run_attempt,
                        "sourceSha": sha, "sourceRef": source_ref,
@@ -1294,8 +1225,8 @@ jobs:
       - name: Attest canonical invocation and complete core subject set
         id: release-assets-attestation
         if: >-
-          needs.release-preflight.outputs.published_release != 'true' &&
-          needs.release-reserve.outputs.canonical_current == 'true'
+          steps.release-state.outputs.published_release != 'true' &&
+          steps.canonical.outputs.canonical_current == 'true'
         uses: actions/attest@daf44fb950173508f38bd2406030372c1d1162b1
         with:
           predicate-type: https://yunlume.example/attestations/release-invocation/v1
@@ -1312,18 +1243,19 @@ jobs:
             release/candidate-oci-backend.tar
             release/candidate-oci-frontend.tar
             release/canonical-owner.json
+            release/backend-jar-producer.json
 
       - name: Pin canonical invocation bundle and identity
         if: >-
-          needs.release-preflight.outputs.published_release != 'true' &&
-          needs.release-reserve.outputs.canonical_current == 'true'
+          steps.release-state.outputs.published_release != 'true' &&
+          steps.canonical.outputs.canonical_current == 'true'
         shell: bash
         env:
           BUNDLE_PATH: ${{ steps.release-assets-attestation.outputs.bundle-path }}
-          BACKEND_JAR_SHA: ${{ needs.backend-test.outputs.jar_sha256 }}
+          BACKEND_JAR_SHA: ${{ steps.jar-producer.outputs.jar_sha256 }}
           VERSION: ${{ steps.release.outputs.version }}
-          CANONICAL_RUN_ID: ${{ needs.release-reserve.outputs.canonical_run_id }}
-          CANONICAL_RUN_ATTEMPT: ${{ needs.release-reserve.outputs.canonical_run_attempt }}
+          CANONICAL_RUN_ID: ${{ steps.canonical.outputs.canonical_run_id }}
+          CANONICAL_RUN_ATTEMPT: ${{ steps.canonical.outputs.canonical_run_attempt }}
         run: |
           set -euo pipefail
           install -m 0644 "$BUNDLE_PATH" release/release-assets.sigstore.json
@@ -1336,7 +1268,7 @@ jobs:
           names = ["install.sh", "release-manifest.json", "yunlume-compose.yml", archive,
                    f"{archive}.sha256", "SHA256SUMS", "candidate-commitment-backend.json",
                    "candidate-commitment-frontend.json", "candidate-oci-backend.tar",
-                   "candidate-oci-frontend.tar", "canonical-owner.json"]
+                   "candidate-oci-frontend.tar", "canonical-owner.json", "backend-jar-producer.json"]
           assets = {name: {"sha256": hashlib.sha256((release / name).read_bytes()).hexdigest(),
                            "size": (release / name).stat().st_size} for name in names}
           bundle = (release / "release-assets.sigstore.json").read_bytes()
@@ -1357,8 +1289,8 @@ jobs:
 
       - name: Attest immutable provenance anchors before upload
         if: >-
-          needs.release-preflight.outputs.published_release != 'true' &&
-          needs.release-reserve.outputs.canonical_current == 'true'
+          steps.release-state.outputs.published_release != 'true' &&
+          steps.canonical.outputs.canonical_current == 'true'
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3.0.0
         with:
           subject-path: |
@@ -1366,7 +1298,7 @@ jobs:
             release/release-assets.sigstore.json
 
       - name: Revalidate tag and converge immutable image tags
-        if: needs.release-preflight.outputs.published_release != 'true'
+        if: steps.release-state.outputs.published_release != 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1377,24 +1309,13 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
           BACKEND_DIGEST: ${{ steps.image-digests.outputs.backend }}
           FRONTEND_DIGEST: ${{ steps.image-digests.outputs.frontend }}
-          BACKEND_JAR_SHA: ${{ steps.recover-canonical.outputs.backend_jar_sha || needs.backend-test.outputs.jar_sha256 }}
+          BACKEND_JAR_SHA: ${{ steps.recover-canonical.outputs.backend_jar_sha || steps.jar-producer.outputs.jar_sha256 }}
         run: |
           set -euo pipefail
           source ops/lib/release-transaction.sh
+          source ops/lib/publish-workflow.sh
 
-          tag_object="$(gh api "repos/$REPOSITORY/git/ref/tags/$RELEASE_TAG" \
-            --jq '[.object.type, .object.sha] | @tsv')"
-          IFS=$'\t' read -r tag_object_type tag_object_sha <<< "$tag_object"
-          for ((depth = 0; depth < 16 && tag_object_type == "tag"; depth++)); do
-            tag_object="$(gh api "repos/$REPOSITORY/git/tags/$tag_object_sha" \
-              --jq '[.object.type, .object.sha] | @tsv')"
-            IFS=$'\t' read -r tag_object_type tag_object_sha <<< "$tag_object"
-          done
-          [[ "$tag_object_type" == commit && "$tag_object_sha" == "$GITHUB_SHA" ]] || {
-            printf 'Remote tag %s no longer resolves to workflow commit %s (got %s %s).\n' \
-              "$RELEASE_TAG" "$GITHUB_SHA" "$tag_object_type" "$tag_object_sha" >&2
-            exit 1
-          }
+          assert_release_tag_commit "$REPOSITORY" "$RELEASE_TAG" "$GITHUB_SHA" || exit 1
 
           candidate_digest_for() {
             case "$1" in
@@ -1470,6 +1391,7 @@ jobs:
 
       - name: Revalidate tag and converge GitHub Release assets
         id: github-release
+        if: steps.release-state.outputs.published_release != 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1480,37 +1402,26 @@ jobs:
           OWNER: ${{ steps.release.outputs.owner }}
           BACKEND_DIGEST: ${{ steps.image-digests.outputs.backend }}
           FRONTEND_DIGEST: ${{ steps.image-digests.outputs.frontend }}
-          PREFLIGHT_PUBLISHED: ${{ needs.release-preflight.outputs.published_release }}
+          PREFLIGHT_PUBLISHED: ${{ steps.release-state.outputs.published_release }}
           PREFLIGHT_BACKEND_DIGEST: ${{ needs.release-preflight.outputs.backend_digest }}
           PREFLIGHT_FRONTEND_DIGEST: ${{ needs.release-preflight.outputs.frontend_digest }}
           RESERVED_RELEASE_ID: ${{ needs.release-reserve.outputs.release_id }}
           RELEASE_MARKER: ${{ needs.release-reserve.outputs.marker }}
-          CANONICAL_RUN_ID: ${{ needs.release-reserve.outputs.canonical_run_id }}
-          CANONICAL_RUN_ATTEMPT: ${{ needs.release-reserve.outputs.canonical_run_attempt }}
-          CANONICAL_CURRENT: ${{ needs.release-reserve.outputs.canonical_current }}
+          CANONICAL_RUN_ID: ${{ steps.canonical.outputs.canonical_run_id }}
+          CANONICAL_RUN_ATTEMPT: ${{ steps.canonical.outputs.canonical_run_attempt }}
+          CANONICAL_CURRENT: ${{ steps.canonical.outputs.canonical_current }}
         run: |
           set -euo pipefail
           source ops/lib/release-transaction.sh
+          source ops/lib/publish-workflow.sh
           IMMUTABLE_RELEASES_READ_TOKEN="${{ secrets.IMMUTABLE_RELEASES_READ_TOKEN }}" ops/check-immutable-releases-policy.sh "$REPOSITORY"
 
-          tag_object="$(gh api "repos/$REPOSITORY/git/ref/tags/$RELEASE_TAG" \
-            --jq '[.object.type, .object.sha] | @tsv')"
-          IFS=$'\t' read -r tag_object_type tag_object_sha <<< "$tag_object"
-          for ((depth = 0; depth < 16 && tag_object_type == "tag"; depth++)); do
-            tag_object="$(gh api "repos/$REPOSITORY/git/tags/$tag_object_sha" \
-              --jq '[.object.type, .object.sha] | @tsv')"
-            IFS=$'\t' read -r tag_object_type tag_object_sha <<< "$tag_object"
-          done
-          [[ "$tag_object_type" == commit && "$tag_object_sha" == "$GITHUB_SHA" ]] || {
-            printf 'Remote tag %s moved before asset publication; expected %s, got %s %s.\n' \
-              "$RELEASE_TAG" "$GITHUB_SHA" "$tag_object_type" "$tag_object_sha" >&2
-            exit 1
-          }
+          assert_release_tag_commit "$REPOSITORY" "$RELEASE_TAG" "$GITHUB_SHA" || exit 1
 
           recovery_marker="$RELEASE_MARKER"
           resolve_target_commitish() {
             local encoded_target
-            encoded_target="$(jq -rn --arg value "$1" '$value|@uri')"
+            encoded_target="$(jq -rn --arg value "$1" '$value|@uri')" || return
             gh api "repos/$REPOSITORY/commits/$encoded_target" --jq '.sha'
           }
           releases_json="$(gh api -H 'X-GitHub-Api-Version: 2026-03-10' --paginate "repos/$REPOSITORY/releases")"
@@ -1546,6 +1457,7 @@ jobs:
             release/candidate-oci-backend.tar \
             release/candidate-oci-frontend.tar \
             release/canonical-owner.json \
+            release/backend-jar-producer.json \
             release/release-provenance.json \
             release/release-assets.sigstore.json \
             "release/$archive_name" \
@@ -1555,7 +1467,7 @@ jobs:
 
           verify_published_release() {
             local release_state published_draft published_prerelease published_tag published_target published_body published_immutable
-            local resolved_release_target verify_dir row asset_name asset_bytes asset_id actual_bytes
+            local resolved_release_target verify_dir row asset_name asset_bytes asset_id actual_bytes names_text remote_asset_text
             local canonical_run_id canonical_run_attempt canonical_backend_digest canonical_frontend_digest
             local component candidate_digest image immutable_digest tag_object tag_object_type tag_object_sha
             local -a expected_names=() remote_asset_rows=() remote_names=() checksum_names=() expected_checksum_names_sorted=() attestation_args=()
@@ -1563,7 +1475,7 @@ jobs:
 
             release_state="$(gh api -H 'X-GitHub-Api-Version: 2026-03-10' \
               "repos/$REPOSITORY/releases/$release_id" \
-              --jq '[.draft, .prerelease, .tag_name, .target_commitish, (.body // ""), .immutable] | @tsv')"
+              --jq '[.draft, .prerelease, .tag_name, .target_commitish, (.body // ""), .immutable] | @tsv')" || return
             IFS=$'\t' read -r published_draft published_prerelease published_tag published_target published_body published_immutable <<< "$release_state"
             [[ "$published_draft" == false && "$published_prerelease" == false &&
                "$published_tag" == "$RELEASE_TAG" && "$published_body" == "$recovery_marker" &&
@@ -1571,17 +1483,18 @@ jobs:
               printf 'Release publication read-back did not match the intended immutable release.\n' >&2
               return 1
             }
-            resolved_release_target="$(resolve_target_commitish "$published_target")"
+            resolved_release_target="$(resolve_target_commitish "$published_target")" || return
             [[ "$resolved_release_target" == "$GITHUB_SHA" ]] || {
               printf 'Published Release target does not resolve to workflow commit.\n' >&2
               return 1
             }
 
-            mapfile -t expected_names < <(printf '%s\n' "${expected_assets[@]##*/}" | sort)
-            mapfile -t remote_asset_rows < <(
-              gh api "repos/$REPOSITORY/releases/$release_id/assets" --paginate \
-                --jq '.[] | [.name, .size, .id] | @tsv' | sort
-            )
+            names_text="$(printf '%s\n' "${expected_assets[@]##*/}" | sort)" || return
+            mapfile -t expected_names <<< "$names_text"
+            remote_asset_text="$(gh api "repos/$REPOSITORY/releases/$release_id/assets" --paginate \
+              --jq '.[] | [.name, .size, .id] | @tsv')" || return
+            remote_asset_text="$(sort <<< "$remote_asset_text")" || return
+            mapfile -t remote_asset_rows <<< "$remote_asset_text"
             for row in "${remote_asset_rows[@]}"; do
               IFS=$'\t' read -r asset_name asset_bytes asset_id <<< "$row"
               [[ "$asset_bytes" =~ ^[1-9][0-9]*$ ]] || {
@@ -1597,41 +1510,41 @@ jobs:
               return 1
             }
 
-            verify_dir="$(mktemp -d)"
+            verify_dir="$(mktemp -d)" || return
             for asset_name in "${expected_names[@]}"; do
               gh api "repos/$REPOSITORY/releases/assets/${remote_asset_ids[$asset_name]}" \
-                -H 'Accept: application/octet-stream' > "$verify_dir/$asset_name"
-              actual_bytes="$(stat -c '%s' "$verify_dir/$asset_name")"
+                -H 'Accept: application/octet-stream' > "$verify_dir/$asset_name" || { rm -rf -- "$verify_dir"; return 1; }
+              actual_bytes="$(stat -c '%s' "$verify_dir/$asset_name")" || { rm -rf -- "$verify_dir"; return 1; }
               [[ "$actual_bytes" == "${remote_asset_bytes[$asset_name]}" ]] || {
                 printf 'Published asset metadata size mismatch: %s.\n' "$asset_name" >&2
                 rm -rf -- "$verify_dir"
                 return 1
               }
             done
-            gh release verify "$RELEASE_TAG" --repo "$REPOSITORY" >/dev/null
+            gh release verify "$RELEASE_TAG" --repo "$REPOSITORY" >/dev/null || { rm -rf -- "$verify_dir"; return 1; }
             for asset_name in "${expected_names[@]}"; do
               gh release verify-asset "$RELEASE_TAG" "$verify_dir/$asset_name" \
-                --repo "$REPOSITORY" >/dev/null
+                --repo "$REPOSITORY" >/dev/null || { rm -rf -- "$verify_dir"; return 1; }
             done
             canonical_text="$(jq -er --arg sha "$GITHUB_SHA" \
               'select(type == "object" and .schemaVersion == 1 and .sourceSha == $sha) | .runId,.runAttempt' \
-              "$verify_dir/canonical-owner.json")"
+              "$verify_dir/canonical-owner.json")" || { rm -rf -- "$verify_dir"; return 1; }
             readarray -t canonical_identity <<<"$canonical_text"
-            (( ${#canonical_identity[@]} == 2 )) || return 1
+            (( ${#canonical_identity[@]} == 2 )) || { rm -rf -- "$verify_dir"; return 1; }
             canonical_run_id="${canonical_identity[0]}"
             canonical_run_attempt="${canonical_identity[1]}"
-            canonical_backend_digest="$(jq -er '.digest' "$verify_dir/candidate-commitment-backend.json")"
-            canonical_frontend_digest="$(jq -er '.digest' "$verify_dir/candidate-commitment-frontend.json")"
+            canonical_backend_digest="$(jq -er '.digest' "$verify_dir/candidate-commitment-backend.json")" || { rm -rf -- "$verify_dir"; return 1; }
+            canonical_frontend_digest="$(jq -er '.digest' "$verify_dir/candidate-commitment-frontend.json")" || { rm -rf -- "$verify_dir"; return 1; }
             verify_candidate_archive_commitment "$verify_dir/candidate-oci-backend.tar" \
-              "$verify_dir/candidate-commitment-backend.json" backend "$GITHUB_SHA"
+              "$verify_dir/candidate-commitment-backend.json" backend "$GITHUB_SHA" || { rm -rf -- "$verify_dir"; return 1; }
             verify_candidate_archive_commitment "$verify_dir/candidate-oci-frontend.tar" \
-              "$verify_dir/candidate-commitment-frontend.json" frontend "$GITHUB_SHA"
+              "$verify_dir/candidate-commitment-frontend.json" frontend "$GITHUB_SHA" || { rm -rf -- "$verify_dir"; return 1; }
             verify_canonical_provenance "$verify_dir" \
               "$verify_dir/release-provenance.json" "$verify_dir/release-assets.sigstore.json" \
               "$canonical_run_id" "$canonical_run_attempt" "$GITHUB_SHA" "refs/tags/$RELEASE_TAG" \
               "$REPOSITORY/.github/workflows/publish-images.yml" \
               "$REPOSITORY/.github/workflows/publish-images.yml@refs/tags/$RELEASE_TAG" \
-              "$canonical_backend_digest" "$canonical_frontend_digest"
+              "$canonical_backend_digest" "$canonical_frontend_digest" || { rm -rf -- "$verify_dir"; return 1; }
             for asset_name in "${expected_names[@]}"; do
               attestation_args=()
               case "$asset_name" in
@@ -1648,14 +1561,7 @@ jobs:
                   return 1
                 }
             done
-            expected_checksum_names_sorted=("$archive_name" "$archive_name.sha256" install.sh release-manifest.json yunlume-compose.yml)
-            mapfile -t checksum_names < <(awk '{print $2}' "$verify_dir/SHA256SUMS" | sort)
-            [[ "${checksum_names[*]}" == "${expected_checksum_names_sorted[*]}" ]] || {
-              printf 'Published SHA256SUMS coverage mismatch.\n' >&2
-              rm -rf -- "$verify_dir"
-              return 1
-            }
-            (cd "$verify_dir" && sha256sum --check --quiet --strict SHA256SUMS) || {
+            verify_release_checksums "$verify_dir" "$archive_name" || {
               rm -rf -- "$verify_dir"
               return 1
             }
@@ -1671,7 +1577,7 @@ jobs:
               "install.sh", "release-manifest.json", "yunlume-compose.yml",
               archive_name, f"{archive_name}.sha256", "SHA256SUMS",
               "candidate-commitment-backend.json", "candidate-commitment-frontend.json",
-              "candidate-oci-backend.tar", "candidate-oci-frontend.tar", "canonical-owner.json",
+              "candidate-oci-backend.tar", "candidate-oci-frontend.tar", "canonical-owner.json", "backend-jar-producer.json",
           }
           baseline = json.loads((root / "release-provenance.json").read_text(encoding="utf-8"))
           if set(baseline) != {"schemaVersion", "canonicalIdentity", "attestationBundleSha256", "predicateSha256", "backendJarSha256", "assets", "manifest"}:
@@ -1722,14 +1628,16 @@ jobs:
               rm -rf -- "$verify_dir"
               return "$python_status"
             fi
-            BACKEND_JAR_SHA="$(jq -r '.backendJarSha256' "$verify_dir/release-provenance.json")"
-            verify_host_archive_jar_sha "$verify_dir/$archive_name" "$BACKEND_JAR_SHA"
+            BACKEND_JAR_SHA="$(jq -r '.backendJarSha256' "$verify_dir/release-provenance.json")" || { rm -rf -- "$verify_dir"; return 1; }
+            python3 ops/validate-artifact-producer.py "$verify_dir/backend-jar-producer.json" "$GITHUB_SHA" >/dev/null || { rm -rf -- "$verify_dir"; return 1; }
+            [[ "$(jq -er '.jarSha256' "$verify_dir/backend-jar-producer.json")" == "$BACKEND_JAR_SHA" ]] || { rm -rf -- "$verify_dir"; return 1; }
+            verify_host_archive_jar_sha "$verify_dir/$archive_name" "$BACKEND_JAR_SHA" || { rm -rf -- "$verify_dir"; return 1; }
             rm -rf -- "$verify_dir"
 
             verify_immutable_image() {
               local verify_component="$1" expected_digest="$2" actual_digest
               actual_digest="$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' \
-                "ghcr.io/${OWNER}/yunlume-${verify_component}:${VERSION}")"
+                "ghcr.io/${OWNER}/yunlume-${verify_component}:${VERSION}")" || return
               [[ "$actual_digest" == "$expected_digest" ]] || {
                 printf 'Published %s immutable digest mismatch.\n' "$verify_component" >&2
                 return 1
@@ -1738,21 +1646,10 @@ jobs:
                 verify_container_jar_sha "ghcr.io/${OWNER}/yunlume-backend@${actual_digest}" "$BACKEND_JAR_SHA"
               fi
             }
-            verify_immutable_image backend "$BACKEND_DIGEST"
-            verify_immutable_image frontend "$FRONTEND_DIGEST"
+            verify_immutable_image backend "$BACKEND_DIGEST" || return
+            verify_immutable_image frontend "$FRONTEND_DIGEST" || return
 
-            tag_object="$(gh api "repos/$REPOSITORY/git/ref/tags/$RELEASE_TAG" \
-              --jq '[.object.type, .object.sha] | @tsv')"
-            IFS=$'\t' read -r tag_object_type tag_object_sha <<< "$tag_object"
-            for ((depth = 0; depth < 16 && tag_object_type == "tag"; depth++)); do
-              tag_object="$(gh api "repos/$REPOSITORY/git/tags/$tag_object_sha" \
-                --jq '[.object.type, .object.sha] | @tsv')"
-              IFS=$'\t' read -r tag_object_type tag_object_sha <<< "$tag_object"
-            done
-            [[ "$tag_object_type" == commit && "$tag_object_sha" == "$GITHUB_SHA" ]] || {
-              printf 'Remote tag moved immediately before rolling alias publication.\n' >&2
-              return 1
-            }
+            assert_release_tag_commit "$REPOSITORY" "$RELEASE_TAG" "$GITHUB_SHA" || exit 1
           }
 
           if [[ "$release_draft" == false ]]; then
@@ -1791,7 +1688,7 @@ jobs:
             for asset in "${expected_assets[@]}"; do
               asset_name="${asset##*/}"
               [[ "$asset_name" != canonical-owner.json ]] || continue
-              if [[ "$CANONICAL_CURRENT" != true || "$asset_name" == candidate-commitment-*.json || "$asset_name" == candidate-oci-*.tar ]]; then
+              if [[ "$CANONICAL_CURRENT" != true || "$asset_name" == backend-jar-producer.json || "$asset_name" == candidate-commitment-*.json || "$asset_name" == candidate-oci-*.tar ]]; then
                 asset_id="$(list_release_asset_ids "$REPOSITORY" "$release_id" "$asset_name")"
                 [[ -n "$asset_id" && "$asset_id" != *$'\n'* ]] || {
                   printf 'Canonical draft asset is missing or duplicated: %s.\n' "$asset_name" >&2; exit 1;
@@ -1855,12 +1752,11 @@ jobs:
             ensure_release_asset_once_by_id "$REPOSITORY" "$release_id" release/canonical-owner.json \
               "$RELEASE_TAG" "$GITHUB_SHA" "$recovery_marker"
 
-            mapfile -t uploaded_names < <(
-              gh api "repos/$REPOSITORY/releases/$release_id/assets" --paginate --jq '.[].name' | sort
-            )
-            mapfile -t expected_names < <(
-              printf '%s\n' "${expected_assets[@]##*/}" | sort
-            )
+            uploaded_names_text="$(gh api "repos/$REPOSITORY/releases/$release_id/assets" --paginate --jq '.[].name')"
+            uploaded_names_text="$(sort <<< "$uploaded_names_text")"
+            mapfile -t uploaded_names <<< "$uploaded_names_text"
+            expected_names_text="$(printf '%s\n' "${expected_assets[@]##*/}" | sort)"
+            mapfile -t expected_names <<< "$expected_names_text"
             if [[ "${uploaded_names[*]}" != "${expected_names[*]}" ]]; then
               printf 'Draft release asset set did not converge; leaving draft for recovery.\n' >&2
               exit 1
@@ -1881,19 +1777,7 @@ jobs:
             done
 
             # Final remote tag identity guard: keep immediately before draft=false.
-            tag_object="$(gh api "repos/$REPOSITORY/git/ref/tags/$RELEASE_TAG" \
-              --jq '[.object.type, .object.sha] | @tsv')"
-            IFS=$'\t' read -r tag_object_type tag_object_sha <<< "$tag_object"
-            for ((depth = 0; depth < 16 && tag_object_type == "tag"; depth++)); do
-              tag_object="$(gh api "repos/$REPOSITORY/git/tags/$tag_object_sha" \
-                --jq '[.object.type, .object.sha] | @tsv')"
-              IFS=$'\t' read -r tag_object_type tag_object_sha <<< "$tag_object"
-            done
-            [[ "$tag_object_type" == commit && "$tag_object_sha" == "$GITHUB_SHA" ]] || {
-              printf 'Remote tag %s moved before release publication; expected %s, got %s %s.\n' \
-                "$RELEASE_TAG" "$GITHUB_SHA" "$tag_object_type" "$tag_object_sha" >&2
-              exit 1
-            }
+            assert_release_tag_commit "$REPOSITORY" "$RELEASE_TAG" "$GITHUB_SHA" || exit 1
             default_branch="$(gh api "repos/$REPOSITORY" --jq '.default_branch')"
             [[ -n "$default_branch" ]]
             default_branch_ref="$(jq -rn --arg value "$default_branch" '$value | @uri')"
@@ -1932,8 +1816,12 @@ jobs:
                 frontend) printf 'Rolling alias frontend digest mismatch.\n' >&2 ;;
               esac
               exit 1
-            fi
-          done
+              fi
+            done
+
+      - name: Confirm published rerun completed without writes
+        if: steps.release-state.outputs.published_release == 'true'
+        run: printf 'Live immutable Release and rolling aliases verified; no release mutation performed.\n'
 
   published-release-verify:
     name: Published release verification-only route

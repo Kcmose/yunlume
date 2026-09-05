@@ -10,7 +10,7 @@ vi.mock('./request', () => ({
   unwrapApiData: (response: { data: unknown }) => response.data,
 }))
 
-import { getCurrentNavigationDataImportJob } from './data.api'
+import { getCurrentNavigationDataImportJob, getNavigationDataImportJobByPreviewToken } from './data.api'
 
 describe('portable data import API', () => {
   beforeEach(() => {
@@ -30,5 +30,13 @@ describe('portable data import API', () => {
 
     await expect(getCurrentNavigationDataImportJob()).resolves.toEqual(job)
     expect(requestMocks.get).toHaveBeenCalledWith('/admin/data/import/jobs/current')
+  })
+
+  it('looks up a confirmed token without issuing a mutation and accepts terminal results', async () => {
+    const job = { jobId: 'job-1', stage: 'COMPLETED', createdAt: '2026-09-05T00:00:00Z', message: '已完成' }
+    requestMocks.get.mockResolvedValue({ data: job })
+    await expect(getNavigationDataImportJobByPreviewToken('token/value')).resolves.toEqual(job)
+    expect(requestMocks.get).toHaveBeenCalledWith('/admin/data/import/previews/token%2Fvalue/job')
+    expect(requestMocks.post).not.toHaveBeenCalled()
   })
 })

@@ -112,50 +112,87 @@ compose() {
     "$@"
 }
 
-container_label() {
-  docker container inspect --format "{{ index .Config.Labels \"${LABEL_KEY}\" }}" "$1" 2>/dev/null || true
+resource_exists() {
+  local kind="$1" name="$2" names
+  # 只有完整成功的枚举才能证明不存在；不得把 inspect/daemon 错误解释为空资源。
+  case "${kind}" in
+    container) names="$(docker container ls --all --format '{{json .Names}}')" || return 1 ;;
+    network|volume) names="$(docker "${kind}" ls --format '{{json .Name}}')" || return 1 ;;
+    *) return 1 ;;
+  esac
+  python3 -c '
+import json
+import sys
+try:
+    names = [json.loads(line) for line in sys.stdin.read().splitlines() if line]
+    if any(not isinstance(name, str) or not name for name in names):
+        raise ValueError("invalid resource name")
+except ValueError:
+    print("ERROR: Docker resource listing is invalid", file=sys.stderr)
+    raise SystemExit(1)
+raise SystemExit(0 if sys.argv[1] in names else 44)
+' "${name}" <<<"${names}"
 }
 
-network_label() {
-  docker network inspect --format "{{ index .Labels \"${LABEL_KEY}\" }}" "$1" 2>/dev/null || true
-}
-
-volume_label() {
-  docker volume inspect --format "{{ index .Labels \"${LABEL_KEY}\" }}" "$1" 2>/dev/null || true
-}
-
-remove_owned_container() {
-  local name="$1" label
-  docker container inspect "${name}" >/dev/null 2>&1 || return 0
-  label="$(container_label "${name}")"
-  [[ "${label}" == "${RUN_ID}" ]] || {
-    printf 'REFUSED: 容器 %s 不属于 run %s\n' "${name}" "${RUN_ID}" >&2
+remove_owned_resource() {
+  local kind="$1" name="$2" status format metadata target
+  if resource_exists "${kind}" "${name}"; then
+    :
+  else
+    status=$?
+    [[ "${status}" == 44 ]] && return 0
     return 1
-  }
-  docker container rm --force "${name}" >/dev/null
+  fi
+  case "${kind}" in
+    container) format="[{{json .Name}},{{json .Id}},{{json (index .Config.Labels \"${LABEL_KEY}\")}}]" ;;
+    network) format="[{{json .Name}},{{json .Id}},{{json (index .Labels \"${LABEL_KEY}\")}}]" ;;
+    volume) format="[{{json .Name}},{{json .Name}},{{json (index .Labels \"${LABEL_KEY}\")}}]" ;;
+    *) return 1 ;;
+  esac
+  # 一次 inspect 绑定名称、归属和不可变 ID；非零退出即使带有效 stdout 也不可采用。
+  metadata="$(docker "${kind}" inspect --format "${format}" "${name}")" || return 1
+  target="$(python3 -c '
+import json
+import re
+import sys
+try:
+    kind, expected_name, run_id = sys.argv[1:]
+    value = json.load(sys.stdin)
+    if not isinstance(value, list) or len(value) != 3:
+        raise ValueError("invalid inspection")
+    name, identifier, label = value
+    if kind == "container" and isinstance(name, str):
+        name = name[1:] if name.startswith("/") else name
+    if name != expected_name or label != run_id:
+        raise ValueError("resource ownership differs")
+    if kind == "volume":
+        if identifier != expected_name:
+            raise ValueError("volume identity differs")
+    elif not isinstance(identifier, str) or re.fullmatch(r"[0-9a-f]{64}", identifier) is None:
+        raise ValueError("invalid resource ID")
+    print(identifier)
+except (TypeError, ValueError):
+    print("REFUSED: Docker resource identity or ownership is not verified", file=sys.stderr)
+    raise SystemExit(1)
+' "${kind}" "${name}" "${RUN_ID}" <<<"${metadata}")" || return 1
+  if [[ "${kind}" == container ]]; then
+    docker container rm --force "${target}" >/dev/null || return 1
+  else
+    docker "${kind}" rm "${target}" >/dev/null || return 1
+  fi
+  # 删除调用成功后还要确认精确名称已不存在；同名替换或查询失败均保留恢复材料。
+  if resource_exists "${kind}" "${name}"; then
+    printf 'ERROR: 删除后仍存在 %s 资源: %s\n' "${kind}" "${name}" >&2
+    return 1
+  else
+    status=$?
+    [[ "${status}" == 44 ]] || return 1
+  fi
 }
 
-remove_owned_network() {
-  local name="$1" label
-  docker network inspect "${name}" >/dev/null 2>&1 || return 0
-  label="$(network_label "${name}")"
-  [[ "${label}" == "${RUN_ID}" ]] || {
-    printf 'REFUSED: 网络 %s 不属于 run %s\n' "${name}" "${RUN_ID}" >&2
-    return 1
-  }
-  docker network rm "${name}" >/dev/null
-}
-
-remove_owned_volume() {
-  local name="$1" label
-  docker volume inspect "${name}" >/dev/null 2>&1 || return 0
-  label="$(volume_label "${name}")"
-  [[ "${label}" == "${RUN_ID}" ]] || {
-    printf 'REFUSED: 卷 %s 不属于 run %s\n' "${name}" "${RUN_ID}" >&2
-    return 1
-  }
-  docker volume rm "${name}" >/dev/null
-}
+remove_owned_container() { remove_owned_resource container "$1"; }
+remove_owned_network() { remove_owned_resource network "$1"; }
+remove_owned_volume() { remove_owned_resource volume "$1"; }
 
 cleanup_resources() {
   local failed=0
@@ -170,22 +207,37 @@ cleanup_resources() {
 }
 
 remove_run_directory() {
-  [[ -n "${RUN_DIR}" && -d "${RUN_DIR}" && ! -L "${RUN_DIR}" ]] || return 0
+  [[ -n "${RUN_DIR}" && ! -L "${RUN_DIR}" ]] || return 1
+  [[ -e "${RUN_DIR}" ]] || return 0
+  [[ -d "${RUN_DIR}" ]] || return 1
   local root_real run_real
-  root_real="$(readlink -f -- "${STATE_ROOT}")"
-  run_real="$(readlink -f -- "${RUN_DIR}")"
-  [[ "${run_real}" == "${root_real}/${RUN_ID}" ]] ||
-    die "拒绝清理未验证的运行目录: ${run_real}"
-  rm -rf --one-file-system -- "${run_real}"
+  root_real="$(readlink -f -- "${STATE_ROOT}")" || return 1
+  run_real="$(readlink -f -- "${RUN_DIR}")" || return 1
+  [[ "${run_real}" == "${root_real}/${RUN_ID}" ]] || {
+    printf 'REFUSED: 拒绝清理未验证的运行目录: %s\n' "${run_real}" >&2
+    return 1
+  }
+  rm -rf --one-file-system -- "${run_real}" || return 1
+  [[ ! -e "${RUN_DIR}" && ! -L "${RUN_DIR}" ]]
+}
+
+register_exit_handlers() {
+  trap on_exit EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
 }
 
 on_exit() {
   local status=$? cleanup_status=0
-  trap - EXIT INT TERM
+  trap - EXIT ERR
+  trap '' INT TERM
+  set +e
   if [[ "${RUN_INITIALIZED}" == true ]]; then
     cleanup_resources || cleanup_status=$?
     if (( cleanup_status == 0 )); then
-      remove_run_directory
+      remove_run_directory || cleanup_status=$?
+    fi
+    if (( cleanup_status == 0 )); then
       info "隔离 E2E 资源已精确清理: ${RUN_ID}"
     else
       printf 'ERROR: 精确清理未完成；保留状态目录以供 cleanup: %s\n' "${RUN_DIR}" >&2
@@ -200,14 +252,24 @@ on_exit() {
 assert_resource_names_unused() {
   local name
   for name in "${BACKEND_CONTAINER}" "${POSTGRES_CONTAINER}" "${REDIS_CONTAINER}"; do
-    docker container inspect "${name}" >/dev/null 2>&1 && die "唯一容器名已存在: ${name}"
+    assert_resource_name_unused container "${name}" || return 1
   done
-  docker network inspect "${NETWORK_NAME}" >/dev/null 2>&1 &&
-    die "唯一网络名已存在: ${NETWORK_NAME}"
+  assert_resource_name_unused network "${NETWORK_NAME}" || return 1
   for name in "${CONFIG_VOLUME}" "${UPLOADS_VOLUME}" "${LOGS_VOLUME}"; do
-    docker volume inspect "${name}" >/dev/null 2>&1 && die "唯一卷名已存在: ${name}"
+    assert_resource_name_unused volume "${name}" || return 1
   done
   return 0
+}
+
+assert_resource_name_unused() {
+  local status
+  if resource_exists "$1" "$2"; then
+    printf 'ERROR: 唯一 %s 资源名已存在: %s\n' "$1" "$2" >&2
+    return 1
+  else
+    status=$?
+    [[ "${status}" == 44 ]] || return 1
+  fi
 }
 
 choose_loopback_port() {
@@ -937,6 +999,7 @@ assert_completed_legacy_fallback_blocked() {
 run_e2e() {
   [[ "${CONFIRM_ISOLATED_INSTALL_E2E:-}" == "RUN-ISOLATED-INSTALL-E2E" ]] ||
     die "执行前必须设置 CONFIRM_ISOLATED_INSTALL_E2E=RUN-ISOLATED-INSTALL-E2E"
+  register_exit_handlers
   local backend_image="${E2E_BACKEND_IMAGE:-}" \
     postgres_image="${E2E_POSTGRES_IMAGE:-postgres:17-bookworm}" \
     redis_image="${E2E_REDIS_IMAGE:-redis:7.4-bookworm}"
@@ -968,7 +1031,6 @@ run_e2e() {
   COMPOSE_FILE="${RUN_DIR}/compose.yml"
   HTTP_PORT="$(choose_loopback_port)"
   RUN_INITIALIZED=true
-  trap on_exit EXIT INT TERM
   write_manifest
   info "隔离 E2E run id: ${RUN_ID}"
   info "紧急精确清理: CONFIRM_ISOLATED_INSTALL_E2E_CLEANUP=CLEAN-ISOLATED-INSTALL-E2E $0 cleanup ${RUN_ID}"
@@ -1082,7 +1144,9 @@ cleanup_abandoned_run() {
   local run_id="${1:-}"
   [[ "${CONFIRM_ISOLATED_INSTALL_E2E_CLEANUP:-}" == "CLEAN-ISOLATED-INSTALL-E2E" ]] ||
     die "清理前必须设置 CONFIRM_ISOLATED_INSTALL_E2E_CLEANUP=CLEAN-ISOLATED-INSTALL-E2E"
+  register_exit_handlers
   require_command docker
+  require_command python3
   require_command readlink
   require_command stat
   require_command install
@@ -1095,10 +1159,7 @@ cleanup_abandoned_run() {
   [[ "$(awk -F= '$1 == "RUN_ID" { print $2 }' "${RUN_DIR}/resource-manifest")" == "${RUN_ID}" ]] ||
     die "resource-manifest 与 run id 不匹配"
   RUN_INITIALIZED=true
-  cleanup_resources || die "部分资源标签不匹配，已拒绝扩大清理范围"
-  remove_run_directory
-  RUN_INITIALIZED=false
-  info "已精确清理隔离 E2E run: ${RUN_ID}"
+  # 与 run 共用唯一 EXIT 清理入口，信号和失败不能导致二次清理或丢失原退出码。
 }
 
 show_plan() {

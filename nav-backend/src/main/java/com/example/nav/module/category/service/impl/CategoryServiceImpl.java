@@ -104,12 +104,11 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     @Transactional
     public CategoryVO setVisible(Long id, boolean visible) {
-        Category category = requireCategory(id);
-        category.setVisible(visible);
-        category.setUpdatedAt(LocalDateTime.now());
-        categoryMapper.updateById(category);
+        if (categoryMapper.updateVisible(id, visible, LocalDateTime.now()) != 1) {
+            throw BusinessException.notFound("分类不存在");
+        }
         invalidateNavigation();
-        return toVO(category);
+        return toVO(requireCategory(id));
     }
 
     @Override

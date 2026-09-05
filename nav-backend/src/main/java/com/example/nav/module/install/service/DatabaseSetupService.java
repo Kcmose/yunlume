@@ -171,8 +171,12 @@ public class DatabaseSetupService {
     }
 
     public void requireSecureTransport(HttpServletRequest request) {
+        requireSecureTransport(request, "数据库配置");
+    }
+
+    public void requireSecureTransport(HttpServletRequest request, String sensitiveResource) {
         if (allowInsecureSetup) return;
-        secureTransportPolicy.requireSecure(request, "数据库配置");
+        secureTransportPolicy.requireSecure(request, sensitiveResource);
     }
 
     public DatabaseTestVO test(DatabaseConnectionDTO dto) {

@@ -17,6 +17,7 @@ import type {
   AdminSearchEngine,
   SearchEnginePayload,
 } from '@/types/searchEngine'
+import { commitVisibleChange } from '@/utils/visibilityMutation'
 
 const engines = ref<AdminSearchEngine[]>([])
 const loading = ref(true)
@@ -27,6 +28,17 @@ const keyword = ref('')
 const settingDefaultId = ref<AdminSearchEngine['id'] | null>(null)
 const savingSort = ref(false)
 const sortDraft = ref<Record<string, number>>({})
+const visibilityUpdatingIds = ref(new Set<string>())
+const sortDraftVersions: Record<string, number> = {}
+let nextDraftVersion = 0
+let loadVersion = 0
+let dialogGeneration = 0
+let pendingSortVersions: Record<string, number> | null = null
+let acknowledgedSortVersions: Record<string, number> | null = null
+
+function visibilityUpdating(row: AdminSearchEngine) {
+  return visibilityUpdatingIds.value.has(String(row.id))
+}
 
 const filtered = computed(() => {
   const value = keyword.value.trim().toLocaleLowerCase()
@@ -53,7 +65,32 @@ function draftOrder(engine: AdminSearchEngine): number {
 }
 
 function updateDraft(engine: AdminSearchEngine, value: number | undefined) {
-  sortDraft.value[String(engine.id)] = Math.max(0, value ?? 0)
+  const key = String(engine.id)
+  sortDraft.value[key] = Math.max(0, value ?? 0)
+  sortDraftVersions[key] = ++nextDraftVersion
+}
+
+function applySnapshot(next: AdminSearchEngine[]) {
+  const previousOrders = new Map(engines.value.map((engine) => [String(engine.id), engine.sortOrder]))
+  const nextDraft: Record<string, number> = {}
+  for (const engine of next) {
+    const key = String(engine.id)
+    const hasDraft = Object.prototype.hasOwnProperty.call(sortDraft.value, key)
+    const currentVersion = sortDraftVersions[key] ?? 0
+    const acknowledged = acknowledgedSortVersions?.[key]
+    // 已提交草稿仅在用户未再次输入时清理；改回旧服务器值也属于新的编辑。
+    const preserve = acknowledged !== undefined
+      ? currentVersion !== acknowledged
+      : sortDraft.value[key] !== previousOrders.get(key)
+        || (pendingSortVersions !== null && currentVersion !== pendingSortVersions[key])
+    nextDraft[key] = hasDraft && preserve ? sortDraft.value[key]! : engine.sortOrder
+  }
+  engines.value = next
+  sortDraft.value = nextDraft
+  acknowledgedSortVersions = null
+  for (const key of Object.keys(sortDraftVersions)) {
+    if (!Object.prototype.hasOwnProperty.call(nextDraft, key)) delete sortDraftVersions[key]
+  }
 }
 
 function iconUrl(engine: AdminSearchEngine): string {
@@ -69,54 +106,70 @@ function iconMark(engine: AdminSearchEngine): string {
 }
 
 async function load() {
+  const requestVersion = ++loadVersion
   loading.value = true
   try {
-    engines.value = await getSearchEngines()
-    sortDraft.value = Object.fromEntries(
-      engines.value.map((engine) => [String(engine.id), engine.sortOrder]),
-    )
+    const next = await getSearchEngines()
+    if (requestVersion !== loadVersion) return
+    applySnapshot(next)
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '搜索引擎加载失败')
+    if (requestVersion === loadVersion) ElMessage.error(error instanceof Error ? error.message : '搜索引擎加载失败')
   } finally {
-    loading.value = false
+    if (requestVersion === loadVersion) loading.value = false
   }
 }
 
 async function saveSort() {
   if (!sortChanged.value || savingSort.value) return
   savingSort.value = true
+  pendingSortVersions = Object.fromEntries(
+    engines.value.map((engine) => [String(engine.id), sortDraftVersions[String(engine.id)] ?? 0]),
+  )
   try {
-    engines.value = await sortSearchEngines(
+    const persisted = await sortSearchEngines(
       engines.value.map((engine) => ({ id: engine.id, sortOrder: draftOrder(engine) })),
     )
-    sortDraft.value = Object.fromEntries(
-      engines.value.map((engine) => [String(engine.id), engine.sortOrder]),
-    )
+    // 即使随后的GET失败，也以已确认的排序判断草稿是否仍有未提交输入。
+    // 只原位更新排序，保留并发CRUD/显隐的字段与列表成员。
+    const persistedOrders = new Map(persisted.map((engine) => [String(engine.id), engine.sortOrder]))
+    for (const engine of engines.value) {
+      const order = persistedOrders.get(String(engine.id))
+      if (order !== undefined) engine.sortOrder = order
+    }
+    acknowledgedSortVersions = pendingSortVersions
+    // 排序响应可能早于并发CRUD；重新读取列表，并按提交版本合并草稿。
+    await load()
     ElMessage.success('搜索引擎排序已保存')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '排序保存失败')
   } finally {
+    pendingSortVersions = null
     savingSort.value = false
   }
 }
 
 function openCreate() {
+  dialogGeneration += 1
   editing.value = null
   dialogVisible.value = true
 }
 
 function openEdit(row: AdminSearchEngine) {
+  dialogGeneration += 1
   editing.value = row
   dialogVisible.value = true
 }
 
 async function save(payload: SearchEnginePayload) {
+  if (submitting.value || !dialogVisible.value) return
+  const generation = dialogGeneration
+  const target = editing.value
   submitting.value = true
   try {
-    if (editing.value) await updateSearchEngine(editing.value.id, payload)
+    if (target) await updateSearchEngine(target.id, payload)
     else await createSearchEngine(payload)
-    ElMessage.success(editing.value ? '搜索引擎已更新' : '搜索引擎已创建')
-    dialogVisible.value = false
+    ElMessage.success(target ? '搜索引擎已更新' : '搜索引擎已创建')
+    if (generation === dialogGeneration) dialogVisible.value = false
     await load()
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '保存失败')
@@ -150,11 +203,15 @@ async function remove(row: AdminSearchEngine) {
 
 async function toggleVisible(row: AdminSearchEngine) {
   try {
-    await setSearchEngineVisible(row.id, row.visible)
+    const updated = await commitVisibleChange(row, visibilityUpdatingIds.value, async (id, visible) => {
+      const persisted = await setSearchEngineVisible(id, visible)
+      // 停用默认引擎还会改变其他行；读回完成前保持同一行互斥。
+      await load()
+      return persisted
+    })
+    if (!updated) return
     ElMessage.success(row.visible ? '搜索引擎已启用' : '搜索引擎已停用')
-    await load()
   } catch (error) {
-    row.visible = !row.visible
     ElMessage.error(error instanceof Error ? error.message : '状态更新失败')
   }
 }
@@ -260,6 +317,7 @@ onMounted(() => void load())
                 type="primary"
                 :aria-label="`将${row.name}设为默认搜索引擎`"
                 :loading="String(settingDefaultId) === String(row.id)"
+                :disabled="visibilityUpdating(row)"
                 @click="makeDefault(row)"
               >
                 设为默认
@@ -268,18 +326,19 @@ onMounted(() => void load())
           </el-table-column>
           <el-table-column label="启用" width="90">
             <template #default="{ row }">
-              <el-switch v-model="row.visible" :aria-label="`${row.name}启用状态`" @change="toggleVisible(row)" />
+              <el-switch v-model="row.visible" :loading="visibilityUpdating(row)" :disabled="visibilityUpdating(row)" :aria-label="`${row.name}启用状态`" @change="toggleVisible(row)" />
             </template>
           </el-table-column>
           <el-table-column label="操作" width="150" align="right">
             <template #default="{ row }">
-              <el-button circle :icon="Edit" :aria-label="`编辑搜索引擎${row.name}`" @click="openEdit(row)" />
+              <el-button circle :icon="Edit" :disabled="visibilityUpdating(row)" :aria-label="`编辑搜索引擎${row.name}`" @click="openEdit(row)" />
               <el-button
                 circle
                 type="danger"
                 plain
                 :icon="Delete"
                 :aria-label="`删除搜索引擎${row.name}`"
+                :disabled="visibilityUpdating(row)"
                 @click="remove(row)"
               />
             </template>
@@ -332,6 +391,8 @@ onMounted(() => void load())
             <div class="search-engine-card__controls">
               <el-switch
                 v-model="row.visible"
+                :loading="visibilityUpdating(row)"
+                :disabled="visibilityUpdating(row)"
                 :aria-label="`${row.name}启用状态`"
                 @change="toggleVisible(row)"
               />
@@ -340,11 +401,12 @@ onMounted(() => void load())
                 size="small"
                 :aria-label="`将${row.name}设为默认搜索引擎`"
                 :loading="String(settingDefaultId) === String(row.id)"
+                :disabled="visibilityUpdating(row)"
                 @click="makeDefault(row)"
               >
                 设默认
               </el-button>
-              <el-button circle size="small" :icon="Edit" :aria-label="`编辑搜索引擎${row.name}`" @click="openEdit(row)" />
+              <el-button circle size="small" :icon="Edit" :disabled="visibilityUpdating(row)" :aria-label="`编辑搜索引擎${row.name}`" @click="openEdit(row)" />
               <el-button
                 circle
                 size="small"
@@ -352,6 +414,7 @@ onMounted(() => void load())
                 plain
                 :icon="Delete"
                 :aria-label="`删除搜索引擎${row.name}`"
+                :disabled="visibilityUpdating(row)"
                 @click="remove(row)"
               />
             </div>

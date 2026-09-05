@@ -8,6 +8,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -25,7 +27,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.locks.ReentrantLock;
@@ -35,14 +36,14 @@ import java.util.regex.Pattern;
 @Service
 public class BackgroundImageStorageService {
 
-    private static final Pattern GENERATED_FILENAME =
-            Pattern.compile("^[a-f0-9]{32}\\.(?:jpg|png)$");
+    private static final Pattern GENERATED_FILENAME = ManagedBackgroundReferences.FILENAME;
     private static final Pattern TEMPORARY_FILENAME =
             Pattern.compile("^\\.upload-[A-Za-z0-9._-]+\\.tmp$");
 
     private final Path uploadRoot;
     private final Path backgroundDirectory;
     private final String managedUrlPrefix;
+    private final ManagedBackgroundReferences backgroundReferences;
     private final long maxFileBytes;
     private final long maxTotalBytes;
     private final int maxFiles;
@@ -83,8 +84,8 @@ public class BackgroundImageStorageService {
         if (!backgroundDirectory.startsWith(uploadRoot)) {
             throw new IllegalArgumentException("上传目录配置无效");
         }
-        String normalizedBaseUrl = normalizeBaseUrl(properties.getBaseUrl());
-        this.managedUrlPrefix = normalizedBaseUrl + "/backgrounds/";
+        this.backgroundReferences = new ManagedBackgroundReferences(properties);
+        this.managedUrlPrefix = backgroundReferences.urlPrefix();
         this.maxFileBytes = properties.getMaxBytes();
         this.maxTotalBytes = properties.getMaxTotalBytes();
         this.maxFiles = properties.getMaxFiles();
@@ -93,20 +94,19 @@ public class BackgroundImageStorageService {
         this.clock = clock;
     }
 
+    @Transactional
     public StoredImage store(MultipartFile file, String filename) {
         if (file == null || file.isEmpty()) {
             throw BusinessException.badRequest("请选择要上传的图片");
         }
         validateGeneratedFilename(filename);
 
+        Set<String> referencedFiles = lockReferencedFilenames();
         storageLock.lock();
         Path temporary = null;
         try {
             Path safeDirectory = ensureSafeStorageDirectory();
-            CleanupResult cleanup = cleanupOrphansLocked(safeDirectory);
-            if (cleanup.skipped()) {
-                log.warn("Skipped orphan background cleanup before upload because references were unavailable");
-            }
+            cleanupOrphansLocked(safeDirectory, referencedFiles);
 
             StorageInventory inventory = inspectInventory(safeDirectory);
             long declaredBytes = file.getSize();
@@ -162,10 +162,18 @@ public class BackgroundImageStorageService {
         }
     }
 
+    @Transactional
     public CleanupResult cleanupOrphans() {
+        Set<String> referencedFiles;
+        try {
+            referencedFiles = lockReferencedFilenames();
+        } catch (RuntimeException exception) {
+            log.error("Failed to lock current background image references; no files were deleted", exception);
+            return CleanupResult.skippedResult();
+        }
         storageLock.lock();
         try {
-            return cleanupOrphansLocked(ensureSafeStorageDirectory());
+            return cleanupOrphansLocked(ensureSafeStorageDirectory(), referencedFiles);
         } catch (IOException exception) {
             throw new IllegalStateException("无法清理背景图片存储目录", exception);
         } finally {
@@ -177,23 +185,20 @@ public class BackgroundImageStorageService {
      * Stores an already validated group of portable-package image assets as one
      * quota operation. The caller is responsible for validating image content;
      * this method is deliberately limited to safe paths, quotas and atomic file
-     * publication. Keeping the group under the storage lock also prevents an
-     * in-progress first asset from being mistaken for an orphan while the next
-     * asset is copied.
+     * publication. The site row lock is acquired before the instance storage
+     * lock and remains held through the importing transaction's completion.
      */
+    @Transactional
     public List<ImportedAsset> importValidatedAssets(List<ImportAssetSource> sources) {
         if (sources == null || sources.isEmpty()) {
             return List.of();
         }
-
+        Set<String> referencedFiles = lockReferencedFilenames();
         storageLock.lock();
         List<ImportedAsset> imported = new ArrayList<>();
         try {
             Path safeDirectory = ensureSafeStorageDirectory();
-            CleanupResult cleanup = cleanupOrphansLocked(safeDirectory);
-            if (cleanup.skipped()) {
-                log.warn("Skipped orphan background cleanup before portable import because references were unavailable");
-            }
+            cleanupOrphansLocked(safeDirectory, referencedFiles);
 
             StorageInventory inventory = inspectInventory(safeDirectory);
             long pendingBytes = 0;
@@ -246,13 +251,21 @@ public class BackgroundImageStorageService {
         }
     }
 
+    // 只在导入回滚完成后调用；不能复用已完成的事务和连接。
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void deleteImportedAssets(Collection<ImportedAsset> assets) {
         if (assets == null || assets.isEmpty()) {
             return;
         }
+        Set<String> referencedFiles = lockReferencedFilenames();
         storageLock.lock();
         try {
-            deleteImportedAssetsLocked(assets);
+            ensureSafeStorageDirectory();
+            deleteImportedAssetsLocked(assets.stream()
+                    .filter(asset -> asset != null && !referencedFiles.contains(asset.filename()))
+                    .toList());
+        } catch (IOException exception) {
+            throw new IllegalStateException("无法安全清理回滚的背景图片", exception);
         } finally {
             storageLock.unlock();
         }
@@ -312,15 +325,7 @@ public class BackgroundImageStorageService {
         }
     }
 
-    private CleanupResult cleanupOrphansLocked(Path safeDirectory) throws IOException {
-        Set<String> referencedFiles;
-        try {
-            referencedFiles = loadReferencedFilenames();
-        } catch (RuntimeException exception) {
-            log.error("Failed to load current background image references; no files were deleted", exception);
-            return CleanupResult.skippedResult();
-        }
-
+    private CleanupResult cleanupOrphansLocked(Path safeDirectory, Set<String> referencedFiles) throws IOException {
         Instant cutoff = clock.instant().minusMillis(orphanGraceMs);
         int scanned = 0;
         int referenced = 0;
@@ -371,8 +376,9 @@ public class BackgroundImageStorageService {
         return new CleanupResult(scanned, referenced, graceProtected, deleted, deletedBytes, false);
     }
 
-    private Set<String> loadReferencedFilenames() {
-        List<SiteConfig> configs = siteConfigMapper.selectList(null);
+    private Set<String> lockReferencedFilenames() {
+        // 全部入口统一 DB site 行锁 → storageLock；同库共享上传目录的实例也参与协调。
+        List<SiteConfig> configs = siteConfigMapper.selectAllForUpdate();
         Set<String> result = new HashSet<>();
         if (configs == null || configs.isEmpty()) {
             throw new IllegalStateException("站点配置缺失，跳过背景图片清理");
@@ -388,13 +394,8 @@ public class BackgroundImageStorageService {
     }
 
     private void addManagedReference(Set<String> references, String value) {
-        if (value == null || value.isBlank() || !value.startsWith(managedUrlPrefix)) {
-            return;
-        }
-        String filename = value.substring(managedUrlPrefix.length());
-        if (GENERATED_FILENAME.matcher(filename).matches()) {
-            references.add(filename);
-        }
+        String filename = backgroundReferences.filename(value);
+        if (filename != null) references.add(filename);
     }
 
     private StorageInventory inspectInventory(Path safeDirectory) throws IOException {
@@ -482,22 +483,6 @@ public class BackgroundImageStorageService {
         if (filename == null || !GENERATED_FILENAME.matcher(filename).matches()) {
             throw BusinessException.badRequest("图片文件名无效");
         }
-    }
-
-    private String normalizeBaseUrl(String value) {
-        String result = value == null || value.isBlank() ? "/uploads" : value.trim();
-        while (result.length() > 1 && result.endsWith("/")) {
-            result = result.substring(0, result.length() - 1);
-        }
-        String lower = result.toLowerCase(Locale.ROOT);
-        boolean allowedPrefix = result.startsWith("/") && !result.startsWith("//")
-                || lower.startsWith("http://")
-                || lower.startsWith("https://");
-        if (!allowedPrefix || result.contains("\\") || result.contains("..")
-                || result.contains("?") || result.contains("#")) {
-            throw new IllegalArgumentException("上传公开地址配置无效");
-        }
-        return "/".equals(result) ? "" : result;
     }
 
     public record StoredImage(String filename, long bytes, String url) {

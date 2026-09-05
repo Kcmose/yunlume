@@ -33,6 +33,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.datasource.url=jdbc:h2:mem:web-install-test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1",
         "nav.bootstrap.enabled=false",
         "nav.web-install.enabled=true",
+        "nav.database-install.allow-insecure-setup=false",
+        "nav.database-install.trust-forwarded-https=false",
         "nav.upload.directory=${java.io.tmpdir}/yunlume-install-test",
         "spring.cache.type=simple"
 })
@@ -78,6 +80,21 @@ class WebInstallIntegrationTest {
     void removeInstallationData() {
         jdbcTemplate.update("DELETE FROM sys_user");
         jdbcTemplate.update("DELETE FROM site_config");
+    }
+
+    @Test
+    void refusesHttpAdministratorCredentialsBeforeAnyInstallationWrite() throws Exception {
+        mockMvc.perform(post(COMPLETE_URL)
+                        .header("X-Forwarded-Proto", "https")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "siteName", "Should not be installed",
+                                "username", "first-admin", "nickname", "管理员",
+                                "password", STRONG_PASSWORD, "confirmPassword", STRONG_PASSWORD))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("HTTPS")));
+        assertEquals(0L, userMapper.selectCount(null));
+        assertEquals("Uninstalled", jdbcTemplate.queryForObject("SELECT site_name FROM site_config", String.class));
     }
 
     @Test
@@ -133,7 +150,7 @@ class WebInstallIntegrationTest {
                 "password", STRONG_PASSWORD,
                 "confirmPassword", STRONG_PASSWORD
         ));
-        mockMvc.perform(post(COMPLETE_URL)
+        mockMvc.perform(post(COMPLETE_URL).secure(true)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(unsafeBody))
                 .andExpect(status().isBadRequest())
@@ -327,7 +344,7 @@ class WebInstallIntegrationTest {
             String username,
             String password
     ) throws Exception {
-        var request = post(COMPLETE_URL)
+        var request = post(COMPLETE_URL).secure(true)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(Map.of(
                         "siteName", "My Navigation",

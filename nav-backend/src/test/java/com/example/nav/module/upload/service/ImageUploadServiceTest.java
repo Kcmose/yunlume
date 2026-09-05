@@ -2,6 +2,7 @@ package com.example.nav.module.upload.service;
 
 import com.example.nav.common.exception.BusinessException;
 import com.example.nav.module.site.mapper.SiteConfigMapper;
+import com.example.nav.module.site.entity.SiteConfig;
 import com.example.nav.module.upload.config.UploadStorageProperties;
 import com.example.nav.module.upload.vo.ImageUploadVO;
 import org.junit.jupiter.api.Test;
@@ -17,11 +18,13 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.Set;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class ImageUploadServiceTest {
 
@@ -80,6 +83,7 @@ class ImageUploadServiceTest {
         properties.setMaxTotalBytes(maxBytes * 10);
         properties.setMaxFiles(10);
         SiteConfigMapper mapper = mock(SiteConfigMapper.class);
+        when(mapper.selectAllForUpdate()).thenReturn(List.of(new SiteConfig()));
         BackgroundImageStorageService storageService =
                 new BackgroundImageStorageService(properties, mapper);
         return new ImageUploadService(properties, storageService);

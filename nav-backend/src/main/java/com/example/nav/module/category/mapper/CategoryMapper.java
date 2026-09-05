@@ -11,6 +11,17 @@ public interface CategoryMapper extends BaseMapper<Category> {
 
     @Update("""
             UPDATE nav_category
+            SET visible = #{visible}, updated_at = #{updatedAt}
+            WHERE id = #{id}
+            """)
+    int updateVisible(
+            @Param("id") Long id,
+            @Param("visible") boolean visible,
+            @Param("updatedAt") LocalDateTime updatedAt
+    );
+
+    @Update("""
+            UPDATE nav_category
             SET sort_order = #{sortOrder}, updated_at = #{updatedAt}
             WHERE id = #{id}
             """)

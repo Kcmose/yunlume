@@ -276,6 +276,11 @@ export function createTokenStorage(
     },
 
     set(token: string): true {
+      this.setSnapshot(token)
+      return true
+    },
+
+    setSnapshot(token: string): AuthTokenSnapshot {
       if (!storage || typeof token !== 'string' || token.length === 0) {
         throw new TokenPersistenceError('input-validation', null)
       }
@@ -301,7 +306,8 @@ export function createTokenStorage(
         verifyValue(storage, AUTH_ENVELOPE_KEY, activeEnvelope, 'final-envelope-readback')
         verifyValue(storage, AUTH_BARRIER_KEY, activeBarrier, 'final-barrier-readback')
         failedLogoutState = null
-        return true
+        // 返回本次写入生成的身份，不能把随后另一标签页提交的快照当成本次结果。
+        return Object.freeze({ token, generation: operationGeneration, commitment: operationCommitment })
       } catch (error) {
         if (!(error instanceof TokenPersistenceError && error.phase === 'operation-identity-collision')) {
           bestEffortRemovedBarrier(storage, operationGeneration, operationCommitment)

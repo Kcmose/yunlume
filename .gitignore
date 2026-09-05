@@ -7,6 +7,7 @@
 
 # Private project and deployment notes
 jiyi.md
+.local-build/
 
 # Runtime database installer state and credentials
 database_config/

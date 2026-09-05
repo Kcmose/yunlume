@@ -22,6 +22,7 @@ if python3 "${VALIDATOR}" v01.2.3 v1.0.0 >/dev/null 2>&1; then
 fi
 
 workflow_source="$(<"${SCRIPT_DIR}/../.github/workflows/publish-images.yml")"
+workflow_source+=$'\n'"$(<"${SCRIPT_DIR}/release-preflight.sh")"
 for expected in \
   'gh api -H '\''X-GitHub-Api-Version: 2026-03-10'\'' --paginate "repos/$REPOSITORY/releases"' \
   'python3 ops/validate-release-version.py "$RELEASE_TAG"' \

@@ -37,9 +37,11 @@ validate_release_asset_name() {
 }
 
 list_release_asset_ids() {
-  local repository="$1" release_id="$2" name="$3"
+  local repository="$1" release_id="$2" name="$3" response
   validate_release_asset_name "$name" || return
-  gh api "repos/$repository/releases/$release_id/assets" --paginate --slurp | python3 -c '
+  # API失败可能同时输出一部分合法JSON；解析成功不能覆盖API的失败状态。
+  response="$(gh api "repos/$repository/releases/$release_id/assets" --paginate --slurp)" || return
+  python3 -c '
 import json, sys
 name = sys.argv[1]
 data = json.load(sys.stdin)
@@ -49,9 +51,9 @@ for item in items:
     if not isinstance(item, dict): raise SystemExit("release asset response item is invalid")
     if item.get("name") == name:
         value = item.get("id")
-        if not isinstance(value, int): raise SystemExit("release asset ID is invalid")
+        if type(value) is not int or value <= 0: raise SystemExit("release asset ID is invalid")
         print(value)
-' "$name"
+' "$name" <<<"$response"
 }
 
 oci_archive_file_sha256() {
@@ -61,13 +63,13 @@ oci_archive_file_sha256() {
 }
 
 oci_archive_root_digest() {
-  local archive="$1" tmp
+  local archive="$1" tmp status
   tmp="$(mktemp -d)" || return
   if ! tar -xf "$archive" -C "$tmp"; then
     rm -rf -- "$tmp"
     return 1
   fi
-  python3 - "$tmp" <<'PY'
+  if python3 - "$tmp" <<'PY'
 import hashlib, json, re, sys
 from pathlib import Path
 root = Path(sys.argv[1])
@@ -95,8 +97,10 @@ if descriptor.get("size") != len(content):
     raise SystemExit("OCI root descriptor blob size mismatch")
 print(digest)
 PY
-  local status=$?
-  rm -rf -- "$tmp"
+  then status=0
+  else status=$?
+  fi
+  rm -rf -- "$tmp" || return
   return "$status"
 }
 
@@ -143,10 +147,16 @@ candidate_registry_digest() {
     printf '%s\n' "$result"
     return 0
   fi
-  case "$result" in
-    *'manifest unknown'*|*'not found'*) return 44 ;;
-    *) printf 'Unable to inspect candidate %s:%s: %s\n' "$image" "$tag" "$result" >&2; return 1 ;;
+  case "${result,,}" in
+    *'403'*|*'401'*|*'denied'*|*'unauthorized'*|*'timeout'*|*'timed out'*) ;;
+    *'manifest unknown'*) return 44 ;;
+    *)
+      # 只把目标manifest的明确不存在视为可新建；凭据helper/网络组件的not found不是缺少候选。
+      [[ "$result" != *"${image}:${tag}: not found" ]] || return 44
+      ;;
   esac
+  printf 'Unable to inspect candidate %s:%s: %s\n' "$image" "$tag" "$result" >&2
+  return 1
 }
 
 candidate_copy_to_registry() {
@@ -170,12 +180,13 @@ candidate_verify_attestation() {
 publish_candidate_transaction() {
   local image="$1" tag="$2" archive="$3" expected_digest="$4"
   local current root published status
+  [[ "$expected_digest" =~ ^sha256:[0-9a-f]{64}$ ]] || return 1
   if current="$(candidate_registry_digest "$image" "$tag")"; then
     [[ "$current" == "$expected_digest" ]] || {
       printf 'Candidate reference moved: expected %s, got %s.\n' "$expected_digest" "$current" >&2
       return 1
     }
-    candidate_verify_attestation "$image" "$current"
+    candidate_verify_attestation "$image" "$current" || return
     printf '%s\n' "$current"
     return 0
   else
@@ -195,7 +206,7 @@ publish_candidate_transaction() {
     printf 'Post-skopeo candidate digest %s differs from OCI root %s.\n' "$published" "$expected_digest" >&2
     return 1
   }
-  candidate_verify_attestation "$image" "$published"
+  candidate_verify_attestation "$image" "$published" || return
   printf '%s\n' "$published"
 }
 
@@ -245,7 +256,7 @@ ensure_release_asset_once_by_id() {
       printf 'Immutable-once asset differs; refusing replacement: %s.\n' "$name" >&2
       return 1
     }
-    rm -f -- "$readback"
+    rm -f -- "$readback" || return
     return 0
   fi
   encoded_name="$(python3 - "$name" <<'PY'
@@ -350,14 +361,36 @@ recover_candidate_without_archive() {
 }
 
 verify_host_archive_jar_sha() {
-  local archive="$1" expected_sha="$2" actual_sha
+  local archive="$1" expected_sha="$2"
   [[ "$expected_sha" =~ ^[0-9a-f]{64}$ ]] || return 1
-  actual_sha="$(tar -xOf "$archive" --wildcards '*/backend/yunlume-backend.jar' 2>/dev/null | sha256sum)" || return
-  actual_sha="${actual_sha%% *}"
-  [[ "$actual_sha" == "$expected_sha" ]] || {
-    printf 'Host archive backend JAR SHA-256 %s differs from tested JAR %s.\n' "$actual_sha" "$expected_sha" >&2
-    return 1
-  }
+  # 与package-host-release.sh的根级布局一致，不解压链接、不拼接重复成员的字节。
+  python3 - "$archive" "$expected_sha" <<'PY'
+import hashlib, sys, tarfile
+expected_name = "backend/yunlume-backend.jar"
+actual_sha = None
+try:
+    with tarfile.open(sys.argv[1], mode="r:gz", ignore_zeros=True) as archive:
+        for member in archive:
+            if member.name == "backend" and not member.isdir():
+                raise ValueError("Host archive backend must be a directory")
+            if member.name.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1] != "yunlume-backend.jar":
+                continue
+            if actual_sha is not None or member.name != expected_name:
+                raise ValueError("Host archive must contain exactly one root-level backend/yunlume-backend.jar")
+            if member.type not in (tarfile.REGTYPE, tarfile.AREGTYPE) or member.size <= 0:
+                raise ValueError("Host archive backend JAR must be a nonempty regular file")
+            digest = hashlib.sha256()
+            with archive.extractfile(member) as content:
+                while chunk := content.read(1024 * 1024):
+                    digest.update(chunk)
+            actual_sha = digest.hexdigest()
+    if actual_sha is None:
+        raise ValueError("Host archive backend JAR is missing")
+    if actual_sha != sys.argv[2]:
+        raise ValueError(f"Host archive backend JAR SHA-256 {actual_sha} differs from tested JAR {sys.argv[2]}")
+except (OSError, EOFError, tarfile.TarError, ValueError) as exc:
+    raise SystemExit(str(exc))
+PY
 }
 
 verify_container_jar_sha() {

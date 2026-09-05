@@ -6,6 +6,8 @@ import com.example.nav.module.category.mapper.CategoryMapper;
 import com.example.nav.module.bookmark.entity.Bookmark;
 import com.example.nav.module.bookmark.mapper.BookmarkMapper;
 import com.example.nav.module.datapackage.model.PortablePackageModels;
+import com.example.nav.module.datapackage.service.PortablePreviewTestConfiguration;
+import org.springframework.context.annotation.Import;
 import com.example.nav.module.site.entity.SiteConfig;
 import com.example.nav.module.site.mapper.SiteConfigMapper;
 import com.example.nav.module.user.entity.User;
@@ -61,6 +63,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
+@Import(PortablePreviewTestConfiguration.class)
 @AutoConfigureMockMvc
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)

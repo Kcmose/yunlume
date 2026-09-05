@@ -1,5 +1,6 @@
 import type {
   DataImportConfirmResult,
+  DataImportConfirmationSession,
   DataImportIssue,
   DataImportJob,
   DataImportJobSession,
@@ -12,6 +13,7 @@ import { getHttpStatus } from './httpError'
 export const DATA_IMPORT_CONFIRMATION_TEXT = '确认导入'
 export const DATA_IMPORT_MAX_BYTES = 64 * 1024 * 1024
 export const DATA_IMPORT_JOB_SESSION_KEY = 'yunlume_data_import_job'
+export const DATA_IMPORT_CONFIRMATION_SESSION_KEY = 'yunlume_data_import_confirmation'
 
 export type DataImportClientState =
   | 'IDLE'
@@ -20,6 +22,7 @@ export type DataImportClientState =
   | 'READY'
   | 'BLOCKED'
   | 'CONFIRMING'
+  | 'RECOVERING'
   | 'RUNNING'
   | 'COMPLETED'
   | 'FAILED'
@@ -347,8 +350,51 @@ export function readImportJobSession(storage: StorageLike): DataImportJobSession
   }
 }
 
-export function clearImportJobSession(storage: StorageLike): void {
-  storage.removeItem(DATA_IMPORT_JOB_SESSION_KEY)
+export function clearImportJobSession(storage: StorageLike, expectedJobId: string): void {
+  const raw = storage.getItem(DATA_IMPORT_JOB_SESSION_KEY)
+  if (!raw) return
+  let session: unknown
+  try {
+    session = JSON.parse(raw)
+  } catch {
+    // 无法确认归属时不删除；恢复入口仍负责处理损坏的记录。
+    return
+  }
+  if (isRecord(session) && session.jobId === expectedJobId) {
+    storage.removeItem(DATA_IMPORT_JOB_SESSION_KEY)
+  }
+}
+
+export function readImportConfirmationSession(storage: StorageLike): DataImportConfirmationSession | null {
+  const raw = storage.getItem(DATA_IMPORT_CONFIRMATION_SESSION_KEY)
+  if (!raw) return null
+  let parsed: unknown
+  try { parsed = JSON.parse(raw) } catch { parsed = null }
+  if (!isRecord(parsed) || typeof parsed.previewToken !== 'string'
+    || !/^[A-Za-z0-9_-]{1,128}$/.test(parsed.previewToken)
+    || typeof parsed.startedAt !== 'string' || !Number.isFinite(Date.parse(parsed.startedAt))) {
+    storage.removeItem(DATA_IMPORT_CONFIRMATION_SESSION_KEY)
+    return null
+  }
+  return { previewToken: parsed.previewToken, startedAt: parsed.startedAt }
+}
+
+export function writeImportConfirmationSession(storage: StorageLike, session: DataImportConfirmationSession): void {
+  const value = JSON.stringify(session)
+  storage.setItem(DATA_IMPORT_CONFIRMATION_SESSION_KEY, value)
+  if (storage.getItem(DATA_IMPORT_CONFIRMATION_SESSION_KEY) !== value) {
+    throw new Error('无法保存导入结果恢复信息')
+  }
+}
+
+export function clearImportConfirmationSession(storage: StorageLike, expectedToken: string): void {
+  const raw = storage.getItem(DATA_IMPORT_CONFIRMATION_SESSION_KEY)
+  if (!raw) return
+  let parsed: unknown
+  try { parsed = JSON.parse(raw) } catch { return }
+  if (isRecord(parsed) && parsed.previewToken === expectedToken) {
+    storage.removeItem(DATA_IMPORT_CONFIRMATION_SESSION_KEY)
+  }
 }
 
 type DataTransferAction = 'export' | 'markdown' | 'preview' | 'confirm' | 'status'
@@ -375,7 +421,7 @@ export function describeDataTransferError(error: unknown, action: DataTransferAc
   if (status === 429) return `操作过于频繁，请稍后重试${detail}`
   if (status && status >= 500) {
     return action === 'confirm'
-      ? `导入未完成；任务未创建，或服务端已回滚本次写入${detail}`
+      ? `确认响应异常，导入结果尚不确定，正在查询服务端任务${detail}`
       : `服务暂时不可用，请稍后重试${detail}`
   }
   if (status) return `请求失败（HTTP ${status}）${detail}`

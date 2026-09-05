@@ -69,6 +69,34 @@ class PortableDataPackageRestartRecoveryTest {
     }
 
     @Test
+    void readOnlyTokenQueryReturnsEveryStoredStageAndDoesNotClaimOrImport() {
+        for (JobStage stage : JobStage.values()) {
+            var stored = new PortableImportJobStore.StoredJob("known", "token", 42L, stage,
+                    NOW, NOW, stage == JobStage.FAILED || stage == JobStage.COMPLETED ? NOW : null,
+                    "status", null, NOW);
+            when(jobStore.findByPreviewToken("token")).thenReturn(Optional.of(stored));
+            assertEquals(stage, service.queryByPreviewToken("token", authentication).stage());
+        }
+        org.mockito.Mockito.verify(jobStore, org.mockito.Mockito.never()).claim(any());
+        org.mockito.Mockito.verify(jobStore, org.mockito.Mockito.never()).save(any(), any());
+    }
+
+    @Test
+    void readOnlyTokenQueryPrefersDatabaseTruthAndConcealsMissingOrOtherOwner() {
+        when(commitStore.findByPreviewToken("preview-committed")).thenReturn(Optional.of(committedMarker()));
+        assertEquals(JobStage.COMPLETED, service.queryByPreviewToken("preview-committed", authentication).stage());
+        org.mockito.Mockito.verify(jobStore, org.mockito.Mockito.never()).findByPreviewToken("preview-committed");
+        assertEquals(404, assertThrows(BusinessException.class,
+                () -> service.queryByPreviewToken("unknown", authentication)).getStatus().value());
+        var other = new PortableImportJobStore.StoredJob("hidden", "other", 99L, JobStage.FAILED,
+                NOW, NOW, NOW, "hidden", null, NOW);
+        when(jobStore.findByPreviewToken("other")).thenReturn(Optional.of(other));
+        assertEquals(404, assertThrows(BusinessException.class,
+                () -> service.queryByPreviewToken("other", authentication)).getStatus().value());
+        org.mockito.Mockito.verify(jobStore, org.mockito.Mockito.never()).claim(any());
+    }
+
+    @Test
     void jobCanBeQueriedAfterServiceRestart() {
         PortableImportJobStore.StoredJob persisted = completedJob("job-after-restart", "preview-token-2");
         when(jobStore.findJob("job-after-restart")).thenReturn(Optional.of(persisted));

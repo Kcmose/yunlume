@@ -17,7 +17,7 @@ const apiMocks = vi.hoisted(() => ({
 const storageMocks = vi.hoisted(() => ({
   tokenGet: vi.fn(),
   tokenSnapshot: vi.fn(),
-  tokenSet: vi.fn(),
+  tokenSetSnapshot: vi.fn(),
   tokenRemove: vi.fn(),
   jsonGet: vi.fn(),
   jsonSet: vi.fn(),
@@ -40,7 +40,7 @@ vi.mock('@/utils/storage', () => ({
   tokenStorage: {
     get: storageMocks.tokenGet,
     getSnapshot: storageMocks.tokenSnapshot,
-    set: storageMocks.tokenSet,
+    setSnapshot: storageMocks.tokenSetSnapshot,
     remove: storageMocks.tokenRemove,
   },
   boundUserStorage: {
@@ -64,9 +64,9 @@ describe('auth profile reliability', () => {
       const token = storageMocks.tokenGet()
       return token ? { token, generation: `${token}-generation`, commitment: `${token}-commitment` } : null
     })
-    storageMocks.tokenSet.mockImplementation((token: string) => {
+    storageMocks.tokenSetSnapshot.mockImplementation((token: string) => {
       storageMocks.tokenGet.mockReturnValue(token)
-      return true
+      return { token, generation: `${token}-generation`, commitment: `${token}-commitment` }
     })
     storageMocks.jsonGet.mockReturnValue(cachedUser)
     storageMocks.subscribe.mockReturnValue(() => undefined)
@@ -242,19 +242,20 @@ describe('auth profile reliability', () => {
 
   it('persists a successful login before exposing token or user in memory', async () => {
     apiMocks.loginApi.mockResolvedValue({ token: 'new-token', user: cachedUser })
-    storageMocks.tokenSet.mockImplementation(() => {
+    storageMocks.tokenSetSnapshot.mockImplementation((token: string) => {
       const store = useAuthStore()
       expect(store.token).toBe('saved-token')
       expect(store.user).toEqual(cachedUser)
       storageMocks.tokenGet.mockReturnValue('new-token')
-      return true
+      return { token, generation: `${token}-generation`, commitment: `${token}-commitment` }
     })
     const store = useAuthStore()
 
-    await store.login({ username: 'admin', password: 'secret' })
+    const result = await store.login({ username: 'admin', password: 'secret' })
 
     expect(store.token).toBe('new-token')
     expect(store.user).toEqual(cachedUser)
+    expect(result).toEqual({ token: 'new-token', user: cachedUser })
     expect(storageMocks.jsonSet).toHaveBeenCalledWith(cachedUser, {
       token: 'new-token',
       generation: 'new-token-generation',
@@ -268,7 +269,7 @@ describe('auth profile reliability', () => {
       code: 'AUTH_PERSISTENCE_FAILED',
     })
     apiMocks.loginApi.mockResolvedValue({ token: 'new-token', user: cachedUser })
-    storageMocks.tokenSet.mockImplementation(() => { throw persistenceError })
+    storageMocks.tokenSetSnapshot.mockImplementation(() => { throw persistenceError })
     storageMocks.tokenGet.mockReturnValue('')
     storageMocks.jsonGet.mockReturnValue(null)
     const store = useAuthStore()
@@ -288,7 +289,7 @@ describe('auth profile reliability', () => {
       phase: 'active-envelope-write',
     })
     apiMocks.loginApi.mockResolvedValue({ token: 'new-token', user: cachedUser })
-    storageMocks.tokenSet.mockImplementation(() => { throw persistenceError })
+    storageMocks.tokenSetSnapshot.mockImplementation(() => { throw persistenceError })
     const store = useAuthStore()
     store.profileLastAttemptAt = 123
 

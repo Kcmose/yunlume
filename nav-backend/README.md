@@ -65,6 +65,8 @@ HTTP 状态和响应中的 `code` 保持一致。参数错误、未认证、数�
 
 首次安装接口不使用专用安装请求头。`NAV_WEB_INSTALL_ENABLED=false` 时所有安装写入均被拒绝；入口开启时，数据库/Redis 单次 ticket、数据库实例 UUID、完成标记和事务锁继续限制配置提交及首位管理员创建。
 
+PostgreSQL、Redis 凭据提交与 `POST /api/install/complete` 的管理员初始化使用同一 HTTPS 检查。默认拒绝明文 HTTP；受信任即时代理转发的 HTTPS 可以通过，伪造转发头不能绕过检查。仅可信局域网临时联调可显式设置 `NAV_ALLOW_INSECURE_DATABASE_SETUP=true`，该开关也会放行管理员初始化的 HTTP 请求。
+
 认证接口：
 
 | 方法 | 路径 | 说明 |
@@ -101,9 +103,11 @@ HTTP 状态和响应中的 `code` 保持一致。参数错误、未认证、数�
 | POST | `/api/admin/upload/image` | 上传并返回受管背景图片 URL |
 | GET | `/api/admin/data/export` | 导出版本化业务 ZIP（不含管理员） |
 | GET | `/api/admin/data/bookmarks/markdown` | 导出人类可读的全部书签 Markdown 副本 |
-| POST | `/api/admin/data/import/preview` | 零写入预检业务 ZIP |
+| POST | `/api/admin/data/import/preview` | 零业务写入预检 ZIP |
 | POST | `/api/admin/data/import/{previewToken}/confirm` | 确认并创建异步导入任务 |
 | GET | `/api/admin/data/import/jobs/{jobId}` | 查询当前管理员的导入任务 |
+| GET | `/api/admin/data/import/jobs/current` | 查询当前管理员可恢复的非终态任务 |
+| GET | `/api/admin/data/import/previews/{previewToken}/job` | 按预检令牌只读恢复任务及完成/失败结果，不创建任务 |
 
 登录请求：
 
@@ -130,6 +134,8 @@ HTTP 状态和响应中的 `code` 保持一致。参数错误、未认证、数�
 ```json
 {"visible":false}
 ```
+
+分类、书签和自定义链接的显隐接口只写 `visible` 与更新时间；自定义链接排序只写排序值与更新时间。它们不会把读取到的旧实体整体写回，因此不会覆盖另一个请求已提交的名称、链接、描述或位置等无关字段。
 
 分类和书签排序请求均为数组：
 
@@ -159,6 +165,8 @@ HTTP 状态和响应中的 `code` 保持一致。参数错误、未认证、数�
 
 自定义链接请求包含 `title`、`url`、`position`、可选的 `sortOrder` 与 `visible`。`position` 只接受 `header` 或 `footer`；`url` 只接受安全 HTTP(S) 地址、单斜杠站内路径或非空 `#` 锚点。创建时未提供排序值会追加到对应位置末尾，未提供 `visible` 时默认启用。公开接口只返回合法且启用的链接，并按头部、底部及各组排序值稳定排列。
 
+搜索引擎编辑时，`icon`、`placeholder` 的 `null`、空串或纯空白都会清空持久化字段，响应以空串表示。搜索 URL 的 API、ZIP 和前端校验允许合法路径或查询中的单引号，例如 `https://example.com/o'reilly?q={keyword}`；仍拒绝用户信息、双引号、反斜杠、空白和非法占位符。搜索引擎与自定义链接自动追加排序时每次递增 10；计算结果超过 `2147483647` 会返回 `409` 并回滚，自定义链接切换位置后自动追加也遵循此规则。
+
 ## 环境配置
 
 默认 profile 为 `local`。生产环境使用：
@@ -183,7 +191,9 @@ SPRING_PROFILES_ACTIVE=prod java -jar target/nav-backend-0.1.0.jar
 | `NAV_DEMO_DATA_ENABLED` | `false`（生产）；仅 `local` 默认 `true` |
 | `NAV_WEB_INSTALL_ENABLED` | `true`；是否允许未初始化的新库使用网页安装向导 |
 | `NAV_DATABASE_SOURCE` | 新部署及向导安装站点升级保持 `UNCONFIGURED`；仅传统环境变量直连使用 `LEGACY_ENV` |
-| `NAV_ALLOW_INSECURE_DATABASE_SETUP` | 是否允许 HTTP 提交 PostgreSQL 与 Redis 凭据；默认 `false`，仅可信局域网临时开启 |
+| `NAV_ALLOW_INSECURE_DATABASE_SETUP` | 是否允许 HTTP 提交 PostgreSQL、Redis 凭据及首位管理员初始化；默认 `false`，仅可信局域网临时开启 |
+| `NAV_TRUST_FORWARDED_HTTPS` | 后端是否接受可信即时代理的原始 HTTPS 协议；默认 `false`，Compose/宿主机模板为 `true` |
+| `NAV_TRUSTED_PROXY_PEERS` | 后端可信即时代理的地址或可解析主机名，逗号分隔；默认空，Compose 为 `frontend`，宿主机为 `127.0.0.1,::1` |
 | `NAV_DATABASE_CONFIG_FILE` | 安装向导保存的后端专用数据库配置文件；Compose 默认 `/app/config/database.properties` |
 | `NAV_DATABASE_CONFIGURED_MARKER_FILE` | 数据库配置提交标记；Compose 默认 `/app/config/database.configured` |
 | `NAV_INSTALL_COMPLETED_MARKER_FILE` | 首次安装完成标记；Compose 默认 `/app/config/install.completed` |
@@ -196,7 +206,7 @@ SPRING_PROFILES_ACTIVE=prod java -jar target/nav-backend-0.1.0.jar
 | `NAV_REDIS_CA_FILE` | Redis `CUSTOM_CA` 模式的 CA 文件；Compose 默认 `/app/config/redis-ca.pem` |
 | `NAV_REDIS_TICKET_TTL_SECONDS` | Redis 测试 ticket 有效期，限制为 30–900 秒，默认 `300` |
 | `NAV_REDIS_AUTO_RESTART` | 配置 Redis 后是否自动退出并由容器重启，Compose 默认 `true` |
-| `CORS_ALLOWED_ORIGINS` | 逗号分隔的前端来源 |
+| `CORS_ALLOWED_ORIGINS` | 逗号分隔的真正跨域前端来源；可信代理下精确匹配原始 Host 的 HTTPS 同源无需额外添加 |
 | `CACHE_TYPE` | 本地默认 `simple`；`prod` 必须显式为 `redis` |
 | `REDIS_HOST` | `LEGACY_ENV` 模式的外部 Redis 主机；安装向导模式不使用此值 |
 | `REDIS_PORT` | 外部 Redis 端口，默认 `6379` |
@@ -223,15 +233,27 @@ SPRING_PROFILES_ACTIVE=prod java -jar target/nav-backend-0.1.0.jar
 
 新密码必须为 12–72 个字符、UTF-8 不超过 72 字节、不含空白，在大写字母、小写字母、数字和符号中至少包含三类，且不得包含用户名或复用当前密码。改密与 `logout-all` 均会使当前设备和其他设备上的旧 JWT 立即失效。
 
+`CACHE_TYPE=simple` 的四个公开数据缓存分别至多保留当前 generation 的一项结果。已提交的新代替换旧代后，迟到的旧请求不能回填旧代；事务回滚不会推进代际或发布事务内读到的数据。该限制仅适用于站点配置、导航、搜索引擎和自定义链接这四个公开缓存，生产仍使用 Redis。
+
+HTTPS 在可信代理终止时，后端仅为协议、主机与有效端口都匹配请求原始 `Host` 的 HTTPS `Origin` 补充同源许可，默认 HTTPS 端口按 `443` 比较。`X-Forwarded-Host`、`X-Forwarded-Port` 不参与放行；其他跨域来源仍须配置 `CORS_ALLOWED_ORIGINS`。代理必须覆写并保留外部 `Host`（含非默认端口），后端端口须禁止绕过该代理直接访问。
+
 ## 可移植数据包
 
-版本 1 ZIP 由 `manifest.json`、`data.json` 和可选 `assets/*.jpg|png` 组成。业务数据使用包内稳定 key 表达关联，不包含数据库账号、管理员、密码哈希、令牌版本或其他运行秘密。导出会在一致性快照中读取业务表，并只打包站点配置实际引用且符合受管命名规则的背景图。
+版本 1 ZIP 由 `manifest.json`、`data.json` 和可选 `assets/*.jpg|png` 组成。业务数据使用包内稳定 key 表达关联，不包含数据库账号、管理员、密码哈希、令牌版本或其他运行秘密。导出会在一致性快照中读取业务表，并只打包站点配置实际引用且符合受管命名规则的背景图；引用中包含 query/fragment 时仍按路径定位资产。受管背景缺失、不可读或指向符号链接时导出失败，不会静默省略资产后返回不完整备份。
 
-预检限制为归档 64MiB、总展开量 64MiB、单条目 16MiB、最多 100 个条目，并拒绝绝对路径、`..`、反斜杠、重复/大小写碰撞、目录条目和未知顶层文件。清单、数据与资产都核对声明大小和 SHA-256；JSON 拒绝未知字段及尾随内容；图片重新核验签名、格式、尺寸和像素数。
+预检限制为归档 64MiB、总展开量 64MiB、单条目 16MiB、最多 100 个条目，并拒绝绝对路径、`..`、反斜杠、重复/大小写碰撞、目录条目和未知顶层文件。导入与导出对 `manifest.json`、`data.json` 均使用相同的 16MiB 上限，避免可成功导出的 JSON 因较小的读取上限而无法重新导入。清单、数据与资产都核对声明大小和 SHA-256；JSON 拒绝未知字段、重复键及尾随内容；图片重新核验签名、格式、尺寸和像素数。ZIP 中央目录按有界尾部和逐条记录读取，不再为这一步复制整个归档到堆内存。
 
-有效预检令牌保存 15 分钟，绑定管理员 ID、归档摘要与当前业务 revision。确认和事务开始时都会重新核对；任何并发 CRUD 都会使旧预检返回 `409`。正式导入使用 `SERIALIZABLE` 事务，保留 `sys_user`，替换站点配置、分类、书签、搜索引擎和兼容链接；写入后完整内容验证也在提交前执行。新背景资产在事务未提交时通过事务同步清理。
+有效预检令牌从成功发布预检起保存 15 分钟，解析耗时不扣减这段确认期限；令牌绑定管理员 ID、归档摘要与当前业务 revision。确认和事务开始时都会重新核对；任何并发 CRUD 都会使旧预检返回 `409`。正式导入使用 `SERIALIZABLE` 事务，保留 `sys_user`，替换站点配置、分类、书签、搜索引擎和兼容链接；写入后完整内容验证也在提交前执行。新背景资产在事务未提交时通过事务同步清理。
 
-生产 Redis 配置下，异步导入的预检、任务、当前用户任务索引与租约状态保存在 Redis 中，任务记录以 24 小时 TTL 保留，不依赖单个后端进程；服务重启后仍可查询未过期 job。重启中断且租约已经失效的非终态任务会在下次查询时原子恢复为 `FAILED`，客户端必须提示用户核对当前数据后重新预检，不能推断事务成功或回滚。非 Redis profile 才使用进程内存储，重启后旧 job 不可查询；多副本生产部署必须继续使用同一 Redis，不能改用进程内状态。
+生产 Redis 模式把未确认预检的元数据和归档分块存入共享 Redis；另一个后端实例可确认同一管理员的有效预检，后端进程重启也不要求重新上传。非 Redis 模式使用 `${java.io.tmpdir}/yunlume-import-previews/stored` 文件存储，临时目录保留时支持后端进程重启及同机共享目录的实例读取；它不提供跨主机共享能力，默认内存 H2 本身也不保留重启前业务数据。工作目录使用所有者文件锁，过期清理跳过仍在处理的目录，不跟随符号链接。
+
+升级前版本可能在 `${java.io.tmpdir}/yunlume-import-previews/preview-*` 留有不带所有权记录的临时目录。新清理器只接管带本版格式与锁协议的工作目录，不自动删除这些旧目录；升级后应先确认旧后端进程已停止，再检查并清理旧预检残留。
+
+同一 Redis 存储或同一文件存储目录中的预检同时受 8 个槽位与 512MiB 加权预算限制，每份预留按 `2 × ZIP 字节数 + 64MiB` 计算，覆盖共享归档、本地工作副本和最多 64MiB 解压空间。开始复制和解析前先预留，预算不足返回 `429`；每个后端实例最多同时处理 2 个预检/导入。处理期和已激活任务的容量租约为 24 小时，运行中每 30 秒续租；发布可确认预检前先清理工作副本，确认后再由后台重建解析结果，等待确认期间不长期保留解析对象。释放槽位同时核对 token 与活动任务身份，旧请求不能删除已复用的槽位。512MiB 仅约束上述受管空间，不是整个 JVM 内存或 HTTP multipart 上传暂存总量的限制。
+
+Redis 导入任务记录以 24 小时 TTL 保留，任务、当前用户索引与互斥租约可跨实例访问；后端重启后仍可查询未过期 job。非 Redis 模式的任务索引仍在进程内存中，重启后未提交任务的临时状态不可恢复。按 job ID 或预检令牌查询时，所有模式均优先查询数据库中的导入提交标记，已提交记录返回完成状态；没有提交标记且租约已失效的中断任务会在查询时恢复为 `FAILED`。Redis 记录过期、丢失或不可用本身不证明数据库已回滚，客户端仍应核对当前业务数据。
+
+确认请求遇到超时、断网或 `5xx` 时，可用 `GET /api/admin/data/import/previews/{previewToken}/job` 只读查找已经创建的任务，包括完成与失败结果；获得 job ID 后继续查询 `/api/admin/data/import/jobs/{jobId}`。这些接口校验当前管理员归属，不能靠猜测他人的 token/job ID 读取结果。token 查询不创建任务，查不到时返回 `404`；客户端保留确认身份并继续恢复查询，不能把一次未知响应解释为“任务未创建或已回滚”。`/jobs/current` 只返回可恢复的非终态任务，不代替按 token 查询终态。
 
 `GET /api/admin/data/bookmarks/markdown` 是独立的只读辅助备份。它在 `REPEATABLE_READ` 一致快照中读取全部分类与书签，包含隐藏项和空分类，并按 `sort_order, id` 稳定输出显示状态、排序、描述、图标文本及完整 HTTP(S) URL。响应为禁止缓存的 UTF-8 `text/markdown` 附件，不包含管理员、数据库 ID 或业务记录时间戳，也不能反向导入；完整恢复仍使用版本化 ZIP。
 
@@ -244,7 +266,8 @@ SPRING_PROFILES_ACTIVE=prod java -jar target/nav-backend-0.1.0.jar
 - 背景图片默认单文件 10MiB、目录总量 1GB、文件数 500；超过总量或数量返回 `507 Insufficient Storage`。全局 multipart 为数据包预检保留 66MB 请求余量，但图片业务层独立拒绝大于 `10485760` 字节的值。
 - Compose 会把同一 `APP_UPLOAD_MAX_BYTES` 作为 `VITE_UPLOAD_MAX_BYTES` 编译进 web 镜像的前端提示；修改该值后必须同时重新构建 web 和 backend，不能只重启现有容器。
 - 每次上传前先尝试清理，定时任务默认在启动 1 分钟后执行，之后每 6 小时执行。
-- `site_config.background_image` 与 `mobile_background_image` 当前引用的受管文件不会删除；未引用文件经过默认 24 小时宽限期后才可回收。
+- `site_config.background_image` 与 `mobile_background_image` 当前引用的受管文件不会删除；引用 URL 的 query/fragment 不参与文件名，例如 `...png?v=1#preview` 仍保护同一张图片。未引用文件经过默认 24 小时宽限期后才可回收。
+- 配置保存、孤儿清理和导入资产写入先取得同一站点行的数据库事务锁，再读取引用或操作文件，同库且共享上传目录的实例也参与协调。配置保存会拒绝已经缺失或不是普通文件的受管背景，返回 `400`；不会在清理刚删除文件后写入失效引用。
 - 读取站点配置引用失败时清理整次跳过；符号链接和不符合受管命名规则的文件不会被当作普通受管图片处理。
 
 入口 Nginx 对登录 POST 设置每来源 IP 平均每分钟 5 次、允许 5 次突发的限速；PostgreSQL test/configure、Redis test/configure、安装检查/完成分别使用互相独立的平均每分钟 3 次且允许 3 次突发预算，避免合法七步流程消耗掉自己的完成额度；匿名安装状态查询限为每分钟 30 次。公开 `/api/health` 限为每分钟 60 次、允许 20 次突发，后端还会在 5 秒窗口内合并 Redis 实际读写探针。超限均返回统一 JSON `429`。这是部署网关策略，直接访问后端端口时不会生效。

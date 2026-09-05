@@ -6,7 +6,7 @@ import {
   logoutApi,
   profileApi,
 } from '@/api/auth.api'
-import type { AdminUser, ChangePasswordPayload, LoginPayload } from '@/types/auth'
+import type { AdminUser, ChangePasswordPayload, LoginPayload, LoginResult } from '@/types/auth'
 import {
   boundUserStorage,
   subscribeAuthStorage,
@@ -25,6 +25,10 @@ function sameAuthority(state: { token: string, generation: string, commitment: s
     && state.token === snapshot.token
     && state.generation === snapshot.generation
     && state.commitment === snapshot.commitment)
+}
+
+function sameSnapshot(left: AuthTokenSnapshot | null, right: AuthTokenSnapshot | null): boolean {
+  return left === null ? right === null : sameAuthority(left, right)
 }
 
 function clearBoundUser(): void {
@@ -69,6 +73,12 @@ const useAuthStoreDefinition = defineStore('auth', {
     },
     reconcileSession(userMetadataChanged = false): boolean {
       const durable = tokenStorage.getSnapshot()
+      const authorityChanged = durable ? !sameAuthority(this, durable) : Boolean(this.token)
+      if (authorityChanged) {
+        // 已观察到其他标签页切换会话，旧登录即使稍后返回也不能重新接管。
+        this.loginRequestVersion += 1
+        this.loading = false
+      }
       if (!durable) {
         this.clearMemorySession()
         clearBoundUser()
@@ -86,24 +96,46 @@ const useAuthStoreDefinition = defineStore('auth', {
       }
       return true
     },
-    async login(payload: LoginPayload) {
+    async login(payload: LoginPayload): Promise<LoginResult | undefined> {
+      this.reconcileSession()
+      const requestAuthority = tokenStorage.getSnapshot()
       const requestVersion = ++this.loginRequestVersion
+      let persistenceStarted = false
       this.loading = true
       try {
         const result = await loginApi(payload)
         if (requestVersion !== this.loginRequestVersion) return
+        if (!sameSnapshot(requestAuthority, tokenStorage.getSnapshot())) {
+          this.reconcileSession(true)
+          return
+        }
+        persistenceStarted = true
         clearBoundUser()
-        tokenStorage.set(result.token)
-        const accepted = tokenStorage.getSnapshot()
-        if (!accepted || accepted.token !== result.token) throw new Error('Authenticated session was superseded')
+        const accepted = tokenStorage.setSnapshot(result.token)
+        if (!sameAuthority(accepted, tokenStorage.getSnapshot())) {
+          this.reconcileSession(true)
+          return
+        }
         this.token = accepted.token
         this.generation = accepted.generation
         this.commitment = accepted.commitment
         this.user = result.user
         this.profileLastAttemptAt = Date.now()
         boundUserStorage.set(result.user, accepted)
+        if (!sameAuthority(accepted, tokenStorage.getSnapshot())) {
+          this.reconcileSession(true)
+          return
+        }
+        return result
       } catch (error) {
         if (requestVersion !== this.loginRequestVersion) return undefined
+        const current = tokenStorage.getSnapshot()
+        // 网络失败只归属于发起时的会话；持久化失败可以清理自身留下的空状态，
+        // 但不能覆盖存储协议保留下来的另一标签页已提交会话。
+        if (!sameSnapshot(requestAuthority, current) && (!persistenceStarted || current !== null)) {
+          this.reconcileSession(true)
+          return undefined
+        }
         this.clearSession()
         throw error
       } finally {
@@ -155,13 +187,25 @@ const useAuthStoreDefinition = defineStore('auth', {
         // Local logout must complete even when server-side token revocation is unavailable.
       }
     },
-    async changePassword(payload: ChangePasswordPayload) {
+    async changePassword(payload: ChangePasswordPayload): Promise<boolean> {
+      const requestAuthority = tokenStorage.getSnapshot()
       await changePasswordApi(payload)
+      if (!requestAuthority || !sameAuthority(requestAuthority, tokenStorage.getSnapshot())) {
+        this.reconcileSession(true)
+        return false
+      }
       this.clearSession()
+      return true
     },
-    async logoutAll() {
+    async logoutAll(): Promise<boolean> {
+      const requestAuthority = tokenStorage.getSnapshot()
       await logoutAllApi()
+      if (!requestAuthority || !sameAuthority(requestAuthority, tokenStorage.getSnapshot())) {
+        this.reconcileSession(true)
+        return false
+      }
       this.clearSession()
+      return true
     },
     clearSession() {
       this.loginRequestVersion += 1

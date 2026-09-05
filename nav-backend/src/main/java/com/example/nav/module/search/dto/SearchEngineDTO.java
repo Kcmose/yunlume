@@ -15,7 +15,7 @@ public record SearchEngineDTO(
 
         @NotBlank(message = "搜索地址模板不能为空")
         @Size(max = 500, message = "搜索地址模板不能超过 500 个字符")
-        @Pattern(regexp = "(?i)^https?://[^\\s\"'\\\\]+$", message = "搜索地址模板必须是安全的 HTTP(S) 地址")
+        @Pattern(regexp = "(?i)^https?://[^\\s\"\\\\]+$", message = "搜索地址模板必须是安全的 HTTP(S) 地址")
         String searchUrl,
 
         @Size(max = 100, message = "占位文字不能超过 100 个字符")

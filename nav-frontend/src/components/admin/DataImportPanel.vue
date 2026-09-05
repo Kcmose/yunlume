@@ -1,19 +1,22 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { AxiosProgressEvent } from 'axios'
+import { ElMessageBox } from 'element-plus'
 import { Document, UploadFilled, WarningFilled } from '@element-plus/icons-vue'
 import {
   confirmNavigationDataImport,
   getCurrentNavigationDataImportJob,
   getNavigationDataImportJob,
+  getNavigationDataImportJobByPreviewToken,
   previewNavigationDataImport,
 } from '@/api/data.api'
 import ImportPreviewDialog from './ImportPreviewDialog.vue'
 import ImportProgressDialog from './ImportProgressDialog.vue'
 import type { DataImportClientState } from '@/utils/dataTransfer'
-import type { DataImportJob, DataImportPreview } from '@/types/dataTransfer'
+import type { DataImportConfirmationSession, DataImportJob, DataImportPreview } from '@/types/dataTransfer'
 import {
   clearImportJobSession,
+  clearImportConfirmationSession,
   clientStateForJob,
   DATA_IMPORT_MAX_BYTES,
   describeDataTransferError,
@@ -21,8 +24,10 @@ import {
   isImportJobTerminal,
   previewState,
   readImportJobSession,
+  readImportConfirmationSession,
   validateImportFile,
   writeImportJobSession,
+  writeImportConfirmationSession,
 } from '@/utils/dataTransfer'
 import { getHttpStatus } from '@/utils/httpError'
 
@@ -41,14 +46,19 @@ const isDragging = ref(false)
 const job = ref<DataImportJob | null>(null)
 const progressVisible = ref(false)
 const jobStatusError = ref('')
+const pendingConfirmation = ref<DataImportConfirmationSession | null>(null)
+const recoveringConfirmation = ref(false)
+const confirmationNotFound = ref(false)
+const confirmationRecoveryError = ref('')
 
 let pollTimer: number | undefined
 let polling = false
 let pollFailureCount = 0
 let disposed = false
 let restoreRequestVersion = 0
+let operationVersion = 0
 
-const busy = computed(() => ['UPLOADING', 'PREVIEWING', 'CONFIRMING', 'RUNNING'].includes(state.value))
+const busy = computed(() => ['UPLOADING', 'PREVIEWING', 'CONFIRMING', 'RECOVERING', 'RUNNING'].includes(state.value))
 const canPreview = computed(() => Boolean(selectedFile.value)
   && validateImportFile(selectedFile.value) === null
   && !busy.value)
@@ -66,6 +76,7 @@ const statusMessage = computed(() => {
     READY: '预检通过，请仔细确认变更后再导入',
     BLOCKED: '预检发现硬错误或已过期，当前备份不能导入',
     CONFIRMING: '正在创建导入任务',
+    RECOVERING: '确认结果尚不确定，正在查询服务端；请勿重复导入',
     RUNNING: '导入任务已在服务端执行',
     COMPLETED: '导入任务已完成',
     FAILED: '导入任务失败，服务端应已回滚写入',
@@ -83,12 +94,19 @@ function schedulePoll() {
   clearPollTimer()
   if (disposed) return
   const delay = Math.min(POLL_INTERVAL_MS * 2 ** Math.min(pollFailureCount, 3), MAX_POLL_RETRY_MS)
-  pollTimer = window.setTimeout(() => void pollJob(), delay)
+  pollTimer = window.setTimeout(() => {
+    if (state.value === 'RECOVERING') void recoverConfirmation()
+    else void pollJob()
+  }, delay)
 }
 
 function setFile(file: File | null) {
-  if (busy.value) return
+  if (disposed || busy.value) return
+  clearPendingConfirmation()
   restoreRequestVersion += 1
+  operationVersion += 1
+  clearPollTimer()
+  polling = false
   selectedFile.value = file
   preview.value = null
   previewRequestError.value = ''
@@ -128,7 +146,17 @@ function handleUploadProgress(event: AxiosProgressEvent) {
   if (event.loaded >= event.total) state.value = 'PREVIEWING'
 }
 
+function isCurrentOperation(version: number) {
+  return !disposed && version === operationVersion
+}
+
+function handlePreviewExpired() {
+  // 预检的有效期不能撤销已经提交的确认或服务端任务。
+  if (!disposed && state.value === 'READY') state.value = 'BLOCKED'
+}
+
 async function runPreview() {
+  if (disposed) return
   const file = selectedFile.value
   const fileError = validateImportFile(file)
   if (!file || fileError || busy.value) {
@@ -140,19 +168,26 @@ async function runPreview() {
   previewRequestError.value = ''
   uploadPercent.value = null
   state.value = 'UPLOADING'
+  const operationId = ++operationVersion
   try {
-    const result = await previewNavigationDataImport(file, handleUploadProgress)
+    const result = await previewNavigationDataImport(file, (event) => {
+      if (!isCurrentOperation(operationId) || !['UPLOADING', 'PREVIEWING'].includes(state.value)) return
+      handleUploadProgress(event)
+    })
+    if (!isCurrentOperation(operationId)) return
     preview.value = result
     state.value = previewState(result)
     uploadPercent.value = 100
     previewVisible.value = true
   } catch (error) {
+    if (!isCurrentOperation(operationId)) return
     state.value = 'IDLE'
     persistentError.value = describeDataTransferError(error, 'preview')
   }
 }
 
 function safeWriteJobSession(jobId: string, startedAt: string) {
+  if (disposed) return
   try {
     writeImportJobSession(window.sessionStorage, { jobId, startedAt })
   } catch {
@@ -160,18 +195,74 @@ function safeWriteJobSession(jobId: string, startedAt: string) {
   }
 }
 
-function safeClearJobSession() {
+function safeClearJobSession(jobId: string) {
+  if (disposed) return
   try {
-    clearImportJobSession(window.sessionStorage)
+    clearImportJobSession(window.sessionStorage, jobId)
   } catch {
     // 无法写入 sessionStorage 不影响当前页面的终态。
   }
 }
 
+function clearPendingConfirmation() {
+  const token = pendingConfirmation.value?.previewToken
+  if (disposed || !token) return
+  try { clearImportConfirmationSession(window.sessionStorage, token) } catch {
+    // 仅清理自身记录；存储不可用不改变已确认的服务端结果。
+  }
+  pendingConfirmation.value = null
+}
+
+async function recoverConfirmation() {
+  const confirmation = pendingConfirmation.value
+  if (disposed || !confirmation || state.value !== 'RECOVERING' || recoveringConfirmation.value) return
+  const operationId = operationVersion
+  clearPollTimer()
+  recoveringConfirmation.value = true
+  try {
+    const result = await getNavigationDataImportJobByPreviewToken(confirmation.previewToken)
+    if (!isCurrentOperation(operationId) || pendingConfirmation.value?.previewToken !== confirmation.previewToken) return
+    confirmationRecoveryError.value = ''
+    confirmationNotFound.value = false
+    previewVisible.value = false
+    pollFailureCount = 0
+    showRecoveredJob(result)
+  } catch (error) {
+    if (!isCurrentOperation(operationId) || pendingConfirmation.value?.previewToken !== confirmation.previewToken) return
+    confirmationNotFound.value = [404, 410].includes(getHttpStatus(error) ?? 0)
+    confirmationRecoveryError.value = confirmationNotFound.value
+      ? '暂未查询到这次导入任务。确认请求可能仍在处理，也可能未被接收，请先核对当前数据。'
+      : '暂时无法查询导入结果，将继续重试；刷新页面也会恢复查询。'
+    pollFailureCount += 1
+    schedulePoll()
+  } finally {
+    if (isCurrentOperation(operationId)) recoveringConfirmation.value = false
+  }
+}
+
+async function restartAfterUnknownResult() {
+  if (disposed || state.value !== 'RECOVERING' || !confirmationNotFound.value) return
+  const operationId = operationVersion
+  try {
+    await ElMessageBox.confirm(
+      '请先核对当前站点数据。本操作只结束结果查询，不会取消服务端任务；继续后必须重新预检并确认。',
+      '确认已核对当前数据',
+      { type: 'warning', confirmButtonText: '已核对，重新预检', cancelButtonText: '继续查询' },
+    )
+  } catch { return }
+  if (!isCurrentOperation(operationId) || state.value !== 'RECOVERING') return
+  clearPendingConfirmation()
+  state.value = 'IDLE'
+  recoveringConfirmation.value = false
+  confirmationRecoveryError.value = ''
+  confirmationNotFound.value = false
+  setFile(null)
+}
+
 async function confirmImport() {
   const currentPreview = preview.value
   const token = currentPreview?.previewToken
-  if (!currentPreview || !token || state.value === 'CONFIRMING') return
+  if (disposed || !currentPreview || !token || state.value !== 'READY') return
   const expiresAt = Date.parse(currentPreview.expiresAt ?? '')
   if (
     currentPreview.errors.length > 0
@@ -184,11 +275,23 @@ async function confirmImport() {
     return
   }
 
+  const confirmation = { previewToken: token, startedAt: new Date().toISOString() }
+  try {
+    // 必须先持久化用户已经确认的令牌，响应丢失或离页后才有只读恢复入口。
+    writeImportConfirmationSession(window.sessionStorage, confirmation)
+  } catch {
+    try { clearImportConfirmationSession(window.sessionStorage, token) } catch { /* 保留无法清理的恢复信息 */ }
+    previewRequestError.value = '浏览器无法保存导入恢复信息，尚未提交导入。请允许本站使用会话存储后重试。'
+    return
+  }
+  pendingConfirmation.value = confirmation
   state.value = 'CONFIRMING'
   previewRequestError.value = ''
+  const operationId = ++operationVersion
   try {
     const result = await confirmNavigationDataImport(token)
-    const startedAt = new Date().toISOString()
+    if (!isCurrentOperation(operationId)) return
+    const startedAt = confirmation.startedAt
     job.value = {
       jobId: result.jobId,
       stage: 'PREPARING',
@@ -205,14 +308,25 @@ async function confirmImport() {
     safeWriteJobSession(result.jobId, startedAt)
     void pollJob()
   } catch (error) {
+    if (!isCurrentOperation(operationId)) return
     const status = getHttpStatus(error)
+    if (!status || status >= 500) {
+      state.value = 'RECOVERING'
+      previewVisible.value = false
+      previewRequestError.value = ''
+      confirmationRecoveryError.value = '未收到可靠的确认结果，正在查询服务端任务。'
+      pollFailureCount = 0
+      await recoverConfirmation()
+      return
+    }
+    clearPendingConfirmation()
     const conflictMessage = error instanceof Error ? error.message : ''
     const retryableConcurrentConflict = status === 409 && /正在执行|稍后重试/.test(conflictMessage)
     if ([404, 409, 410].includes(status ?? 0) && !retryableConcurrentConflict && preview.value) {
       preview.value = { ...preview.value, previewToken: null, expiresAt: null }
       state.value = 'BLOCKED'
     } else {
-      state.value = preview.value ? previewState(preview.value) : 'IDLE'
+      state.value = expiresAt <= Date.now() ? 'BLOCKED' : previewState(currentPreview)
     }
     previewRequestError.value = describeDataTransferError(error, 'confirm')
   }
@@ -220,12 +334,13 @@ async function confirmImport() {
 
 async function pollJob() {
   const jobId = job.value?.jobId
-  if (!jobId || polling) return
+  if (disposed || !jobId || polling) return
+  const operationId = operationVersion
   clearPollTimer()
   polling = true
   try {
     const result = await getNavigationDataImportJob(jobId)
-    if (job.value?.jobId !== jobId) return
+    if (!isCurrentOperation(operationId) || job.value?.jobId !== jobId) return
     if (result.jobId !== jobId) {
       throw Object.assign(new Error('服务端返回了不匹配的任务 ID'), { status: 502 })
     }
@@ -234,14 +349,24 @@ async function pollJob() {
     pollFailureCount = 0
     jobStatusError.value = ''
     if (isImportJobTerminal(result.stage)) {
-      safeClearJobSession()
+      safeClearJobSession(jobId)
     } else {
       schedulePoll()
     }
   } catch (error) {
-    if (job.value?.jobId !== jobId) return
+    if (!isCurrentOperation(operationId) || job.value?.jobId !== jobId) return
     const status = getHttpStatus(error)
     if (status === 404 || status === 410) {
+      if (pendingConfirmation.value) {
+        // 任务索引暂不可见不代表事务失败；保留确认令牌，待本次轮询释放后只读恢复。
+        state.value = 'RECOVERING'
+        progressVisible.value = false
+        jobStatusError.value = ''
+        confirmationRecoveryError.value = '任务进度暂不可用，正在按本次确认查询导入结果。'
+        pollFailureCount = 0
+        schedulePoll()
+        return
+      }
       const message = '无法恢复该导入任务，服务端已不保留它的状态'
       job.value = {
         ...job.value!,
@@ -252,14 +377,14 @@ async function pollJob() {
       }
       state.value = 'FAILED'
       jobStatusError.value = ''
-      safeClearJobSession()
+      safeClearJobSession(jobId)
       return
     }
     pollFailureCount += 1
     jobStatusError.value = describeDataTransferError(error, 'status')
     schedulePoll()
   } finally {
-    polling = false
+    if (isCurrentOperation(operationId)) polling = false
   }
 }
 
@@ -278,7 +403,7 @@ function showRecoveredJob(result: DataImportJob) {
     safeWriteJobSession(result.jobId, result.createdAt)
     void pollJob()
   } else {
-    safeClearJobSession()
+    safeClearJobSession(result.jobId)
   }
 }
 
@@ -286,6 +411,12 @@ async function restoreJob() {
   const restoreRequestId = ++restoreRequestVersion
   let session: ReturnType<typeof readImportJobSession> = null
   try {
+    pendingConfirmation.value = readImportConfirmationSession(window.sessionStorage)
+    if (pendingConfirmation.value) {
+      state.value = 'RECOVERING'
+      await recoverConfirmation()
+      return
+    }
     session = readImportJobSession(window.sessionStorage)
   } catch {
     persistentError.value = '浏览器无法读取上次保存的导入任务状态'
@@ -300,7 +431,7 @@ async function restoreJob() {
       if (disposed || restoreRequestId !== restoreRequestVersion || state.value !== 'IDLE') return
       const status = getHttpStatus(error)
       if (status === 404 || status === 410) {
-        safeClearJobSession()
+        safeClearJobSession(session.jobId)
       } else {
         showRecoveredJob({
           jobId: session.jobId,
@@ -328,6 +459,7 @@ async function restoreJob() {
 
 watch(progressVisible, (visible) => {
   if (visible || !job.value || !isImportJobTerminal(job.value.stage)) return
+  clearPendingConfirmation()
   job.value = null
   preview.value = null
   previewRequestError.value = ''
@@ -343,6 +475,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   disposed = true
   restoreRequestVersion += 1
+  operationVersion += 1
   clearPollTimer()
 })
 </script>
@@ -401,6 +534,12 @@ onBeforeUnmount(() => {
         <WarningFilled aria-hidden="true" /><span>{{ persistentError }}</span>
       </p>
 
+      <div v-if="state === 'RECOVERING'" class="data-import-recovery" role="status" aria-live="polite">
+        <p>{{ confirmationRecoveryError }}</p>
+        <el-button :loading="recoveringConfirmation" @click="recoverConfirmation">重新查询结果</el-button>
+        <el-button v-if="confirmationNotFound" @click="restartAfterUnknownResult">核对数据后重新预检</el-button>
+      </div>
+
       <div class="data-import-safety-note">
         <WarningFilled aria-hidden="true" />
         <div><strong>导入可能删除或替换当前业务数据</strong><p>请先导出当前备份。预检不会写库，实际导入开始后不提供伪取消。</p></div>
@@ -419,9 +558,10 @@ onBeforeUnmount(() => {
       v-model="previewVisible"
       :preview="preview"
       :submitting="state === 'CONFIRMING'"
+      :confirmable="state === 'READY'"
       :request-error="previewRequestError"
       @confirm="confirmImport"
-      @expired="state = 'BLOCKED'"
+      @expired="handlePreviewExpired"
     />
     <ImportProgressDialog
       v-model="progressVisible"

@@ -7,9 +7,11 @@ import type {
 import {
   canConfirmImport,
   clearImportJobSession,
+  clearImportConfirmationSession,
   clientStateForJob,
   DATA_IMPORT_CONFIRMATION_TEXT,
   DATA_IMPORT_JOB_SESSION_KEY,
+  DATA_IMPORT_CONFIRMATION_SESSION_KEY,
   describeDataTransferError,
   extractDownloadFilename,
   extractMarkdownDownloadFilename,
@@ -21,8 +23,10 @@ import {
   parseDataImportPreview,
   previewState,
   readImportJobSession,
+  readImportConfirmationSession,
   validateImportFile,
   writeImportJobSession,
+  writeImportConfirmationSession,
   type StorageLike,
 } from './dataTransfer'
 
@@ -280,8 +284,25 @@ describe('import job session recovery', () => {
     const session = { jobId: 'job_ABC-123', startedAt: '2026-08-12T01:02:03Z' }
     writeImportJobSession(storage, session)
     expect(readImportJobSession(storage)).toEqual(session)
-    clearImportJobSession(storage)
+    clearImportJobSession(storage, session.jobId)
     expect(storage.getItem(DATA_IMPORT_JOB_SESSION_KEY)).toBeNull()
+  })
+
+  it('does not clear a newer job when an older job finishes', () => {
+    const storage = new MemoryStorage()
+    const newerSession = { jobId: 'job_B', startedAt: '2026-08-12T01:02:03Z' }
+    writeImportJobSession(storage, newerSession)
+    clearImportJobSession(storage, 'job_A')
+    expect(readImportJobSession(storage)).toEqual(newerSession)
+    expect(storage.removed).toEqual([])
+  })
+
+  it('leaves an unreadable record untouched when its job ownership is unknown', () => {
+    const storage = new MemoryStorage()
+    storage.values.set(DATA_IMPORT_JOB_SESSION_KEY, '{bad json')
+    clearImportJobSession(storage, 'job_A')
+    expect(storage.getItem(DATA_IMPORT_JOB_SESSION_KEY)).toBe('{bad json')
+    expect(storage.removed).toEqual([])
   })
 
   it('removes malformed JSON and invalid job identifiers', () => {
@@ -301,6 +322,36 @@ describe('import job session recovery', () => {
   })
 })
 
+describe('confirmed-token recovery storage', () => {
+  it('round-trips confirmation identity and only clears the matching operation', () => {
+    const storage = new MemoryStorage()
+    const session = { previewToken: 'preview_B', startedAt: '2026-09-05T01:02:03Z' }
+    writeImportConfirmationSession(storage, session)
+    clearImportConfirmationSession(storage, 'preview_A')
+    expect(readImportConfirmationSession(storage)).toEqual(session)
+    clearImportConfirmationSession(storage, 'preview_B')
+    expect(readImportConfirmationSession(storage)).toBeNull()
+  })
+
+  it('rejects a silently dropped write instead of claiming recovery is durable', () => {
+    const storage: StorageLike = { getItem: () => null, setItem: () => {}, removeItem: () => {} }
+    expect(() => writeImportConfirmationSession(storage, {
+      previewToken: 'preview_A', startedAt: '2026-09-05T01:02:03Z',
+    })).toThrow('无法保存')
+  })
+
+  it.each(['{bad', 'null', '{"previewToken":"../invalid","startedAt":"2026-09-05T01:02:03Z"}'])(
+    'discards an invalid recovery record on restore: %s', (raw) => {
+      const storage = new MemoryStorage()
+      storage.values.set(DATA_IMPORT_CONFIRMATION_SESSION_KEY, raw)
+      clearImportConfirmationSession(storage, 'preview_A')
+      expect(storage.getItem(DATA_IMPORT_CONFIRMATION_SESSION_KEY)).toBe(raw)
+      expect(readImportConfirmationSession(storage)).toBeNull()
+      expect(storage.getItem(DATA_IMPORT_CONFIRMATION_SESSION_KEY)).toBeNull()
+    },
+  )
+})
+
 describe('data transfer error messages', () => {
   it('explains conflict, upload-size, validation and rate-limit statuses', () => {
     expect(describeDataTransferError({ status: 409 }, 'confirm')).toContain('重新选择')
@@ -314,7 +365,7 @@ describe('data transfer error messages', () => {
   })
 
   it('distinguishes transactional confirm failures from a network failure', () => {
-    expect(describeDataTransferError({ status: 500 }, 'confirm')).toContain('回滚')
+    expect(describeDataTransferError({ status: 500 }, 'confirm')).toContain('结果尚不确定')
     expect(describeDataTransferError(new Error('Network Error'), 'status')).toContain('网络')
   })
 })

@@ -52,9 +52,11 @@ public class InstallController {
     @PostMapping("/complete")
     public Result<InstallCompleteVO> complete(
             @RequestBody InstallCompleteDTO dto,
+            HttpServletRequest request,
             HttpServletResponse response
     ) {
         preventCaching(response);
+        databaseSetupService.requireSecureTransport(request, "管理员初始化");
         return Result.success(installService.complete(dto));
     }
 

@@ -120,12 +120,11 @@ public class BookmarkServiceImpl implements BookmarkService {
     @Override
     @Transactional
     public BookmarkVO setVisible(Long id, boolean visible) {
-        Bookmark bookmark = requireBookmark(id);
-        bookmark.setVisible(visible);
-        bookmark.setUpdatedAt(LocalDateTime.now());
-        bookmarkMapper.updateById(bookmark);
+        if (bookmarkMapper.updateVisible(id, visible, LocalDateTime.now()) != 1) {
+            throw BusinessException.notFound("书签不存在");
+        }
         invalidateNavigation();
-        return toVO(bookmark);
+        return toVO(requireBookmark(id));
     }
 
     @Override

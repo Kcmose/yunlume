@@ -23,17 +23,18 @@ public final class SecureTransportPolicy {
     }
 
     public void requireSecure(HttpServletRequest request, String sensitiveResource) {
-        if (request != null && request.isSecure()) return;
+        if (request != null && (request.isSecure() || isForwardedHttps(request))) return;
 
+        throw new BusinessException(HttpStatus.FORBIDDEN,
+                sensitiveResource + "包含敏感凭据，只允许通过 HTTPS 提交");
+    }
+
+    public boolean isForwardedHttps(HttpServletRequest request) {
         String forwardedProto = trustForwardedHttps && request != null && isTrustedProxyPeer(request.getRemoteAddr())
                 ? request.getHeader("X-Forwarded-Proto")
                 : null;
-        boolean forwardedHttps = forwardedProto != null
+        return forwardedProto != null
                 && "https".equalsIgnoreCase(forwardedProto.split(",", 2)[0].trim());
-        if (!forwardedHttps) {
-            throw new BusinessException(HttpStatus.FORBIDDEN,
-                    sensitiveResource + "包含敏感凭据，只允许通过 HTTPS 提交");
-        }
     }
 
     private boolean isTrustedProxyPeer(String remoteAddress) {

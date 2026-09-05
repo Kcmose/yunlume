@@ -17,6 +17,7 @@ const emit = defineEmits<{
 
 const formRef = ref<FormInstance>()
 const form = reactive<CategoryPayload>({ name: '', icon: '✦', sortOrder: 0, visible: true })
+let formVersion = 0
 const rules: FormRules<CategoryPayload> = {
   name: [{ required: true, message: '请输入分类名称', trigger: 'blur' }],
   icon: [{
@@ -28,18 +29,23 @@ const rules: FormRules<CategoryPayload> = {
 }
 
 watch(
-  () => props.modelValue,
-  (visible) => {
+  () => [props.modelValue, props.category] as const,
+  ([visible]) => {
+    formVersion += 1
     if (!visible) return
     Object.assign(form, props.category
       ? { name: props.category.name, icon: props.category.icon, sortOrder: props.category.sortOrder, visible: props.category.visible }
       : { name: '', icon: '✦', sortOrder: 0, visible: true })
     void nextTick(() => formRef.value?.clearValidate())
   },
+  { flush: 'sync' },
 )
 
 async function submit() {
+  if (props.submitting || !props.modelValue) return
+  const version = formVersion
   if (!(await formRef.value?.validate().catch(() => false))) return
+  if (version !== formVersion || props.submitting || !props.modelValue) return
   emit('submit', { ...form })
 }
 </script>

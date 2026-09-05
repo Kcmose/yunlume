@@ -88,7 +88,19 @@ public class SearchEngineServiceImpl implements SearchEngineService {
         if (dto.visible() != null) engine.setVisible(dto.visible());
         if (hidesCurrentDefault) engine.setDefaultEngine(false);
         engine.setUpdatedAt(LocalDateTime.now());
-        searchEngineMapper.updateById(engine);
+        // 可选字段允许主动清空，显式 SET 避免实体更新策略跳过 null。
+        if (searchEngineMapper.update(null, Wrappers.<SearchEngine>lambdaUpdate()
+                .eq(SearchEngine::getId, id)
+                .set(SearchEngine::getName, engine.getName())
+                .set(SearchEngine::getIcon, engine.getIcon())
+                .set(SearchEngine::getSearchUrl, engine.getSearchUrl())
+                .set(SearchEngine::getPlaceholder, engine.getPlaceholder())
+                .set(SearchEngine::getSortOrder, engine.getSortOrder())
+                .set(SearchEngine::getVisible, engine.getVisible())
+                .set(SearchEngine::getDefaultEngine, engine.getDefaultEngine())
+                .set(SearchEngine::getUpdatedAt, engine.getUpdatedAt())) != 1) {
+            throw BusinessException.conflict("搜索引擎状态已变化，请刷新后重试");
+        }
 
         if (replacement != null) makeDefault(replacement);
         ensureSingleDefaultEngine();
@@ -221,7 +233,12 @@ public class SearchEngineServiceImpl implements SearchEngineService {
         SearchEngine last = searchEngineMapper.selectOne(Wrappers.<SearchEngine>lambdaQuery()
                 .orderByDesc(SearchEngine::getSortOrder)
                 .last("LIMIT 1"));
-        return last == null || last.getSortOrder() == null ? 0 : last.getSortOrder() + 10;
+        if (last == null || last.getSortOrder() == null) return 0;
+        long next = (long) last.getSortOrder() + 10;
+        if (next > Integer.MAX_VALUE) {
+            throw BusinessException.conflict("搜索引擎排序值已达到上限，请先调整排序");
+        }
+        return (int) Math.max(0L, next);
     }
 
     private SearchEngine requireEngine(Long id) {

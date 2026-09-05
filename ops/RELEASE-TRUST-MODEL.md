@@ -7,6 +7,8 @@
    exact body marker binds only tag/source identity; the reservation is intentionally unowned.
    Any later attempt may complete it until `canonical-owner.json` is written as the final draft
    asset. After that immutable-once marker exists, retries reuse its exact signed asset set.
+   The release job reads this owner at execution time. Without a final owner it signs using its
+   actual run/attempt, even when a failed-jobs rerun retained an older reservation job's outputs.
 3. Each exact OCI archive is first retained as `candidate-oci-{backend,frontend}.tar` on that exact
    draft ID. Only after exact-ID readback is its byte SHA-256, byte size, OCI root digest, component,
    and source committed in immutable-once `candidate-commitment-{backend,frontend}.json`. The
@@ -31,13 +33,31 @@
    this repository with **Administration: read** and no Administration write permission. Missing,
    unauthorized, disabled, or non-owner-enforced policy fails closed before mutation. Never print
    or pass this secret to mutation commands.
-6. GitHub CLI is downloaded as exact v2.93.0 archives with published SHA-256 checksums and its
+6. In candidate/Release verification and publication jobs, GitHub CLI is downloaded as exact
+   v2.93.0 archives with published SHA-256 checksums and its
    `release verify`, `release verify-asset`, and `attestation verify` capabilities are checked before
-   release work. The runner's moving preinstalled `gh` is not trusted.
-7. The backend JAR built and migration-tested in `backend-test` is attested once and moved to
-   downstream jobs with an attempt-scoped Actions artifact. The release backend image copies that
-   JAR rather than running Maven, and the Host archive packages the same file. Both delivery formats
-   are opened and their embedded JAR SHA-256 is checked before Release publication.
+   release work. The isolated JAR signer uses the runner CLI only for read-only REST metadata
+   requests; signing itself uses the pinned attestation action and never executes repository code.
+7. `backend-test` publishes its artifact ID, archive digest, source SHA, and producer run/attempt.
+   The isolated `backend-attest` job downloads that exact ID and signs without checking out or
+   executing repository helpers. Its own upload supplies the attested artifact ID/run/attempt to
+   consumers; a failed-jobs rerun never derives an artifact name from the consumer's attempt.
+   Before download, GitHub's artifact, workflow-attempt and attempt-jobs APIs must agree on the
+   artifact name/digest, repository, source, workflow, successful producer job and creation time.
+   The attempt-specific jobs endpoint scopes provenance; the Job object does not guarantee a
+   `run_attempt` field. Downloaded identity metadata, JAR bytes and the exact signature bundle
+   are then verified together.
+8. Before staging a backend OCI candidate, the exact draft retains immutable-once
+   `backend-jar-producer.json` (artifact ID/digest, producer run/attempt, source SHA and JAR SHA-256).
+   This descriptor is included in the canonical signed subject set and immutable Release asset
+   set. A rerun-all can build a new JAR, but candidate/release recovery uses the original descriptor
+   and attested artifact. Missing/expired original artifacts fail closed without rebuilding or
+   substituting bytes. Uploads request 90 days of retention, subject to repository retention limits.
+   Once canonical assets are finalized, a release-job-only retry uses those retained assets and
+   no longer needs the Actions artifact. Both delivery formats' embedded JAR SHA-256 must match
+   the signed baseline.
+9. The candidate publish job explicitly requests `attestations: write` and `id-token: write`,
+   together with the required Release/registry writes. Test jobs retain read-only permissions.
 
 ## Candidate transaction
 
@@ -71,8 +91,32 @@ server-side race barrier if another actor publishes between the reread and mutat
 assets are locked. The workflow then requires `immutable: true` on the publication readback and
 fails closed otherwise.
 
+The shared `ops/release-preflight.sh` runs both for the initial graph and at the beginning of the
+release job, before any Release/registry mutation. A release-only retry therefore cannot treat
+cached upstream `published=false` as write authorization. Already-published recovery verifies the
+complete canonical asset set, exact five-member `SHA256SUMS` set (order independent), immutable
+image tags and both `major.minor` aliases. Missing, stale, mixed or unreadable aliases fail with
+zero external writes. Alias repair requires a separate explicit operation; this workflow never
+repairs a published release during its verification-only retry. Monotonic version checks remain.
+
 ## Verified GitHub and OCI semantics
 
+- GitHub reruns preserve the source SHA/ref; `run_id` remains stable and `run_attempt` increases.
+  Failed-jobs reruns can retain successful producer jobs from an earlier attempt, so the producer
+  identity is propagated explicitly instead of inferred from the downloading job.
+  <https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs>
+  <https://docs.github.com/en/actions/reference/workflows-and-actions/variables>
+- Artifact metadata exposes an ID, digest, expiration state and source workflow run. The exact
+  workflow-attempt and attempt-jobs endpoints provide the additional producer checks described above.
+  Pinned `download-artifact` supports `artifact-ids`, `run-id` and `github-token`; pinned upload
+  exposes `artifact-id` and `artifact-digest`. Consumer downloads never use a rerun-derived name.
+  <https://docs.github.com/en/rest/actions/artifacts>
+  <https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run-attempt>
+  <https://github.com/actions/download-artifact/blob/d3f86a106a0bac45b974a628896c90dbdf5c8093/action.yml>
+  <https://github.com/actions/upload-artifact/blob/ea165f8d65b6e75b540449e92b4886f43607fa02/action.yml>
+- Explicit job permissions set unspecified permissions to none; signing needs both OIDC and
+  attestation write permissions even when registry/Release writes are already granted.
+  <https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions>
 - GitHub REST, repository immutable releases: current docs define
   `GET /repos/{owner}/{repo}/immutable-releases`, require fine-grained repository
   **Administration: read**, and return `enabled` and `enforced_by_owner`. `GITHUB_TOKEN` has no

@@ -89,12 +89,13 @@ verify_release_endpoints() {
     ::|'[::]') probe_host="[::1]" ;;
     *:*) [[ "${probe_host}" == \[*\] ]] || probe_host="[${probe_host}]" ;;
   esac
-  curl "${curl_options[@]}" "http://${probe_host}:${APP_PORT:-8080}/healthz" >/dev/null
+  # 恢复路径以 ! function 调用且关闭 errexit，必须显式传播每个探测的失败。
+  curl "${curl_options[@]}" "http://${probe_host}:${APP_PORT:-8080}/healthz" >/dev/null || return $?
   health_json="$(curl "${curl_options[@]}" \
-    "http://${probe_host}:${APP_PORT:-8080}/api/health")"
+    "http://${probe_host}:${APP_PORT:-8080}/api/health")" || return $?
   install_json="$(curl "${curl_options[@]}" \
-    "http://${probe_host}:${APP_PORT:-8080}/api/install/status")"
-  HEALTH_JSON="${health_json}" INSTALL_JSON="${install_json}" python3 <<'PY'
+    "http://${probe_host}:${APP_PORT:-8080}/api/install/status")" || return $?
+  HEALTH_JSON="${health_json}" INSTALL_JSON="${install_json}" python3 <<'PY' || return $?
 import json
 import os
 
@@ -151,7 +152,7 @@ wait_for_release_containers 45 || true
 [[ "$(docker inspect --format '{{.State.Health.Status}}' "${frontend_id}")" == "healthy" ]] ||
   die "回滚后的前端未通过健康检查"
 
-verify_release_endpoints
+verify_release_endpoints || exit $?
 
 trap - EXIT
 rm -f -- "${rollback_env}"

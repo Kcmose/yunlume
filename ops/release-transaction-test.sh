@@ -235,13 +235,57 @@ if verify_canonical_provenance "$work/provenance" "$work/provenance/provenance.j
   fail 'conflicting rerun canonical bundle replacement was accepted'
 fi
 
-# The tested JAR is the byte source for both delivery formats.
-mkdir -p "$work/host/backend"
+# 用真实生产打包器连接消费者契约；JAR/UI只用惰性字节，不执行构建或启动服务。
+mkdir -p "$work/host/frontend"
 printf 'tested-jar-bytes' > "$work/tested.jar"
+printf '<!doctype html><title>fixture</title>' > "$work/host/frontend/index.html"
 jar_sha="$(sha256sum "$work/tested.jar" | "$AWK_BIN" '{print $1}')"
-cp "$work/tested.jar" "$work/host/backend/yunlume-backend.jar"
-tar -C "$work/host" -czf "$work/host.tar.gz" .
-verify_host_archive_jar_sha "$work/host.tar.gz" "$jar_sha"
+BACKEND_JAR="$work/tested.jar" FRONTEND_DIST="$work/host/frontend" OUTPUT_DIR="$work/host-packaged" \
+  bash "$SCRIPT_DIR/package-host-release.sh" 1.2.3 > "$work/host-package.log"
+verify_host_archive_jar_sha "$work/host-packaged/yunlume-host-v1.2.3.tar.gz" "$jar_sha"
+
+python3 - "$work" <<'PY'
+import io, tarfile, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+payload = (root / "tested.jar").read_bytes()
+jar = "backend/yunlume-backend.jar"
+def member(name, kind=tarfile.REGTYPE, data=payload, target=""):
+    record = tarfile.TarInfo(name)
+    record.type = kind
+    record.size = len(data) if kind == tarfile.REGTYPE else 0
+    record.linkname = target
+    return record, io.BytesIO(data) if kind == tarfile.REGTYPE else None
+fixtures = {
+    "missing": [member("frontend/index.html")],
+    "prefixed": [member("release/" + jar)],
+    "dot-prefixed": [member("./" + jar)],
+    "duplicate": [member(jar), member(jar)],
+    "multiple-prefixes": [member(jar), member("release/" + jar)],
+    "directory": [member(jar, tarfile.DIRTYPE)],
+    "symlink": [member("tested.jar"), member(jar, tarfile.SYMTYPE, target="../../tested.jar")],
+    "hardlink": [member("tested.jar"), member(jar, tarfile.LNKTYPE, target="tested.jar")],
+    "linked-parent": [member("backend", tarfile.SYMTYPE, target="outside"), member(jar)],
+    "empty": [member(jar, data=b"")],
+}
+for name, entries in fixtures.items():
+    with tarfile.open(root / f"bad-host-{name}.tar.gz", "w:gz") as archive:
+        for metadata, content in entries:
+            archive.addfile(metadata, content)
+valid = (root / "host-packaged/yunlume-host-v1.2.3.tar.gz").read_bytes()
+(root / "bad-host-truncated.tar.gz").write_bytes(valid[:len(valid) // 2])
+PY
+for invalid_archive in "$work"/bad-host-*.tar.gz; do
+  if (set +e; set +o pipefail; verify_host_archive_jar_sha "$invalid_archive" "$jar_sha") >/dev/null 2>&1; then
+    fail "invalid Host JAR member contract was accepted: ${invalid_archive##*/}"
+  fi
+done
+if verify_host_archive_jar_sha "$work/host-packaged/yunlume-host-v1.2.3.tar.gz" \
+  "$(printf 0%.0s {1..64})" >/dev/null 2>&1; then
+  fail 'Host archive with mismatched tested JAR digest was accepted'
+fi
+
+# The tested JAR is also the byte source for the container delivery format.
 docker() {
   [[ "$*" == *'--entrypoint sha256sum'* && "$*" == *'/app/app.jar'* ]] || fail "unexpected docker call: $*"
   printf '%s  /app/app.jar\n' "$MOCK_IMAGE_JAR_SHA"

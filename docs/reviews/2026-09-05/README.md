@@ -1,6 +1,14 @@
 # 2026-09-05 跨设备开发交接
 
-## 当前状态
+后续已完成的前端 11 项修复及验证见 [frontend-fixes.md](frontend-fixes.md)。以下内容描述原交接快照，原问题报告保留作历史定位依据。
+
+后端与数据导入 14 项的本轮修复及验证见 [backend-import-fixes.md](backend-import-fixes.md)。
+
+发布、部署与回滚 10 项的修复及验证见 [release-deploy-fixes.md](release-deploy-fixes.md)。
+
+测试脚本与 CI 检查 3 项的修复及验证见 [test-ci-fixes.md](test-ci-fixes.md)。
+
+## 原交接状态
 
 本提交保存此前尚未提交的代码、测试、安装/发布脚本和本轮只读审查材料，供另一台设备继续修改。**不是完成修复的发布版本，也不是验收通过声明。** 本輪审查未修改应用源码；代码修改来自审查前的工作区。审查指出的问题仍待逐项修复。
 

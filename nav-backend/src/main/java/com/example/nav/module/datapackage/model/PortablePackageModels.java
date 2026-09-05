@@ -5,11 +5,12 @@ import java.util.List;
 import java.util.Map;
 
 public final class PortablePackageModels {
+    public static final int MAX_JSON_BYTES = 16 * 1024 * 1024;
 
     public static final int FORMAT_VERSION = 1;
     public static final long MAX_ARCHIVE_BYTES = 64L * 1024 * 1024;
     public static final long MAX_EXPANDED_BYTES = 64L * 1024 * 1024;
-    public static final long MAX_ENTRY_BYTES = 16L * 1024 * 1024;
+    public static final long MAX_ENTRY_BYTES = MAX_JSON_BYTES;
     public static final int MAX_ENTRIES = 100;
 
     private PortablePackageModels() {

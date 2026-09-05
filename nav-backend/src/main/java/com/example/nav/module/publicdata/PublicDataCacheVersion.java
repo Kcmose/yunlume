@@ -99,12 +99,21 @@ public class PublicDataCacheVersion {
         if (generation < 0 || generation > Integer.MAX_VALUE) {
             throw new IllegalStateException("Public cache generation is outside 0..2147483647");
         }
-        if (!(cacheManager instanceof RedisCacheManager)) return generation;
+        if (!(cacheManager instanceof RedisCacheManager)) {
+            advanceLocalTo(cacheName, generation);
+            return generation;
+        }
         Long reconciled = redisTemplate.execute(
                 ADVANCE_MONOTONIC,
                 List.of(REDIS_KEY_PREFIX + cacheName),
                 Long.toString(generation));
         if (reconciled == null) throw new IllegalStateException("Redis cache generation reconciliation failed");
         return reconciled;
+    }
+
+    private void advanceLocalTo(String cacheName, long generation) {
+        if (cacheManager.getCache(cacheName) instanceof PublicDataGenerationCache cache) {
+            cache.advanceTo(generation);
+        }
     }
 }

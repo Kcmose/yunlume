@@ -31,6 +31,7 @@ const emptyForm = (): BookmarkPayload => ({
   visible: true,
 })
 const form = reactive<BookmarkPayload>(emptyForm())
+let formVersion = 0
 const rules: FormRules<BookmarkPayload> = {
   categoryId: [{ required: true, message: '请选择分类', trigger: 'change' }],
   name: [{ required: true, message: '请输入书签名称', trigger: 'blur' }],
@@ -47,8 +48,9 @@ const rules: FormRules<BookmarkPayload> = {
 }
 
 watch(
-  () => props.modelValue,
-  (visible) => {
+  () => [props.modelValue, props.bookmark] as const,
+  ([visible]) => {
+    formVersion += 1
     if (!visible) return
     Object.assign(form, props.bookmark
       ? {
@@ -65,10 +67,14 @@ watch(
       : emptyForm())
     void nextTick(() => formRef.value?.clearValidate())
   },
+  { flush: 'sync' },
 )
 
 async function submit() {
+  if (props.submitting || !props.modelValue) return
+  const version = formVersion
   if (!(await formRef.value?.validate().catch(() => false))) return
+  if (version !== formVersion || props.submitting || !props.modelValue) return
   emit('submit', {
     ...form,
     url: ensureHttpProtocol(form.url),

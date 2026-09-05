@@ -23,7 +23,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -76,7 +75,7 @@ class BackgroundImageStorageServiceTest {
         Path orphan = managedFile(ORPHAN_FILE, "orphan", NOW.minusSeconds(120));
         UploadStorageProperties properties = properties(60_000, 100, 1024);
         SiteConfigMapper mapper = mock(SiteConfigMapper.class);
-        when(mapper.selectList(isNull())).thenThrow(new IllegalStateException("database unavailable"));
+        when(mapper.selectAllForUpdate()).thenThrow(new IllegalStateException("database unavailable"));
         BackgroundImageStorageService service = new BackgroundImageStorageService(
                 properties,
                 mapper,
@@ -215,7 +214,7 @@ class BackgroundImageStorageServiceTest {
             List<SiteConfig> configs
     ) {
         SiteConfigMapper mapper = mock(SiteConfigMapper.class);
-        when(mapper.selectList(isNull())).thenReturn(configs);
+        when(mapper.selectAllForUpdate()).thenReturn(configs);
         return new BackgroundImageStorageService(
                 properties,
                 mapper,

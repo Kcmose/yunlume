@@ -84,3 +84,8 @@ export interface DataImportJobSession {
   jobId: string
   startedAt: string
 }
+
+export interface DataImportConfirmationSession {
+  previewToken: string
+  startedAt: string
+}

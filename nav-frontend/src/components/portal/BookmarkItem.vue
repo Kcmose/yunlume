@@ -1,19 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Bookmark } from '@/types/bookmark'
+import { navigationIconLabel, navigationIconUrl } from '@/utils/adminNavigationManage'
 
 const props = defineProps<{ bookmark: Bookmark }>()
 
-const iconLabel = computed(() => {
-  const icon = props.bookmark.icon?.trim()
-  if (icon && icon.length <= 3 && !/^https?:\/\//i.test(icon)) return icon
-  return '▱'
-})
-
-const iconUrl = computed(() => {
-  const icon = props.bookmark.icon?.trim()
-  return icon && /^https?:\/\//i.test(icon) ? icon : ''
-})
+const iconLabel = computed(() => navigationIconLabel(props.bookmark.icon ?? '', '▱'))
+const iconUrl = computed(() => navigationIconUrl(props.bookmark.icon ?? ''))
 </script>
 
 <template>

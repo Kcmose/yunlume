@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, useId, watch } from 'vue'
+import { onBeforeUnmount, ref, useId, watch } from 'vue'
 import { ElMessage, type UploadProps, type UploadRequestOptions } from 'element-plus'
 import { Delete, Picture, UploadFilled } from '@element-plus/icons-vue'
 import { uploadImage } from '@/api/upload.api'
@@ -21,6 +21,9 @@ const emit = defineEmits<{
 const uploading = ref(false)
 const uploadProgress = ref<number | undefined>(undefined)
 const previewFailed = ref(false)
+let disposed = false
+let uploadRequestVersion = 0
+let imageEditVersion = 0
 const urlInputId = `background-image-url-${useId()}`
 const ABSOLUTE_MAX_FILE_BYTES = 10 * 1024 * 1024
 const configuredMaxFileBytes = Number(import.meta.env.VITE_UPLOAD_MAX_BYTES)
@@ -40,8 +43,29 @@ watch(
   () => props.modelValue,
   () => {
     previewFailed.value = false
+    imageEditVersion += 1
   },
+  { flush: 'sync' },
 )
+
+function updateImage(value: string) {
+  imageEditVersion += 1
+  emit('update:modelValue', value)
+}
+
+function finishUpload() {
+  if (!uploading.value) return
+  uploading.value = false
+  uploadProgress.value = undefined
+  emit('uploading-change', false)
+}
+
+onBeforeUnmount(() => {
+  disposed = true
+  uploadRequestVersion += 1
+  // 此时事件仍能送达父组件；异步 finally 不再重复释放上传计数。
+  finishUpload()
+})
 
 const beforeUpload: UploadProps['beforeUpload'] = (file) => {
   if (!['image/jpeg', 'image/png'].includes(file.type)) {
@@ -56,23 +80,27 @@ const beforeUpload: UploadProps['beforeUpload'] = (file) => {
 }
 
 async function handleUpload(options: UploadRequestOptions) {
+  if (disposed || props.disabled || uploading.value) return
+  const requestVersion = ++uploadRequestVersion
+  const editVersion = imageEditVersion
+  const isCurrentUpload = () => !disposed && requestVersion === uploadRequestVersion
   uploading.value = true
   uploadProgress.value = undefined
   emit('uploading-change', true)
   try {
     const result = await uploadImage(options.file, (progress) => {
-      uploadProgress.value = progress
+      if (isCurrentUpload()) uploadProgress.value = progress
     })
-    emit('update:modelValue', result.url)
-    ElMessage.success(`图片上传成功（${result.width} × ${result.height}），请点击“保存并应用背景”`)
+    if (isCurrentUpload() && editVersion === imageEditVersion) {
+      emit('update:modelValue', result.url)
+      ElMessage.success(`图片上传成功（${result.width} × ${result.height}），请点击“保存并应用背景”`)
+    }
     return result
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '图片上传失败')
+    if (isCurrentUpload()) ElMessage.error(error instanceof Error ? error.message : '图片上传失败')
     throw error
   } finally {
-    uploading.value = false
-    uploadProgress.value = undefined
-    emit('uploading-change', false)
+    if (isCurrentUpload()) finishUpload()
   }
 }
 </script>
@@ -116,7 +144,7 @@ async function handleUpload(options: UploadRequestOptions) {
           <UploadFilled /> {{ modelValue ? '重新上传' : '上传图片' }}
         </el-button>
       </el-upload>
-      <el-button v-if="modelValue" :icon="Delete" :disabled="disabled" @click="emit('update:modelValue', '')">
+      <el-button v-if="modelValue" :icon="Delete" :disabled="disabled" @click="updateImage('')">
         清空
       </el-button>
     </div>
@@ -137,8 +165,8 @@ async function handleUpload(options: UploadRequestOptions) {
       clearable
       :disabled="disabled"
       placeholder="也可填写 https://... 或 /uploads/..."
-      @update:model-value="emit('update:modelValue', $event)"
-      @clear="emit('update:modelValue', '')"
+      @update:model-value="updateImage"
+      @clear="updateImage('')"
     />
   </section>
 </template>

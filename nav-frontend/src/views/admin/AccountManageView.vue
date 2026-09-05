@@ -91,7 +91,7 @@ async function submitPasswordChange() {
   if (!(await formRef.value?.validate().catch(() => false))) return
   changingPassword.value = true
   try {
-    await authStore.changePassword({ ...form })
+    if (!(await authStore.changePassword({ ...form }))) return
     await router.replace('/admin/login')
     ElMessage.success('密码修改成功，请使用新密码重新登录')
   } catch (error) {
@@ -118,7 +118,7 @@ async function logoutAllSessions() {
 
   loggingOutAll.value = true
   try {
-    await authStore.logoutAll()
+    if (!(await authStore.logoutAll())) return
     await router.replace('/admin/login')
     ElMessage.success('已退出所有设备上的管理会话')
   } catch (error) {

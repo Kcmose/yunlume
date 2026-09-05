@@ -82,6 +82,31 @@ describe('bounded canonical auth storage', () => {
     expect(tokenStorage.get()).toBe('secret-token')
   })
 
+  it('returns its own immutable identity when another tab commits the same token immediately after final verification', async () => {
+    const local = storage()
+    const { createTokenStorage } = await load(local)
+    const first = createTokenStorage(local, () => 'first-generation', () => 'first-commitment')
+    const second = createTokenStorage(local, () => 'second-generation', () => 'second-commitment')
+    let barrierReads = 0
+    let switched = false
+    vi.mocked(local.getItem).mockImplementation((key) => {
+      const value = local.values.get(key) ?? null
+      // 本次最后一次校验已经读到自己的 barrier，返回前另一标签页完成新写入。
+      if (key === BARRIER && !switched && ++barrierReads === 4) {
+        switched = true
+        second.set('shared-token')
+      }
+      return value
+    })
+
+    const accepted = first.setSnapshot('shared-token')
+    expect(switched).toBe(true)
+    expect(Object.isFrozen(accepted)).toBe(true)
+
+    expect(accepted).toEqual({ token: 'shared-token', generation: 'first-generation', commitment: 'first-commitment' })
+    expect(first.getSnapshot()).toEqual({ token: 'shared-token', generation: 'second-generation', commitment: 'second-commitment' })
+  })
+
   it.each([
     ['duplicate envelope key', '{"v":1,"status":"active","generation":"good","token":"first","token":"second"}', barrier('active', 'good')],
     ['duplicate barrier key', activeEnvelope('good', 'secret'), '{"v":1,"status":"active","generation":"good","generation":"other"}'],
