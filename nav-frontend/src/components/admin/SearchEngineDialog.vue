@@ -3,6 +3,7 @@ import { nextTick, reactive, ref, watch } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { AdminSearchEngine, SearchEnginePayload } from '@/types/searchEngine'
 import { ensureHttpProtocol, isSafeHttpUrl } from '@/utils/url'
+import { isSearchEngineTextIcon } from '@/utils/searchEnginePicker'
 
 const props = defineProps<{
   modelValue: boolean
@@ -55,7 +56,7 @@ const rules: FormRules<SearchEnginePayload> = {
     {
       validator: (_rule, value, callback) => {
         const icon = value?.trim()
-        if (!icon || icon.length <= 3 || isSafeHttpUrl(icon)) return callback()
+        if (!icon || isSearchEngineTextIcon(icon) || isSafeHttpUrl(icon)) return callback()
         callback(new Error('请输入 1～3 个字符，或有效的 HTTP(S) 图片地址'))
       },
       trigger: 'blur',
@@ -98,7 +99,7 @@ async function submit() {
   emit('submit', {
     ...form,
     name: form.name.trim(),
-    icon: icon.length > 3 ? ensureHttpProtocol(icon) : icon,
+    icon: !icon || isSearchEngineTextIcon(icon) ? icon : ensureHttpProtocol(icon),
     searchUrl: ensureHttpProtocol(form.searchUrl),
     placeholder: form.placeholder.trim(),
   })

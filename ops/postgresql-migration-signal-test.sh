@@ -2,80 +2,227 @@
 set -Eeuo pipefail
 
 readonly ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
-readonly SUITE="${ROOT_DIR}/ops/postgresql-migration-test.sh"
 readonly TEST_DIR="$(mktemp -d "${ROOT_DIR}/.migration-signal-test.XXXXXXXX")"
 trap 'rm -rf -- "${TEST_DIR}"' EXIT
 
-# Exercise the suite's real setup and trap definitions, then stop before Docker setup.
-sed -n '1,/^trap '\''handle_signal 143'\'' TERM$/p' "${SUITE}" >"${TEST_DIR}/harness.sh"
-cat >>"${TEST_DIR}/harness.sh" <<'HARNESS'
-printf 'ready\n'
-while :; do :; done
-HARNESS
-chmod +x "${TEST_DIR}/harness.sh"
-printf 'signal fixture\n' >"${TEST_DIR}/fixture.jar"
-fixture_sha="$(sha256sum "${TEST_DIR}/fixture.jar" | cut -d' ' -f1)"
-
-for signal_spec in TERM:143 INT:130; do
-  signal="${signal_spec%%:*}"
-  expected="${signal_spec##*:}"
-  output="${TEST_DIR}/${signal}.out"
-  python3 - "${TEST_DIR}/harness.sh" "${TEST_DIR}/fixture.jar" "${fixture_sha}" \
-      "${signal}" "${expected}" "${output}" <<'PY'
+# 运行真实清理函数与 EXIT/INT/TERM 入口；只替换外部 Docker CLI。
+# 独立资源状态和 canary 验证实际结果，不相信清理函数自报的 residue。
+python3 - "${ROOT_DIR}" "${TEST_DIR}" <<'PY'
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
 import signal
 import subprocess
 import sys
 import time
 
-harness, fixture, digest, signal_name, expected, output = sys.argv[1:]
-with open(output, "wb") as stream:
-    process = subprocess.Popen([harness, fixture, digest], stdout=stream, stderr=subprocess.STDOUT)
-    for _ in range(100):
-        stream.flush()
+root, lab = map(Path, sys.argv[1:])
+source = (root / "ops/postgresql-migration-test.sh").read_text()
+end = "trap 'handle_signal 143' TERM\n"
+assert source.count(end) == 1
+prefix = source.split(end, 1)[0] + end
+fixture = lab / "fixture.jar"
+fixture.write_bytes(b"signal fixture\n")
+digest = hashlib.sha256(fixture.read_bytes()).hexdigest()
+bin_dir = lab / "bin"
+bin_dir.mkdir()
+docker = bin_dir / "docker"
+docker.write_text(r'''#!/usr/bin/env python3
+import json, os, sys, time
+from pathlib import Path
+state_file = Path(os.environ["MIGRATION_TEST_STATE"])
+args = sys.argv[1:]
+mode = os.environ["MIGRATION_TEST_FAULT"]
+fault_kind = os.environ["MIGRATION_TEST_KIND"]
+if args[0] == "__fixture":
+    project, pg, network, image, temporary = args[1:]
+    resources = []
+    for kind, name, own in [("container", project + "-app", True), ("container", pg, True),
+                            ("network", network, True), ("image", image, True),
+                            ("container", project + "-unregistered", False),
+                            ("network", project + "-unregistered-net", False),
+                            ("image", "canary:untouched", False)]:
+        identity = ("sha256:" if kind == "image" else "") + f"{len(resources) + 1:064x}"
+        resources.append(dict(kind=kind, name=name, id=identity, label=project, owned=own))
+    if mode == "absent":
+        resources = [r for r in resources if not (r["owned"] and r["kind"] == fault_kind)]
+    if mode == "foreign":
+        for r in resources:
+            if r["owned"] and r["kind"] == fault_kind:
+                r["label"] = "another-run"
+    state_file.write_text(json.dumps(dict(resources=resources, initial=resources.copy(), calls=[],
+                                         removals=[], project=project, temporary=temporary)))
+    raise SystemExit(0)
+state = json.loads(state_file.read_text())
+state["calls"].append(args)
+def finish(code=0):
+    state_file.write_text(json.dumps(state))
+    raise SystemExit(code)
+kind, command = args[:2]
+fault = kind == fault_kind
+if command == "ls":
+    if fault and mode in ("query", "query-partial", "query-malformed", "query-nonstring"):
+        if mode == "query-partial":
+            print('"apparently-empty"')
+        elif mode == "query-malformed":
+            print("{")
+            finish()
+        elif mode == "query-nonstring":
+            print("42")
+            finish()
+        finish(7)
+    if fault and mode == "post-query" and any(r[0] == kind for r in state["removals"]):
+        finish(7)
+    for r in state["resources"]:
+        if r["kind"] == kind:
+            if kind == "image":
+                repository, tag = r["name"].rsplit(":", 1)
+                print(json.dumps(repository) + ":" + json.dumps(tag))
+            else:
+                print(json.dumps(r["name"]))
+    finish()
+if command == "inspect":
+    matches = [r for r in state["resources"] if r["kind"] == kind and r["name"] == args[-1]]
+    if len(matches) != 1:
+        finish(8)
+    r = matches[0]
+    name = [r["name"]] if kind == "image" else (("/" if kind == "container" else "") + r["name"])
+    identity = r["id"]
+    if fault and mode == "identity":
+        identity = "invalid-id"
+    if fault and mode == "name":
+        name = ["different:tag"] if kind == "image" else "different-name"
+    if fault and mode == "extra-tag" and kind == "image":
+        name.append("foreign:reference")
+    if fault and mode == "inspect-malformed":
+        print("{")
+    elif not (fault and mode == "inspect"):
+        print(json.dumps([name, identity, r["label"]]))
+    finish(7 if fault and mode in ("inspect", "inspect-partial") else 0)
+if command == "rm":
+    matches = [r for r in state["resources"] if r["kind"] == kind and r["id"] == args[-1]]
+    assert len(matches) == 1, ("delete must use immutable ID", args)
+    r = matches[0]
+    assert r["owned"] and r["label"] == state["project"], ("canary/foreign deletion", args)
+    assert args == ([kind, "rm", "-f", r["id"]] if kind == "container" else [kind, "rm", r["id"]])
+    if mode == "repeat" and not state["removals"]:
+        Path(str(state_file) + ".cleaning").touch()
+        deadline = time.monotonic() + 10
+        while not Path(str(state_file) + ".continue").exists():
+            assert time.monotonic() < deadline, "cleanup continuation timeout"
+            time.sleep(0.01)
+    state["removals"].append([kind, r["id"]])
+    if fault and mode == "remove":
+        finish(9)
+    if not (fault and mode == "noop"):
+        state["resources"].remove(r)
+    if fault and mode == "replacement":
+        state["resources"].append(dict(r, id=("sha256:" if kind == "image" else "") + "f" * 64, label="another-run"))
+    finish()
+raise SystemExit("unexpected Docker call: " + repr(args))
+''')
+docker.chmod(0o755)
+harness = lab / "harness.sh"
+harness.write_text(prefix + r'''
+register_container "${PROJECT}-app"
+docker __fixture "${PROJECT}" "${PG}" "${NETWORK}" "${IMAGE}" "${TMP_DIR}"
+sleep 60 &
+child_pids+=("$!")
+printf '%s\n' "$!" >"${MIGRATION_TEST_STATE}.child"
+printf 'ready\n'
+if [[ "${MIGRATION_TEST_EXIT}" == signal ]]; then
+  while :; do IFS= read -r -t 3600 unused || :; done
+else
+  exit "${MIGRATION_TEST_EXIT}"
+fi
+''')
+harness.chmod(0o755)
+
+checks = 0
+def wait_for(condition, process, description):
+    deadline = time.monotonic() + 10
+    while not condition():
+        assert process.poll() is None, f"{description}: exited {process.returncode}"
+        assert time.monotonic() < deadline, f"{description}: timed out"
+        time.sleep(0.01)
+
+def run(kind, mode, incoming):
+    global checks
+    case = f"{kind}-{mode}-{incoming}"
+    state_file = lab / (case + ".json")
+    output = lab / (case + ".log")
+    env = dict(os.environ, PATH=str(bin_dir) + os.pathsep + os.environ["PATH"],
+               MIGRATION_TEST_STATE=str(state_file), MIGRATION_TEST_FAULT=mode,
+               MIGRATION_TEST_KIND=kind, MIGRATION_TEST_EXIT="signal" if isinstance(incoming, str) else str(incoming))
+    process = None
+    try:
+        with output.open("w") as log:
+            process = subprocess.Popen([str(harness), str(fixture), digest], env=env,
+                                       stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.PIPE)
+            if isinstance(incoming, str):
+                wait_for(lambda: "ready\n" in output.read_text(), process, case)
+                process.send_signal(getattr(signal, "SIG" + incoming))
+                if mode == "repeat":
+                    wait_for(lambda: Path(str(state_file) + ".cleaning").exists(), process, case + " cleanup")
+                    process.send_signal(signal.SIGTERM if incoming == "INT" else signal.SIGINT)
+                    Path(str(state_file) + ".continue").touch()
+            status = process.wait(timeout=20)
+        text = output.read_text()
+        clean = mode in ("none", "absent", "repeat")
+        expected = {"INT": 130, "TERM": 143}.get(incoming, incoming) or (0 if clean else 1)
+        assert status == expected, (case, status, expected, text)
+        state = json.loads(state_file.read_text())
+        initial_canaries = [r for r in state["initial"] if not r["owned"]]
+        assert [r for r in state["resources"] if not r["owned"]] == initial_canaries, case + " canary changed"
+        assert text.count("PostgreSQL migration cleanup:") == 1, (case, text)
+        temporary = Path(state["temporary"])
+        if clean:
+            assert state["resources"] == initial_canaries, (case, state)
+            assert not temporary.exists(), case
+            assert "residue=0." in text, (case, text)
+        else:
+            assert temporary.is_dir() and (temporary / "cleanup-resources.txt").is_file(), (case, text)
+            assert "residue=0." not in text and "residue=1." in text, (case, text)
+            plan = (temporary / "cleanup-resources.txt").read_text()
+            assert state["project"] in plan and "-app" in plan, (case, plan)
+            if mode in ("query", "query-partial", "query-malformed", "query-nonstring", "inspect", "inspect-partial",
+                        "inspect-malformed", "foreign", "identity", "name", "extra-tag"):
+                assert not any(k == kind for k, _ in state["removals"]), (case, state["removals"])
+        child = int(Path(str(state_file) + ".child").read_text())
         try:
-            ready = b"ready\n" in open(output, "rb").read()
-        except FileNotFoundError:
-            ready = False
-        if ready or process.poll() is not None:
-            break
-        time.sleep(0.05)
-    if not ready:
-        process.kill()
-        raise SystemExit(f"ERROR: {signal_name} harness did not become ready")
-    process.send_signal(getattr(signal, "SIG" + signal_name))
-    returncode = process.wait(timeout=15)
-status = 128 + (-returncode) if returncode < 0 else returncode
-if status != int(expected):
-    raise SystemExit(f"ERROR: {signal_name} harness exited {status}, expected {expected}")
+            os.kill(child, 0)
+        except ProcessLookupError:
+            pass
+        else:
+            raise AssertionError(case + " child remains alive")
+        checks += 1
+    except Exception:
+        print(output.read_text() if output.exists() else case, file=sys.stderr)
+        raise
+    finally:
+        if process is not None and process.poll() is None:
+            process.kill()
+            process.wait()
+        if process is not None and process.stdin:
+            process.stdin.close()
+        if state_file.exists():
+            temporary = Path(json.loads(state_file.read_text())["temporary"])
+            assert temporary.parent == root and temporary.name.startswith(".migration-test-tmp.")
+            if temporary.exists():
+                shutil.rmtree(temporary)
+
+for kind in ("container", "network", "image"):
+    for mode in ("none", "absent", "query", "query-partial", "query-malformed", "query-nonstring",
+                 "inspect", "inspect-partial", "inspect-malformed", "foreign", "identity", "name",
+                 "remove", "noop", "post-query", "replacement"):
+        for incoming in (0, 7):
+            run(kind, mode, incoming)
+    for mode in ("none", "query-partial", "remove", "repeat"):
+        for incoming in ("INT", "TERM"):
+            run(kind, mode, incoming)
+run("image", "extra-tag", 0)
+run("image", "extra-tag", 7)
+print(f"PostgreSQL migration cleanup: {checks} stateful Docker-stub scenarios passed; INT=130 TERM=143 nonzero=7; canaries preserved.")
 PY
-  grep -Eq 'children=0 residue=0\.$' "${output}" || {
-    printf 'ERROR: %s cleanup did not prove zero residue\n' "${signal}" >&2
-    cat "${output}" >&2
-    exit 1
-  }
-  [[ "$(grep -Fc 'PostgreSQL migration cleanup:' "${output}")" -eq 1 ]] || {
-    printf 'ERROR: %s cleanup ran more than once\n' "${signal}" >&2
-    cat "${output}" >&2
-    exit 1
-  }
-done
-
-sed -n '1,/^trap '\''handle_signal 143'\'' TERM$/p' "${SUITE}" >"${TEST_DIR}/nonzero-harness.sh"
-printf 'exit 7\n' >>"${TEST_DIR}/nonzero-harness.sh"
-chmod +x "${TEST_DIR}/nonzero-harness.sh"
-set +e
-"${TEST_DIR}/nonzero-harness.sh" "${TEST_DIR}/fixture.jar" "${fixture_sha}" \
-  >"${TEST_DIR}/nonzero.out" 2>&1
-nonzero_status=$?
-set -e
-[[ "${nonzero_status}" -eq 7 ]] || {
-  printf 'ERROR: cleanup changed incoming status 7 to %d\n' "${nonzero_status}" >&2
-  cat "${TEST_DIR}/nonzero.out" >&2
-  exit 1
-}
-grep -Eq 'children=0 residue=0\.$' "${TEST_DIR}/nonzero.out" || {
-  printf 'ERROR: nonzero-exit cleanup did not prove zero residue\n' >&2
-  exit 1
-}
-
-printf 'PostgreSQL migration signal cleanup tests passed: INT=130 TERM=143 nonzero=7 residue=0.\n'

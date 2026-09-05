@@ -18,6 +18,10 @@ import type {
   SearchEnginePayload,
 } from '@/types/searchEngine'
 import { commitVisibleChange } from '@/utils/visibilityMutation'
+import {
+  searchEngineIconUrl as iconUrl,
+  searchEngineMark as iconMark,
+} from '@/utils/searchEnginePicker'
 
 const engines = ref<AdminSearchEngine[]>([])
 const loading = ref(true)
@@ -91,18 +95,6 @@ function applySnapshot(next: AdminSearchEngine[]) {
   for (const key of Object.keys(sortDraftVersions)) {
     if (!Object.prototype.hasOwnProperty.call(nextDraft, key)) delete sortDraftVersions[key]
   }
-}
-
-function iconUrl(engine: AdminSearchEngine): string {
-  const icon = engine.icon?.trim()
-  return icon && /^https?:\/\//i.test(icon) ? icon : ''
-}
-
-function iconMark(engine: AdminSearchEngine): string {
-  const icon = engine.icon?.trim()
-  return icon && icon.length <= 3 && !/^https?:\/\//i.test(icon)
-    ? icon
-    : engine.name.slice(0, 1).toUpperCase()
 }
 
 async function load() {

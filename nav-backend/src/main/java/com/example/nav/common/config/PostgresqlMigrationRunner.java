@@ -18,6 +18,7 @@ import java.security.NoSuchAlgorithmException;
 import java.sql.DatabaseMetaData;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Set;
 
 /** Applies checksum-pinned PostgreSQL migrations through the application's configured datasource. */
 @Slf4j
@@ -130,7 +131,7 @@ public class PostgresqlMigrationRunner implements InitializingBean {
                             OR (a.attnum = 3 AND a.attname = 'applied_at'
                                 AND a.attcollation = 0::oid))) = 3
                   AND (SELECT count(*) FROM pg_catalog.pg_constraint
-                        WHERE conrelid = 'public.schema_migration'::regclass) = 2
+                        WHERE conrelid = 'public.schema_migration'::regclass AND contype <> 'n') = 2
                   AND (SELECT count(*) FROM pg_catalog.pg_constraint
                         WHERE conrelid = 'public.schema_migration'::regclass
                           AND convalidated AND NOT condeferrable AND NOT condeferred
@@ -167,7 +168,7 @@ public class PostgresqlMigrationRunner implements InitializingBean {
                           AND NOT pg_catalog.pg_index_column_has_property(
                               i.indexrelid, 1, 'nulls_first')) = 1
                 """, Boolean.class);
-        if (!Boolean.TRUE.equals(exact)) {
+        if (!Boolean.TRUE.equals(exact) || !notNullConstraintsMatch(Set.of("schema_migration"))) {
             throw corrupt("schema_migration is partial or corrupt");
         }
     }
@@ -265,6 +266,7 @@ public class PostgresqlMigrationRunner implements InitializingBean {
                 SELECT count(*) FROM pg_catalog.pg_constraint
                  WHERE conrelid IN ('public.portable_import_guard'::regclass,
                                     'public.portable_import_operation'::regclass)
+                   AND contype <> 'n'
                 """, Integer.class);
         Boolean exactIndexes = jdbc.queryForObject("""
                 WITH expected(table_name, index_name, is_unique, is_primary, constraint_name,
@@ -347,11 +349,17 @@ public class PostgresqlMigrationRunner implements InitializingBean {
                 || !Integer.valueOf(8).equals(exactAppliedCollations)
                 || !Integer.valueOf(4).equals(expectedConstraints)
                 || !Integer.valueOf(4).equals(totalConstraints)
+                || !notNullConstraintsMatch(Set.of("portable_import_guard", "portable_import_operation"))
                 || !Boolean.TRUE.equals(exactIndexes)
                 || !Integer.valueOf(1).equals(singleton)
                 || !Integer.valueOf(1).equals(allGuardRows)) {
             throw corrupt("registered migration schema is partial or corrupt");
         }
+    }
+
+    private boolean notNullConstraintsMatch(Set<String> tables) {
+        return Boolean.TRUE.equals(jdbc.execute((ConnectionCallback<Boolean>) connection ->
+                PostgresqlNotNullConstraints.matches(connection, tables)));
     }
 
     private ClassPathResource verifiedMigrationResource() {

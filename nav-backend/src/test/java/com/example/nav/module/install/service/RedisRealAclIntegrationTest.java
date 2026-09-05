@@ -7,6 +7,7 @@ import com.example.nav.module.install.model.RedisTlsMode;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.ScriptOutputType;
+import io.lettuce.core.api.sync.RedisCommands;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -18,6 +19,8 @@ import java.security.SecureRandom;
 import java.util.HexFormat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -26,6 +29,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ResourceLock("isolated-redis-acl")
 class RedisRealAclIntegrationTest {
     private static final SecureRandom RANDOM = new SecureRandom();
+    private final Map<String, String> ownedKeys = new LinkedHashMap<>();
+    private boolean emptyDatabaseVerified;
 
     @BeforeAll
     static void requireRealRedis() {
@@ -35,14 +40,18 @@ class RedisRealAclIntegrationTest {
     @BeforeEach
     void isolatedRedisStartsEmpty() {
         assertEquals(0L, adminDbSize(), "Redis ACL integration service must be dedicated and empty");
+        emptyDatabaseVerified = true;
     }
 
     @AfterEach
     void adminRemovesOnlySuiteResidueAndProvesEmpty() {
+        // JUnit 在 BeforeEach 失败后仍执行 AfterEach；未经验证的数据库绝不能清理。
+        if (!emptyDatabaseVerified) return;
         RedisClient client = RedisClient.create(adminUri());
         try (var connection = client.connect()) {
-            List<String> keys = connection.sync().keys("*");
-            if (!keys.isEmpty()) connection.sync().del(keys.toArray(String[]::new));
+            for (var entry : ownedKeys.entrySet()) {
+                removeOwnedKey(connection.sync(), entry.getKey(), entry.getValue());
+            }
             assertEquals(0L, connection.sync().dbsize());
         } finally {
             client.shutdown();
@@ -62,9 +71,9 @@ class RedisRealAclIntegrationTest {
         RedisClient admin = RedisClient.create(adminUri());
         RedisClient narrow = RedisClient.create(userUri("nav_narrow", "REDIS_ACL_NARROW_PASSWORD"));
         try (var adminConnection = admin.connect(); var narrowConnection = narrow.connect()) {
-            adminConnection.sync().set(keys[2], "original-job-" + suffix);
-            adminConnection.sync().set(keys[3], "original-current-" + suffix);
-            adminConnection.sync().set(keys[5], "0");
+            seedOwnedKey(adminConnection.sync(), keys[2], "original-job-" + suffix);
+            seedOwnedKey(adminConnection.sync(), keys[3], "original-current-" + suffix);
+            seedOwnedKey(adminConnection.sync(), keys[5], "0");
 
             assertThrows(RuntimeException.class, () -> new RedisConnectionVerifier()
                     .executeProductionScriptProbes(narrowConnection.sync(), suffix,
@@ -100,7 +109,7 @@ class RedisRealAclIntegrationTest {
             for (String key : keys) {
                 assertEquals(0L, adminConnection.sync().dbsize());
                 String original = key.endsWith("fence-sequence") ? "0" : "original-" + random128();
-                adminConnection.sync().set(key, original);
+                seedOwnedKey(adminConnection.sync(), key, original);
 
                 assertThrows(RuntimeException.class, () -> new RedisConnectionVerifier()
                         .executeProductionScriptProbes(runtimeConnection.sync(), suffix,
@@ -108,7 +117,8 @@ class RedisRealAclIntegrationTest {
 
                 assertEquals(original, adminConnection.sync().get(key), key);
                 assertEquals(1L, adminConnection.sync().dbsize(), key);
-                adminConnection.sync().del(key);
+                removeOwnedKey(adminConnection.sync(), key, original);
+                ownedKeys.remove(key);
             }
         } finally {
             runtime.shutdown();
@@ -147,10 +157,29 @@ class RedisRealAclIntegrationTest {
                 .withAuthentication(username, env(passwordName).toCharArray()).build();
     }
 
-    private RedisURI adminUri() {
+    RedisURI adminUri() {
         return RedisURI.Builder.redis(env("REDIS_ACL_HOST"), port())
                 .withAuthentication(env("REDIS_ACL_ADMIN_USERNAME"),
                         env("REDIS_ACL_ADMIN_PASSWORD").toCharArray()).build();
+    }
+
+    void seedOwnedKey(RedisCommands<String, String> commands, String key, String value) {
+        assertTrue(emptyDatabaseVerified, "database isolation must be verified before creating fixtures");
+        // SETNX 不覆盖碰撞键，只有已确认创建的键才归当前测试所有。
+        assertTrue(commands.setnx(key, value), "test fixture key already exists");
+        ownedKeys.put(key, value);
+    }
+
+    private void removeOwnedKey(RedisCommands<String, String> commands, String key, String value) {
+        // 原子核对值后删除，保留被其他参与者替换或测试异常改写的键供排查。
+        Long removed = commands.eval("""
+                local current = redis.call('GET', KEYS[1])
+                if not current then return 0 end
+                if current ~= ARGV[1] then return -1 end
+                return redis.call('DEL', KEYS[1])
+                """, ScriptOutputType.INTEGER, new String[]{key}, value);
+        assertTrue(removed != null && (removed == 0 || removed == 1),
+                "test fixture ownership changed; refusing cleanup");
     }
 
     private long adminDbSize() {

@@ -1,6 +1,7 @@
 package com.example.nav.module.datapackage.service;
 
 import com.example.nav.common.exception.BusinessException;
+import com.example.nav.common.util.ImageContentDecoder;
 
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
@@ -55,6 +56,7 @@ final class PortableImageInspector {
                         || (long) width * height > MAX_PIXELS) {
                     throw BusinessException.badRequest("背景图片尺寸超过允许范围");
                 }
+                ImageContentDecoder.requireCompletePixels(reader, width, height);
                 return new Inspection(mediaType, extension, width, height);
             } finally {
                 reader.dispose();

@@ -84,6 +84,13 @@ interface PortableImportJobStore {
             Issue error,
             Instant heartbeatAt
     ) {
+        StoredJob awaitingOutcome() {
+            // 租约只表示状态写入权，不能证明原数据库事务已经结束。
+            return new StoredJob(jobId, previewToken, userId, stage, createdAt, startedAt,
+                    null, "导入状态更新已中断，结果暂时无法确认；正在等待数据库提交结果，请勿重复导入",
+                    null, heartbeatAt);
+        }
+
         JobResponse response() {
             return new JobResponse(jobId, stage, createdAt, startedAt, finishedAt, message, error);
         }

@@ -7,6 +7,11 @@ export interface SearchEngineStorage {
   setItem(key: string, value: string): void
 }
 
+export function isSearchEngineTextIcon(value: string): boolean {
+  const icon = value.trim()
+  return Boolean(icon) && [...icon].length <= 3
+}
+
 export function searchEngineIconUrl(engine: SearchEngine): string {
   const icon = engine.icon?.trim() || ''
   return /^https?:\/\//i.test(icon) ? icon : ''
@@ -14,7 +19,7 @@ export function searchEngineIconUrl(engine: SearchEngine): string {
 
 export function searchEngineMark(engine: SearchEngine): string {
   const icon = engine.icon?.trim() || ''
-  if (icon && [...icon].length <= 3 && !searchEngineIconUrl(engine)) return icon
+  if (isSearchEngineTextIcon(icon)) return icon
   return [...engine.name.trim()][0]?.toUpperCase() || '搜'
 }
 

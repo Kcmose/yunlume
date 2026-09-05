@@ -1,7 +1,6 @@
 package com.example.nav.module.datapackage.service;
 
 import com.example.nav.common.exception.BusinessException;
-import com.example.nav.module.datapackage.model.PortablePackageModels.Issue;
 import com.example.nav.module.datapackage.model.PortablePackageModels.JobStage;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -12,7 +11,6 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -63,7 +61,7 @@ class RedisPortableImportJobStore implements PortableImportJobStore {
         if (value == null) return Optional.empty();
         StoredJob job = parse(value);
         if (isStale(job) && !ownsAnyFence(job.jobId(), redis.opsForValue().get(lockKey()))) {
-            return Optional.of(recoverInterrupted(value, job));
+            return Optional.of(job.awaitingOutcome());
         }
         return Optional.of(job);
     }
@@ -120,33 +118,6 @@ class RedisPortableImportJobStore implements PortableImportJobStore {
         return job.stage() != JobStage.COMPLETED
                 && job.stage() != JobStage.FAILED
                 && (job.heartbeatAt() == null || !job.heartbeatAt().plus(STALE_AFTER).isAfter(clock.instant()));
-    }
-
-    private StoredJob recoverInterrupted(String expectedJson, StoredJob job) {
-        Instant now = clock.instant();
-        StoredJob failed = new StoredJob(
-                job.jobId(),
-                job.previewToken(),
-                job.userId(),
-                JobStage.FAILED,
-                job.createdAt(),
-                job.startedAt(),
-                now,
-                "导入失败：服务实例中断，任务未能继续",
-                new Issue("IMPORT_INTERRUPTED", null, "导入服务实例中断，请确认当前数据后重新预检"),
-                now
-        );
-        Long changed = redis.execute(
-                RedisPortableImportScripts.RECOVER,
-                List.of(jobKey(job.jobId()), lockKey()),
-                expectedJson,
-                json(failed),
-                Long.toString(JOB_TTL.toMillis()),
-                job.jobId()
-        );
-        if (Long.valueOf(1L).equals(changed)) return failed;
-        String latest = redis.opsForValue().get(jobKey(job.jobId()));
-        return latest == null ? failed : parse(latest);
     }
 
     private String json(StoredJob job) {

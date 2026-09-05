@@ -97,7 +97,7 @@ public class PersistedDatabaseEnvironmentPostProcessor implements EnvironmentPos
         }
         copyRequired(properties, datasource, "spring.datasource.url");
         copyRequired(properties, datasource, "spring.datasource.username");
-        copyRequired(properties, datasource, "spring.datasource.password");
+        copyPassword(properties, datasource);
         copyRequired(properties, datasource, "spring.datasource.driver-class-name");
         String url = properties.getProperty("spring.datasource.url");
         if (!url.startsWith("jdbc:postgresql://")) {
@@ -251,6 +251,17 @@ public class PersistedDatabaseEnvironmentPostProcessor implements EnvironmentPos
             throw new IllegalStateException("Persisted database configuration is incomplete");
         }
         target.put(key, value);
+    }
+
+    private static void copyPassword(Properties source, Map<String, Object> target) {
+        String value = source.getProperty("spring.datasource.password");
+        // 与安装入口一致：密码是原始凭据，非空的空白字符也必须原样保留。
+        if (value == null || value.isEmpty() || value.length() > 1024
+                || value.codePoints().anyMatch(codePoint -> codePoint == 0
+                || codePoint == '\r' || codePoint == '\n')) {
+            throw new IllegalStateException("Persisted database password is invalid");
+        }
+        target.put("spring.datasource.password", value);
     }
 
     private static String firstNonBlank(String... candidates) {

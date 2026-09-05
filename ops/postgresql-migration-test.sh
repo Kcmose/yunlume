@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+umask 077
 
 readonly ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 [[ $# -eq 2 ]] || { printf 'Usage: %s <exact-backend.jar> <sha256>\n' "${0##*/}" >&2; exit 2; }
@@ -25,14 +26,117 @@ child_pids=()
 invocations=0
 cleanup_started=0
 
+resource_exists() {
+  local kind="$1" name="$2" listing
+  # 仅成功的完整枚举可以证明不存在；非零状态携带的 stdout 也不能采信。
+  case "${kind}" in
+    container) listing="$(docker container ls --all --format '{{json .Names}}')" || return 1 ;;
+    network) listing="$(docker network ls --format '{{json .Name}}')" || return 1 ;;
+    image) listing="$(docker image ls --format '{{json .Repository}}:{{json .Tag}}')" || return 1 ;;
+    *) return 1 ;;
+  esac
+  python3 -c '
+import json
+import sys
+try:
+    kind, expected = sys.argv[1:]
+    names = []
+    for line in sys.stdin.read().splitlines():
+        if not line:
+            continue
+        if kind == "image":
+            repository, end = json.JSONDecoder().raw_decode(line)
+            if line[end:end + 1] != ":":
+                raise ValueError("invalid image listing")
+            tag = json.loads(line[end + 1:])
+            if not all(isinstance(value, str) and value for value in (repository, tag)):
+                raise ValueError("invalid image reference")
+            name = repository + ":" + tag
+        else:
+            name = json.loads(line)
+        if not isinstance(name, str) or not name:
+            raise ValueError("invalid resource name")
+        names.append(name)
+except (ValueError, TypeError):
+    print("ERROR: invalid Docker resource listing", file=sys.stderr)
+    raise SystemExit(1)
+raise SystemExit(0 if expected in names else 44)
+' "${kind}" "${name}" <<<"${listing}"
+}
+
+remove_owned_resource() {
+  local kind="$1" name="$2" status metadata target format
+  if resource_exists "${kind}" "${name}"; then
+    :
+  else
+    status=$?
+    [[ "${status}" == 44 ]] && return 0
+    return 1
+  fi
+  case "${kind}" in
+    container) format='[{{json .Name}},{{json .Id}},{{json (index .Config.Labels "com.docker.compose.project")}}]' ;;
+    network) format='[{{json .Name}},{{json .Id}},{{json (index .Labels "com.docker.compose.project")}}]' ;;
+    image) format='[{{json .RepoTags}},{{json .Id}},{{json (index .Config.Labels "yunlume.migration-test.project")}}]' ;;
+    *) return 1 ;;
+  esac
+  metadata="$(docker "${kind}" inspect --format "${format}" "${name}")" || return 1
+  target="$(python3 -c '
+import json
+import re
+import sys
+try:
+    kind, expected, project = sys.argv[1:]
+    value = json.load(sys.stdin)
+    if not isinstance(value, list) or len(value) != 3:
+        raise ValueError("invalid inspection")
+    name, identifier, label = value
+    if kind == "container" and isinstance(name, str):
+        name = name.removeprefix("/")
+    if (name != ([expected] if kind == "image" else expected) or label != project
+            or not isinstance(identifier, str)
+            or not re.fullmatch(("sha256:" if kind == "image" else "") + "[0-9a-f]{64}", identifier)):
+        raise ValueError("resource identity or ownership differs")
+except (ValueError, TypeError):
+    print("ERROR: refusing unverified migration resource", file=sys.stderr)
+    raise SystemExit(1)
+print(identifier)
+' "${kind}" "${name}" "${PROJECT}" <<<"${metadata}")" || return 1
+  # 容器和网络按已验证的不可变 ID 删除；镜像禁止 force，拒绝额外 tag/引用。
+  case "${kind}" in
+    container) docker container rm -f "${target}" >/dev/null || return 1 ;;
+    network|image) docker "${kind}" rm "${target}" >/dev/null || return 1 ;;
+  esac
+  if resource_exists "${kind}" "${name}"; then
+    printf 'ERROR: migration resource remains after removal: %s %s\n' "${kind}" "${name}" >&2
+    return 1
+  else
+    status=$?
+    [[ "${status}" == 44 ]] || return 1
+  fi
+}
+
+record_cleanup_plan() {
+  {
+    printf 'project=%q\nimage=%q\nnetwork=%q\n' "${PROJECT}" "${IMAGE}" "${NETWORK}"
+    printf 'container=%q\n' "${PG}" "${containers[@]}"
+  } >"${TMP_DIR}/cleanup-resources.txt"
+}
+
+register_container() {
+  containers+=("$1")
+  record_cleanup_plan
+}
+
 cleanup() {
-  local status=$? pid residue=0
-  trap - EXIT INT TERM
+  local status=$? pid container residue=0
+  trap - EXIT
+  trap '' INT TERM
   set +e
   if (( cleanup_started != 0 )); then
     exit "${status}"
   fi
   cleanup_started=1
+  record_cleanup_plan || residue=1
   for pid in "${child_pids[@]:-}"; do
     [[ -n "${pid}" ]] || continue
     kill "${pid}" >/dev/null 2>&1 || true
@@ -41,28 +145,30 @@ cleanup() {
     [[ -n "${pid}" ]] || continue
     wait "${pid}" >/dev/null 2>&1 || true
   done
-  for container in "${containers[@]:-}"; do docker rm -f "${container}" >/dev/null 2>&1 || true; done
-  project_containers="$(docker ps -aq --filter "label=com.docker.compose.project=${PROJECT}" 2>/dev/null || true)"
-  [[ -z "${project_containers}" ]] || docker rm -f ${project_containers} >/dev/null 2>&1 || true
-  docker rm -f "${PG}" >/dev/null 2>&1 || true
-  docker network rm "${NETWORK}" >/dev/null 2>&1 || true
-  docker image rm -f "${IMAGE}" >/dev/null 2>&1 || true
-  rm -rf -- "${TMP_DIR}"
-  [[ -z "$(docker ps -aq --filter "label=com.docker.compose.project=${PROJECT}" 2>/dev/null || true)" ]] || residue=1
-  ! docker network inspect "${NETWORK}" >/dev/null 2>&1 || residue=1
-  ! docker image inspect "${IMAGE}" >/dev/null 2>&1 || residue=1
-  [[ ! -e "${TMP_DIR}" ]] || residue=1
+  # 不按标签批量删除：只处理本次运行登记过的精确名称，并逐项验证归属。
+  for container in "${containers[@]}" "${PG}"; do
+    remove_owned_resource container "${container}" || residue=1
+  done
+  remove_owned_resource network "${NETWORK}" || residue=1
+  remove_owned_resource image "${IMAGE}" || residue=1
   for pid in "${child_pids[@]:-}"; do
     [[ -z "${pid}" ]] || ! kill -0 "${pid}" >/dev/null 2>&1 || residue=1
   done
-  printf 'PostgreSQL migration cleanup: project=%s containers=0 network=absent image=absent temp=absent children=0 residue=%d.\n' \
-    "${PROJECT}" "${residue}"
+  if (( residue == 0 )); then
+    rm -rf -- "${TMP_DIR}" || residue=1
+    [[ ! -e "${TMP_DIR}" && ! -L "${TMP_DIR}" ]] || residue=1
+  fi
+  if (( residue == 0 )); then
+    printf 'PostgreSQL migration cleanup: project=%s containers=0 network=absent image=absent temp=absent children=0 residue=0.\n' "${PROJECT}"
+  else
+    printf 'PostgreSQL migration cleanup: project=%s incomplete; recovery=%s residue=1.\n' "${PROJECT}" "${TMP_DIR}" >&2
+  fi
   (( residue == 0 || status != 0 )) || status=1
   exit "${status}"
 }
 handle_signal() {
   local status="$1"
-  trap - INT TERM
+  trap '' INT TERM
   exit "${status}"
 }
 trap cleanup EXIT
@@ -78,7 +184,10 @@ cmp --silent \
   fail "canonical and classpath migrations differ"
 [[ "$(sha256sum "${ROOT_DIR}/database/migrations/${MIGRATION}" | cut -d' ' -f1)" == "${CHECKSUM}" ]] ||
   fail "canonical migration checksum differs from the pinned checksum"
-jar_entries="$(docker run --rm -v "${JAR}:/app.jar:ro" eclipse-temurin:17-jdk-jammy jar tf /app.jar)"
+register_container "${PROJECT}-jar-entries"
+jar_entries="$(docker run --rm --name "${PROJECT}-jar-entries" \
+  --label "com.docker.compose.project=${PROJECT}" \
+  -v "${JAR}:/app.jar:ro" eclipse-temurin:17-jdk-jammy jar tf /app.jar)"
 grep -Fxq "BOOT-INF/classes/database/migrations/${MIGRATION}" <<<"${jar_entries}" ||
   fail "migration is not packaged in the backend JAR"
 grep -Fq 'ENTRYPOINT ["java", "-jar", "/app/app.jar"]' "${ROOT_DIR}/nav-backend/Dockerfile" ||
@@ -114,7 +223,9 @@ cp -- "${JAR}" "${TMP_DIR}/image/app.jar"
 printf '%s\n' 'FROM eclipse-temurin:17-jre-jammy' 'WORKDIR /app' 'COPY app.jar app.jar' \
   'ENTRYPOINT ["java", "-jar", "/app/app.jar"]' >"${TMP_DIR}/image/Dockerfile"
 docker build -q --label "yunlume.migration-test.project=${PROJECT}" -t "${IMAGE}" "${TMP_DIR}/image" >/dev/null
-image_jar_sha="$(docker run --rm --entrypoint sha256sum "${IMAGE}" /app/app.jar | cut -d' ' -f1)"
+register_container "${PROJECT}-jar-sha"
+image_jar_sha="$(docker run --rm --name "${PROJECT}-jar-sha" \
+  --label "com.docker.compose.project=${PROJECT}" --entrypoint sha256sum "${IMAGE}" /app/app.jar | cut -d' ' -f1)"
 [[ "${image_jar_sha}" == "${INPUT_JAR_SHA}" ]] || fail "Docker image JAR differs from exact input JAR"
 docker network create --label "com.docker.compose.project=${PROJECT}" "${NETWORK}" >/dev/null
 docker run -d --rm --name "${PG}" --network "${NETWORK}" \
@@ -388,7 +499,7 @@ run_image_started() {
     mounts=(-v "${jar_mount}:/app/app.jar:ro")
     command=(java -jar /app/app.jar)
   fi
-  containers+=("${container}"); ((++invocations))
+  register_container "${container}"; ((++invocations))
   docker run -d --name "${container}" --network "${NETWORK}" \
     --label "com.docker.compose.project=${PROJECT}" "${mounts[@]}" \
     "${common_env[@]}" -e DB_URL="jdbc:postgresql://${PG}:5432/${database}" \
@@ -398,7 +509,7 @@ run_image_started() {
 run_image_failed() {
   local name="$1" database="$2" jar="$3" container
   container="$(container_name "${name}")"
-  containers+=("${container}"); ((++invocations))
+  register_container "${container}"; ((++invocations))
   docker run -d --name "${container}" --network "${NETWORK}" \
     --label "com.docker.compose.project=${PROJECT}" -v "${jar}:/app/app.jar:ro" \
     "${common_env[@]}" -e DB_URL="jdbc:postgresql://${PG}:5432/${database}" \
@@ -424,7 +535,7 @@ assert_applied() {
 prepare_v3 startup_gate
 start_external_lock_holder startup_gate migration-test-holder-startup-gate
 startup_gate_container="$(container_name startup-gate)"
-containers+=("${startup_gate_container}"); ((++invocations))
+register_container "${startup_gate_container}"; ((++invocations))
 docker run -d --name "${startup_gate_container}" --network "${NETWORK}" \
   --label "com.docker.compose.project=${PROJECT}" -p 127.0.0.1::18080 \
   -v "${JAR}:/app/app.jar:ro" "${common_env[@]}" -e SERVER_PORT=18080 \
@@ -444,7 +555,7 @@ start_external_lock_holder concurrent_v3 migration-test-holder-concurrent-v3
 for suffix in a b; do
   name="concurrent-${suffix}"
   container="$(container_name "${name}")"
-  containers+=("${container}"); ((++invocations))
+  register_container "${container}"; ((++invocations))
   docker run -d --name "${container}" --network "${NETWORK}" \
     --label "com.docker.compose.project=${PROJECT}" \
     -v "${JAR}:/app/app.jar:ro" "${common_env[@]}" \
@@ -618,7 +729,9 @@ mkdir -p "${TMP_DIR}/BOOT-INF/classes/database/migrations"
 printf '%s\n' '-- deliberately corrupted migration' > \
   "${TMP_DIR}/BOOT-INF/classes/database/migrations/${MIGRATION}"
 cp -- "${JAR}" "${TMP_DIR}/corrupt.jar"
-docker run --rm -v "${TMP_DIR}:/work" -w /work eclipse-temurin:17-jdk-jammy \
+register_container "${PROJECT}-corrupt-jar"
+docker run --rm --name "${PROJECT}-corrupt-jar" --label "com.docker.compose.project=${PROJECT}" \
+  -v "${TMP_DIR}:/work" -w /work eclipse-temurin:17-jdk-jammy \
   jar --update --file corrupt.jar -C . "BOOT-INF/classes/database/migrations/${MIGRATION}"
 prepare_v3 classpath_mismatch
 run_image_failed classpath-checksum-mismatch classpath_mismatch "${TMP_DIR}/corrupt.jar"
@@ -626,7 +739,7 @@ log_contains classpath-checksum-mismatch 'classpath migration checksum mismatch'
 [[ "$(psql_exec classpath_mismatch -Atc "SELECT count(*) FROM schema_migration WHERE filename='${MIGRATION}'")" == 0 ]]
 
 fresh_unconfigured_container="$(container_name fresh-unconfigured)"
-containers+=("${fresh_unconfigured_container}"); ((++invocations))
+register_container "${fresh_unconfigured_container}"; ((++invocations))
 docker run -d --name "${fresh_unconfigured_container}" --network "${NETWORK}" \
   --label "com.docker.compose.project=${PROJECT}" \
   -e SPRING_PROFILES_ACTIVE=prod -e NAV_DATABASE_SOURCE=UNCONFIGURED \

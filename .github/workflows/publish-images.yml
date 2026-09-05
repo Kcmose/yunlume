@@ -173,6 +173,7 @@ jobs:
           ops/version-transition-test.sh
           bash ops/ci-shell-syntax-test.sh
           bash ops/install-e2e-cleanup-test.sh
+          bash ops/postgresql-migration-signal-test.sh
           ops/mode-protection-test.sh
           ops/release-manifest-test.sh
           ops/release-version-test.sh
@@ -183,13 +184,13 @@ jobs:
           bash ops/release-failure-propagation-test.sh
           sudo bash ops/host-proxy-config-test.sh
           sudo bash ops/host-proxy-apply-test.sh
-          bash ops/install-first-retry-test.sh
-          ops/rollback-release-test.sh
+          sudo bash ops/install-first-retry-test.sh
+          sudo bash ops/rollback-release-test.sh
           ops/compatibility-epoch-rollback-test.sh
           sudo ops/operations-lock-test.sh
           for awk_bin in mawk gawk; do
             printf 'Testing installer with %s...\n' "${awk_bin}"
-            AWK_BIN="${awk_bin}" ops/install-runtime-config-test.sh
+            sudo env AWK_BIN="${awk_bin}" bash ops/install-runtime-config-test.sh
           done
 
   frontend-test:
@@ -257,6 +258,31 @@ jobs:
           --health-interval 2s
           --health-timeout 2s
           --health-retries 20
+      postgresql14:
+        image: postgres:14-bookworm
+        env:
+          # 仅用于本 job 的短期 service 初始化，不是部署凭据。
+          POSTGRES_PASSWORD: catalog-ci-service-only
+          POSTGRES_DB: yunlume_platform_test_pg14
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd "pg_isready -U postgres -d yunlume_platform_test_pg14"
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 30
+      postgresql18:
+        image: postgres:18-bookworm
+        env:
+          POSTGRES_PASSWORD: catalog-ci-service-only
+          POSTGRES_DB: yunlume_platform_test_pg18
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd "pg_isready -U postgres -d yunlume_platform_test_pg18"
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 30
     steps:
       - name: Check out source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -312,6 +338,51 @@ jobs:
           REDIS_CACHE_RECOVERY_HOST: 127.0.0.1
           REDIS_CACHE_RECOVERY_PORT: "6379"
         run: mvn --batch-mode --no-transfer-progress clean verify
+
+      - name: Verify PostgreSQL 14 and 18 catalog compatibility
+        working-directory: nav-backend
+        shell: bash
+        env:
+          PG14_CONTAINER: ${{ job.services.postgresql14.id }}
+          PG14_PORT: ${{ job.services.postgresql14.ports['5432'] }}
+          PG18_CONTAINER: ${{ job.services.postgresql18.id }}
+          PG18_PORT: ${{ job.services.postgresql18.ports['5432'] }}
+        run: |
+          set -euo pipefail
+          report=target/surefire-reports/TEST-com.example.nav.module.install.service.PostgresqlCatalogCompatibilityTest.xml
+          for major in 14 18; do
+            case "$major" in
+              14) container="$PG14_CONTAINER"; port="$PG14_PORT" ;;
+              18) container="$PG18_CONTAINER"; port="$PG18_PORT" ;;
+            esac
+            database="yunlume_platform_test_pg${major}"
+            role="yunlume_catalog_test_pg${major}"
+            test_password="$(openssl rand -hex 24)"
+            printf '::add-mask::%s\n' "$test_password"
+            version="$(docker exec "$container" psql -XAt -U postgres -d "$database" -c 'SHOW server_version_num')"
+            [[ "$version" =~ ^[0-9]+$ && "$((version / 10000))" -eq "$major" ]]
+            # 两个独立 service 内各建专用非超级用户，数据库/public 起始为空。
+            docker exec -i "$container" psql -X -U postgres -d "$database" --set ON_ERROR_STOP=1 \
+              --set role="$role" --set database="$database" --set password="$test_password" <<'SQL'
+          CREATE ROLE :"role" LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOINHERIT PASSWORD :'password';
+          ALTER DATABASE :"database" OWNER TO :"role";
+          REVOKE ALL ON SCHEMA public FROM PUBLIC;
+          GRANT ALL ON SCHEMA public TO :"role";
+          SQL
+            rm -f -- "$report"
+            POSTGRESQL_CATALOG_TEST_URL="jdbc:postgresql://127.0.0.1:${port}/${database}" \
+              POSTGRESQL_CATALOG_TEST_USERNAME="$role" POSTGRESQL_CATALOG_TEST_PASSWORD="$test_password" \
+              mvn --batch-mode --no-transfer-progress -Dtest=PostgresqlCatalogCompatibilityTest test
+            # 缺环境变量会安全 skip；CI 必须证明实际运行，不能把 skip 算作通过。
+            python3 - "$report" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+          suite = ET.parse(sys.argv[1]).getroot()
+          assert int(suite.attrib["tests"]) > 0, "catalog compatibility test did not run"
+          assert all(int(suite.attrib[name]) == 0 for name in ("failures", "errors", "skipped")), suite.attrib
+          PY
+            install -D -m 0644 "$report" "target/catalog-compatibility/pg${major}.xml"
+          done
 
       - name: Verify PostgreSQL migrations with this revision's packaged JAR
         id: backend-jar

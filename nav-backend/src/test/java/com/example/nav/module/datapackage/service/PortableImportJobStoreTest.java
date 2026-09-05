@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -115,20 +116,33 @@ class PortableImportJobStoreTest {
     }
 
     @Test
-    void staleNonTerminalJobIsAtomicallyChangedToFailedAfterAnInstanceDies() throws Exception {
+    void expiredLeaseDoesNotProveTheDatabaseTransactionFailed() throws Exception {
         Instant staleHeartbeat = NOW.minus(Duration.ofMinutes(3));
         PortableImportJobStore.StoredJob stale = runningJob("job-4", "preview-4", 10L, staleHeartbeat);
         when(values.get(RedisPortableImportJobStore.jobKey("job-4")))
                 .thenReturn(objectMapper.writeValueAsString(stale));
-        when(redis.execute(any(DefaultRedisScript.class), anyList(), any(), any(), any(), any()))
-                .thenReturn(1L);
-
         PortableImportJobStore.StoredJob recovered = store.findJob("job-4").orElseThrow();
 
-        assertEquals(JobStage.FAILED, recovered.stage());
-        assertEquals(NOW, recovered.finishedAt());
-        assertEquals("IMPORT_INTERRUPTED", recovered.error().code());
-        assertTrue(recovered.message().contains("服务实例中断"));
+        assertEquals(JobStage.WRITING, recovered.stage());
+        assertNull(recovered.finishedAt());
+        assertNull(recovered.error());
+        assertEquals(staleHeartbeat, recovered.heartbeatAt());
+        assertTrue(recovered.message().contains("结果暂时无法确认"));
+        verify(redis, never()).execute(any(DefaultRedisScript.class), anyList(), any(), any(), any(), any());
+    }
+
+    @Test
+    void releasedLocalLeaseDoesNotFabricateAFailureOrRenewTheJobTtl() {
+        var local = new InMemoryPortableImportJobStore(Clock.fixed(NOW, ZoneOffset.UTC));
+        var stale = runningJob("local-stale", "local-preview", 10L, NOW.minusSeconds(181));
+        var claim = local.claim(stale);
+        local.release(claim.lease());
+        var observed = local.findJob(stale.jobId()).orElseThrow();
+        assertEquals(JobStage.WRITING, observed.stage());
+        assertNull(observed.finishedAt());
+        assertNull(observed.error());
+        assertEquals(stale.heartbeatAt(), observed.heartbeatAt());
+        assertTrue(observed.message().contains("结果暂时无法确认"));
     }
 
     @Test

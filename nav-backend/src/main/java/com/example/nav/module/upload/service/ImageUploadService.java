@@ -1,6 +1,7 @@
 package com.example.nav.module.upload.service;
 
 import com.example.nav.common.exception.BusinessException;
+import com.example.nav.common.util.ImageContentDecoder;
 import com.example.nav.module.upload.config.UploadStorageProperties;
 import com.example.nav.module.upload.vo.ImageUploadVO;
 import org.springframework.http.HttpStatus;
@@ -106,6 +107,7 @@ public class ImageUploadService {
                         || (long) width * height > MAX_PIXELS) {
                     throw BusinessException.badRequest("图片尺寸过大，最长边不得超过 8000px 且总像素不得超过 2000 万");
                 }
+                ImageContentDecoder.requireCompletePixels(reader, width, height);
                 return new ImageMetadata(width, height);
             } finally {
                 reader.dispose();

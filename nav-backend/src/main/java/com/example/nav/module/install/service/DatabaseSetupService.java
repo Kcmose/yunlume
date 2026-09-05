@@ -1,5 +1,7 @@
 package com.example.nav.module.install.service;
 
+import com.example.nav.common.config.PostgresqlNotNullConstraints;
+
 import com.example.nav.common.config.DatabaseInstallProperties;
 import com.example.nav.common.exception.BusinessException;
 import com.example.nav.common.security.SecureTransportPolicy;
@@ -531,7 +533,7 @@ public class DatabaseSetupService {
                 SELECT c.conname
                 FROM pg_catalog.pg_constraint c
                 JOIN pg_catalog.pg_namespace n ON n.oid = c.connamespace
-                WHERE n.nspname = 'public'
+                WHERE n.nspname = 'public' AND c.contype <> 'n'
                 """);
         Set<String> triggers = queryNames(connection, """
                 SELECT t.tgname
@@ -544,6 +546,7 @@ public class DatabaseSetupService {
                 || !indexes.equals(CORE_INDEXES)
                 || !relations.equals(expectedRelations)
                 || !constraints.equals(CORE_CONSTRAINTS)
+                || !PostgresqlNotNullConstraints.matches(connection, CORE_TABLES)
                 || !triggers.equals(CORE_TRIGGERS)) {
             throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE,
                     "目标数据库结构、索引、约束或触发器与当前版本不完全一致");

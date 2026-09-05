@@ -1,6 +1,5 @@
 package com.example.nav.module.datapackage.service;
 
-import com.example.nav.module.datapackage.model.PortablePackageModels.Issue;
 import com.example.nav.module.datapackage.model.PortablePackageModels.JobStage;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
@@ -63,15 +62,7 @@ class InMemoryPortableImportJobStore implements PortableImportJobStore {
         if (entry == null) return Optional.empty();
         StoredJob job = entry.job();
         if (isStale(job) && (lease == null || !jobId.equals(lease.ownerId()))) {
-            Instant now = clock.instant();
-            job = new StoredJob(
-                    job.jobId(), job.previewToken(), job.userId(), JobStage.FAILED,
-                    job.createdAt(), job.startedAt(), now,
-                    "导入失败：服务实例中断，任务未能继续",
-                    new Issue("IMPORT_INTERRUPTED", null, "导入服务实例中断，请确认当前数据后重新预检"),
-                    now
-            );
-            jobs.put(jobId, new Entry(job, now.plus(JOB_TTL)));
+            job = job.awaitingOutcome();
         }
         return Optional.of(job);
     }

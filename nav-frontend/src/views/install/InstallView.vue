@@ -136,6 +136,8 @@ const configuringRedis = ref(false)
 const checking = ref(false)
 const submitting = ref(false)
 const submissionFinished = ref(false)
+let componentActive = true
+let completionGeneration = 0
 const environmentCheck = ref<InstallCheckResult | null>(null)
 const databaseTest = ref<InstallDatabaseTestSummary | null>(null)
 const databaseTicket = ref('')
@@ -1199,13 +1201,16 @@ function applyWizardEntry(latest: InstallStatus): boolean {
 
 async function refreshStatus(force = true) {
   const latest = await installStore.fetchStatus(force)
+  if (!componentActive || submissionFinished.value) return
   if (!latest || installStore.error) {
     scrubDatabaseAuthorization(true)
     scrubRedisAuthorization(true)
     return
   }
   if (latest?.state === 'COMPLETED') {
+    submissionFinished.value = true
     scrubSensitiveFields()
+    authStore.clearSession()
     await router.replace({ name: 'admin-login' })
     return
   }
@@ -1238,35 +1243,43 @@ async function checkEnvironment() {
 }
 
 async function completeInstallation() {
-  if (submitting.value || submissionFinished.value) return
-  if (!await validateFields(['confirmationAccepted'])) return
-
-  const latest = await installStore.fetchStatus(true)
-  if (latest?.state === 'COMPLETED') {
-    scrubSensitiveFields()
-    authStore.clearSession()
-    await router.replace({ name: 'admin-login' })
-    return
-  }
-  if (
-    !latest
-    || installStore.error
-    || latest.state !== 'REQUIRED'
-    || !latest.webInstallEnabled
-    || !latest.ready
-  ) {
-    scrubSensitiveFields()
-    environmentCheck.value = null
-    form.confirmationAccepted = false
-    if (latest) applyWizardEntry(latest)
-    else activeStep.value = 0
-    ElMessage.error('安装状态已变化或暂时无法确认，请重新检查环境')
-    return
-  }
-
+  if (!componentActive || submitting.value || submissionFinished.value) return
+  // 校验与状态查询也属于同一次提交；首个 await 前占用，避免连点重复写入。
   submitting.value = true
+  const generation = ++completionGeneration
+  const isCurrent = () => componentActive && generation === completionGeneration
+  const isPending = () => isCurrent() && !submissionFinished.value
+  let completedByThisRequest = false
   try {
+    if (!await validateFields(['confirmationAccepted']) || !isPending()) return
+
+    const latest = await installStore.fetchStatus(true)
+    if (!isPending()) return
+    if (latest?.state === 'COMPLETED') {
+      submissionFinished.value = true
+      scrubSensitiveFields()
+      authStore.clearSession()
+      await router.replace({ name: 'admin-login' })
+      return
+    }
+    if (
+      !latest
+      || installStore.error
+      || latest.state !== 'REQUIRED'
+      || !latest.webInstallEnabled
+      || !latest.ready
+    ) {
+      scrubSensitiveFields()
+      environmentCheck.value = null
+      form.confirmationAccepted = false
+      if (latest) applyWizardEntry(latest)
+      else activeStep.value = 0
+      ElMessage.error('安装状态已变化或暂时无法确认，请重新检查环境')
+      return
+    }
+
     const latestCheck = await checkInstallationApi()
+    if (!isPending()) return
     environmentCheck.value = latestCheck
     if (!latestCheck.ready) {
       scrubSensitiveFields()
@@ -1280,28 +1293,41 @@ async function completeInstallation() {
     await submitInstallCompletion(form, {
       submit: completeInstallationApi,
       finalizeLocalState: () => {
+        if (!isPending()) return
+        completedByThisRequest = true
         submissionFinished.value = true
         scrubSensitiveFields()
         environmentCheck.value = null
         form.confirmationAccepted = false
         installStore.markInstalled()
         authStore.clearSession()
+        ElMessage.success('安装完成，请使用新管理员账号登录')
       },
-      redirect: (route) => router.replace(route),
+      redirect: (route) => isCurrent() && completedByThisRequest
+        ? router.replace(route)
+        : Promise.resolve(),
     })
-    ElMessage.success('安装完成，请使用新管理员账号登录')
   } catch (error) {
+    if (!isPending()) return
     const statusCode = getHttpStatus(error)
     scrubSensitiveFields()
     form.confirmationAccepted = false
     if (statusCode === 409) {
-      await refreshStatus(true)
+      try {
+        await refreshStatus(true)
+      } catch (refreshError) {
+        if (isPending()) {
+          ElMessage.error(installRequestErrorMessage(refreshError, '无法确认安装状态，请稍后重试'))
+        }
+        return
+      }
+      if (!isPending()) return
     } else {
       activeStep.value = 4
     }
     ElMessage.error(installRequestErrorMessage(error, '安装失败，请检查配置后重试'))
   } finally {
-    submitting.value = false
+    if (generation === completionGeneration) submitting.value = false
   }
 }
 
@@ -1329,6 +1355,9 @@ onMounted(() => {
   void refreshStatus(false)
 })
 onBeforeUnmount(() => {
+  componentActive = false
+  completionGeneration += 1
+  submitting.value = false
   restartPollGeneration += 1
   scrubSensitiveFields()
   environmentCheck.value = null
