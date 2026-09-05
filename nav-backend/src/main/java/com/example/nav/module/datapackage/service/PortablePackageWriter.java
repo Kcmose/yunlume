@@ -19,6 +19,8 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.zip.Deflater;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -32,26 +34,47 @@ public class PortablePackageWriter {
             .withZone(ZoneOffset.UTC);
 
     private final PortableDataSnapshotService snapshotService;
+    private final PortableDataValidator dataValidator;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
     @Autowired
-    public PortablePackageWriter(PortableDataSnapshotService snapshotService, ObjectMapper objectMapper) {
-        this(snapshotService, objectMapper, Clock.systemUTC());
+    public PortablePackageWriter(
+            PortableDataSnapshotService snapshotService,
+            PortableDataValidator dataValidator,
+            ObjectMapper objectMapper
+    ) {
+        this(snapshotService, dataValidator, objectMapper, Clock.systemUTC());
     }
 
     PortablePackageWriter(
             PortableDataSnapshotService snapshotService,
+            PortableDataValidator dataValidator,
             ObjectMapper objectMapper,
             Clock clock
     ) {
         this.snapshotService = snapshotService;
+        this.dataValidator = dataValidator;
         this.objectMapper = objectMapper;
         this.clock = clock;
     }
 
     public ExportedPackage exportPackage() {
         Snapshot snapshot = snapshotService.capture();
+        PortableDataValidator.ValidationResult validation = dataValidator.validate(
+                snapshot.data(),
+                snapshot.assets().stream()
+                        .map(SnapshotAsset::descriptor)
+                        .collect(Collectors.toMap(
+                                PortablePackageModels.AssetDescriptor::key,
+                                Function.identity()
+                        ))
+        );
+        if (!validation.errors().isEmpty()) {
+            var first = validation.errors().get(0);
+            throw BusinessException.badRequest(
+                    "当前业务数据不满足备份恢复规则，无法导出：" + first.path() + " " + first.message());
+        }
         try {
             byte[] dataBytes = objectMapper.writeValueAsBytes(snapshot.data());
             ensureEntrySize("data.json", dataBytes.length);

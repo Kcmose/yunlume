@@ -26,8 +26,13 @@ export function buildSearchUrl(template: string, keyword: string): string {
   if (normalizedTemplate.includes('{keyword}')) {
     target = normalizedTemplate.split('{keyword}').join(encodedKeyword)
   } else {
-    const separator = normalizedTemplate.includes('?') ? '&' : '?'
-    target = `${normalizedTemplate}${separator}q=${encodedKeyword}`
+    try {
+      const url = new URL(normalizedTemplate)
+      url.searchParams.append('q', keyword.trim())
+      target = url.toString()
+    } catch {
+      return baiduSearchUrl(keyword)
+    }
   }
   return isSafeHttpUrl(target) ? target : baiduSearchUrl(keyword)
 }

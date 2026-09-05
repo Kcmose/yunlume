@@ -1,9 +1,10 @@
 package com.example.nav.module.bookmark.dto;
 
+import com.example.nav.common.validation.SafeUrl;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
+
 import jakarta.validation.constraints.Size;
 
 public record BookmarkCreateDTO(
@@ -16,7 +17,7 @@ public record BookmarkCreateDTO(
 
         @NotBlank(message = "书签地址不能为空")
         @Size(max = 500, message = "书签地址不能超过 500 个字符")
-        @Pattern(regexp = "(?i)^https?://[^\\s]+$", message = "书签地址必须是完整的 HTTP(S) 地址")
+        @SafeUrl(allowInternal = false, allowBlank = false, message = "书签地址必须是安全的完整 HTTP(S) 地址")
         String url,
 
         @Size(max = 255, message = "图标地址不能超过 255 个字符")

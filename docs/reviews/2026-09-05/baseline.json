@@ -1,0 +1,2921 @@
+[
+  {
+    "path": ".dockerignore",
+    "sha256": "af4b01da2ae80133810356e01039a878325842c37724f01aaf21d0225cd7ca04",
+    "bytes": 224,
+    "lines": 27,
+    "text": true
+  },
+  {
+    "path": ".env.example",
+    "sha256": "45dc6b3fe37047d16457242fa0cafac880d1a9352994961520722446a09bf196",
+    "bytes": 3443,
+    "lines": 77,
+    "text": true
+  },
+  {
+    "path": ".gitattributes",
+    "sha256": "101ea427b135bef4f69c3f4f50f5ed349952487d8ea510049e348c60c5849525",
+    "bytes": 237,
+    "lines": 9,
+    "text": true
+  },
+  {
+    "path": ".github/workflows/publish-images.yml",
+    "sha256": "a9d90c07a6ae2028ec91025d235684202e4d2d1c78975d36f2b8a698ae6a45b8",
+    "bytes": 102104,
+    "lines": 1954,
+    "text": true
+  },
+  {
+    "path": ".gitignore",
+    "sha256": "e72b8cc868745a7a1f0b2060b47a2ee272acd0feb1e288c4266740a6c91bfa4c",
+    "bytes": 1032,
+    "lines": 78,
+    "text": true
+  },
+  {
+    "path": "ACCEPTANCE.md",
+    "sha256": "bc14f73efa85c6f5f8d771f89d7a36cd5e9114273cd285aca058569edfb3f6f8",
+    "bytes": 4409,
+    "lines": 91,
+    "text": true
+  },
+  {
+    "path": "README.md",
+    "sha256": "f1b056596db20f209ba1146dd6d4ffff8dd7c61d2b869184083fc67a67de9f96",
+    "bytes": 49606,
+    "lines": 483,
+    "text": true
+  },
+  {
+    "path": "database/migrations/20260812_0001_postgresql_baseline.sql",
+    "sha256": "006e38274447656002de06d53f7d4154ba80984388dcb26d1223e636dfce91a6",
+    "bytes": 298,
+    "lines": 6,
+    "text": true
+  },
+  {
+    "path": "database/migrations/20260814_0002_web_install_state.sql",
+    "sha256": "7347e9e96d3c2347e1067624b786437f3b509e9d7e7614e773c6b1e067596d86",
+    "bytes": 369,
+    "lines": 13,
+    "text": true
+  },
+  {
+    "path": "database/migrations/20260815_0003_install_instance_identity.sql",
+    "sha256": "17df5851046d9a79eb24923b4760f8d0440b15a9a68d1609e2bffe2f1ce280fb",
+    "bytes": 467,
+    "lines": 16,
+    "text": true
+  },
+  {
+    "path": "database/migrations/20260904_0004_portable_import_operations.sql",
+    "sha256": "4de5e2df8c8f6780f6d1b25e16ee1dd99b7335c7b7475afb83c63f78cfa7ac63",
+    "bytes": 775,
+    "lines": 21,
+    "text": true
+  },
+  {
+    "path": "deploy/host/app.env.template",
+    "sha256": "975fbee2f4e3442c23539d357e466169289a960529534be68bc173e7c4cc38f7",
+    "bytes": 2147,
+    "lines": 61,
+    "text": true
+  },
+  {
+    "path": "deploy/host/yunlume-backend.service",
+    "sha256": "e02830a4cee49e026aa0e60bdf39abc59af8b89a7409c6e9aaab8043e25628be",
+    "bytes": 742,
+    "lines": 34,
+    "text": true
+  },
+  {
+    "path": "deploy/host/yunlume.nginx.conf",
+    "sha256": "739ea87b73a22f166521a943556ca7e235a4c1c0bf2e9d0adbaeb94b7b1da441",
+    "bytes": 11923,
+    "lines": 335,
+    "text": true
+  },
+  {
+    "path": "docker-compose.yml",
+    "sha256": "1d06d485aee800573996417633eaa426423215e03ec9592698987e2cc1c71717",
+    "bytes": 4897,
+    "lines": 126,
+    "text": true
+  },
+  {
+    "path": "install.sh",
+    "sha256": "240fb4cf2d44a70e3ec01a9f8c1e9daa7ac2a4c50387f4720975531d76a91a03",
+    "bytes": 56145,
+    "lines": 1471,
+    "text": true
+  },
+  {
+    "path": "jihua.md",
+    "sha256": "31d774893b348535be76942eccdc8db44a167d720de525c137ada0736982c275",
+    "bytes": 63069,
+    "lines": 1871,
+    "text": true
+  },
+  {
+    "path": "jihua2.md",
+    "sha256": "cd7c20b682d4bbe3f6e31d6eb070c772c75286b994a76d814c5ff1571ac975c6",
+    "bytes": 11788,
+    "lines": 334,
+    "text": true
+  },
+  {
+    "path": "nav-backend/.dockerignore",
+    "sha256": "2612620baf5d2d486f74a925948a2b88ddf58dd0ace74ae3fc4a86003dc35433",
+    "bytes": 177,
+    "lines": 23,
+    "text": true
+  },
+  {
+    "path": "nav-backend/.gitignore",
+    "sha256": "8ebde7d7fb6924a03e40336af7445d6709a8b128bb322e56c549f643c716c873",
+    "bytes": 36,
+    "lines": 5,
+    "text": true
+  },
+  {
+    "path": "nav-backend/Dockerfile",
+    "sha256": "1d1525a1acb84b9274113ac7a5f3d55cd2d12ba454402ae6b80c9fe792463141",
+    "bytes": 608,
+    "lines": 19,
+    "text": true
+  },
+  {
+    "path": "nav-backend/README.md",
+    "sha256": "50beaa86fe3228ca0992d8af4b1e8e2d4ff63f7422cc888c4f3c6cce3673a4a3",
+    "bytes": 21526,
+    "lines": 262,
+    "text": true
+  },
+  {
+    "path": "nav-backend/pom.xml",
+    "sha256": "b61e26faa7ee300774ec8f54085c301a99d03ef23624940d72855f6ecc70e706",
+    "bytes": 5276,
+    "lines": 139,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/NavApplication.java",
+    "sha256": "f3f7ab349cc44f9276a1122429d67add303a2a862f1d6b0f5d97958e04707b4b",
+    "bytes": 746,
+    "lines": 19,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/common/config/BootstrapProperties.java",
+    "sha256": "fc3b77968b30561f801f69646b44d0cea18caba916416a68161f590d1961c5fc",
+    "bytes": 1071,
+    "lines": 44,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/common/config/CorsConfig.java",
+    "sha256": "9c72a266a46477cb1709f679a8c882b706b411ee7ce7fb577cc4499ca5bd2aee",
+    "bytes": 1209,
+    "lines": 29,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/common/config/CorsProperties.java",
+    "sha256": "037b50c64c5792bb6a55ac8c5ae0830cf7dfde59c5747c997f692a9721734d7d",
+    "bytes": 598,
+    "lines": 23,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/common/config/DataInitializer.java",
+    "sha256": "f247f4140f611063b2e21e2d9b406478f4ed5cee1c5dd1ae023110a678f827ce",
+    "bytes": 12114,
+    "lines": 272,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/common/config/DatabaseInstallProperties.java",
+    "sha256": "7eb9da4c0cb609fb99dfddbe4843eea747a133bd797974dff93a02c4bab9047f",
+    "bytes": 2804,
+    "lines": 103,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/common/config/ExternalRedisProperties.java",
+    "sha256": "95d46c7c85c1b100987e6f1e44ea601f3b81ded17736753d76959c43a682e18d",
+    "bytes": 3973,
+    "lines": 134,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/common/config/JwtProperties.java",
+    "sha256": "9cf670c699f04d2fab425edf9bb4992d9d12d2ca8271cb9d34e05568e897b4b0",
+    "bytes": 916,
+    "lines": 32,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/common/config/OpenApiConfig.java",
+    "sha256": "0a27cffab652f79dafab04f1c70af5136f26bad08cda68c015c1ee8f18c095e9",
+    "bytes": 1004,
+    "lines": 28,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/common/config/PersistedDatabaseEnvironmentPostProcessor.java",
+    "sha256": "fc5def4c76d4fd7e4566ea247cad03ff41bf8ce0010a1cc31b7c3fb36bf6115e",
+    "bytes": 13959,
+    "lines": 263,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/common/config/PersistedRedisEnvironmentPostProcessor.java",
+    "sha256": "40aa4b33637dacd0c6c2423bc9cdf35a886e29bccf1f6ef4f20baa9c02a1acf9",
+    "bytes": 20111,
+    "lines": 399,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/common/config/PostgresqlMigrationInitializerDetector.java",
+    "sha256": "ef3d974e0720d8ec21051f455a4eeec960abeb46756109ab8ad64263d90c6cf6",
+    "bytes": 619,
+    "lines": 14,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/common/config/PostgresqlMigrationRunner.java",
+    "sha256": "e51a208c2a89383b62a5c80c0f9442a45656651edaea2885057bf60dbcf94ef7",
+    "bytes": 22771,
+    "lines": 376,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/common/config/ProductionRedisConfigurationValidator.java",
+    "sha256": "110d5049684bb93892ed018aa39a0bc38b22b188bd294dd9ee33ab18b081d360",
+    "bytes": 2477,
+    "lines": 55,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/common/config/RedisCacheTransactionConfiguration.java",
+    "sha256": "5b74828b921420314f62741ad2845b5101e9b441ab02b18962dc0469cd4427b8",
+    "bytes": 558,
+    "lines": 15,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/common/config/RedisConfigurationDigest.java",
+    "sha256": "03517f569cd23dcaa3e13a7650712ca7b63687052f6619f852eecb674782d6dd",
+    "bytes": 2634,
+    "lines": 76,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/common/config/RedisInstallProperties.java",
+    "sha256": "ba9cb524764feaff73cc1d27d9d42c64876390e2fe9c7ada571233caa2e7f8fc",
+    "bytes": 1725,
+    "lines": 67,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/common/config/WebInstallProperties.java",
+    "sha256": "e59da490a04da7cb1463d7d48e1fe0a44d373628fbd37ea5e518ed8de3d093a3",
+    "bytes": 394,
+    "lines": 17,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/common/dto/SortItemDTO.java",
+    "sha256": "d4b55dda2d4ab08e191228116237454a34c45d56b6fd134506a94873e75be5ef",
+    "bytes": 461,
+    "lines": 16,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/common/dto/VisibilityDTO.java",
+    "sha256": "61e7d921e318503e46f6cfe551af0016674cd203253d6a7013e7493427e60e8c",
+    "bytes": 195,
+    "lines": 9,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/common/exception/BusinessException.java",
+    "sha256": "28914e8117f3c47cf4e9e2384b13cd05452a00b4423235d1bb868af06bb3fc9f",
+    "bytes": 945,
+    "lines": 33,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/common/exception/GlobalExceptionHandler.java",
+    "sha256": "f367852b7a6ef8fbbc2aeab0e2a0f2684452ae5fbac044f1dfe973e2c06f9996",
+    "bytes": 3827,
+    "lines": 78,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/common/redis/RedisProductionLua.java",
+    "sha256": "5f3dc7fd2c9e5b865c7062998c5ad73ad0fb01a6fbcaa141aea8b17ca01d47da",
+    "bytes": 4710,
+    "lines": 114,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/common/result/Result.java",
+    "sha256": "124a66cc9f0fdb12ea3b3aa931a1c5ff9e2bcfa6593f9635bd7d1e014d11effe",
+    "bytes": 610,
+    "lines": 20,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/common/result/ResultCode.java",
+    "sha256": "52a47a153d04686da38bb0dc1475518282ac357574b64d1875bc4fd64c66e828",
+    "bytes": 562,
+    "lines": 22,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/common/security/PasswordPolicy.java",
+    "sha256": "d08cea1932c33ed983c405c646658cf91f8d00c244c13d1ebb5bd326e9abbfee",
+    "bytes": 2380,
+    "lines": 57,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/common/security/SecureTransportPolicy.java",
+    "sha256": "94258b7216f4df498ea2303ca781145aff38d69925601b3a2dc48ae726ddde70",
+    "bytes": 2121,
+    "lines": 53,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/common/validation/SafeUrl.java",
+    "sha256": "23690ab1093feb91b154bb7c8879e312a957b12966278c22accfe1b1b9606689",
+    "bytes": 827,
+    "lines": 27,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/common/validation/SafeUrlRules.java",
+    "sha256": "c4bb787909e608e0e44d091ac45fb99464c1a084af28941a6ce040444d78509b",
+    "bytes": 1560,
+    "lines": 43,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/common/validation/SafeUrlValidator.java",
+    "sha256": "37e00a6026b19a5774467d9604c24310181d3c7679d8bbafaf3e044cd037e407",
+    "bytes": 773,
+    "lines": 24,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/auth/controller/AuthController.java",
+    "sha256": "379ce11a6590176075f974b9b804a3bbbd5944c781098474c570490de526963c",
+    "bytes": 2579,
+    "lines": 68,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/auth/dto/ChangePasswordDTO.java",
+    "sha256": "dcfbafde5ebdbf19731fe1e743562a614b5ef613e18ff862acf73d4b396aaa0e",
+    "bytes": 172,
+    "lines": 8,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/auth/dto/LoginDTO.java",
+    "sha256": "b255d0d6187bef15776c17f906bf79636f30c37a19429bcb8069d7e018ebe51b",
+    "bytes": 461,
+    "lines": 15,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/auth/service/AuthService.java",
+    "sha256": "1e806b5733c444669f5b1a36157119f492a6ae9e5f1b5841c897798f34b67498",
+    "bytes": 475,
+    "lines": 17,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/auth/service/impl/AuthServiceImpl.java",
+    "sha256": "2f8544f5124caa4cb7f1b43a5ae7c84f40f3921676900ce156ae9f1eba4431ab",
+    "bytes": 5323,
+    "lines": 129,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/auth/vo/LoginVO.java",
+    "sha256": "cc1878dafe6381103b41af7c6fa17ec17a2a1ab2baa68629a93a53aa193dd5df",
+    "bytes": 209,
+    "lines": 11,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/bookmark/controller/BookmarkController.java",
+    "sha256": "549b9e151b1cefd605286e96e649eeceb72b36aa20093f67a89e42a19f6bb373",
+    "bytes": 3595,
+    "lines": 87,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/bookmark/dto/BookmarkBatchMoveDTO.java",
+    "sha256": "75a16f5a40b267cdb6a66e936af3c26a087c55ab1201ceffb297e93881e2cfc9",
+    "bytes": 696,
+    "lines": 19,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/bookmark/dto/BookmarkCreateDTO.java",
+    "sha256": "20607c39661e4bbf6f26da7ff0ecc4a8505c4458801f0ccd33ec5278511a977d",
+    "bytes": 1207,
+    "lines": 36,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/bookmark/dto/BookmarkUpdateDTO.java",
+    "sha256": "40133b858e0ffcc627a9a207d6a9c2b57574c34136e758b8178383dda43710c0",
+    "bytes": 1207,
+    "lines": 36,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/bookmark/entity/Bookmark.java",
+    "sha256": "d0686140faae502fd4a5efcea73db9ff4c76070162fd614b32fb740df5883410",
+    "bytes": 874,
+    "lines": 32,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/bookmark/mapper/BookmarkMapper.java",
+    "sha256": "d7d28457d17d4ff868fd6611f6da99fe740974f46590c78207c75fc31ac41d44",
+    "bytes": 1101,
+    "lines": 34,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/bookmark/service/BookmarkService.java",
+    "sha256": "f0857f2670f4d75c68d6e2f008ffef8fc7be3bd0a62daf8ef92cff3a2acce117",
+    "bytes": 883,
+    "lines": 30,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/bookmark/service/impl/BookmarkServiceImpl.java",
+    "sha256": "f07e5fa2c9217842020a208c540ae96fa9b462603929dd01752e52d5a15bfa7b",
+    "bytes": 13430,
+    "lines": 328,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/bookmark/vo/BookmarkVO.java",
+    "sha256": "9f5becf741a50480b810cc7d5f38f2ad9906bbbda56e558d06439a3efed7ceba",
+    "bytes": 469,
+    "lines": 20,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/category/controller/CategoryController.java",
+    "sha256": "544242898e8066442ac5546bd52a030413e2331c23a08835062168d5825d30d6",
+    "bytes": 3082,
+    "lines": 79,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/category/dto/CategoryCreateDTO.java",
+    "sha256": "4b48c824d31084937749366cb82076a3114be90b86429070e2dbc3d45474a737",
+    "bytes": 580,
+    "lines": 20,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/category/dto/CategoryUpdateDTO.java",
+    "sha256": "4913c2543c5775022ffa4fc2960d80f2cf030e9bf53b2a10301913b9e011042b",
+    "bytes": 580,
+    "lines": 20,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/category/entity/Category.java",
+    "sha256": "d379964bae9cb6cf95095053b211253420ddda843873b65d3e13d4151c037b31",
+    "bytes": 610,
+    "lines": 24,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/category/mapper/CategoryMapper.java",
+    "sha256": "44f5f810160dfcc76e46fdb0a2c17968e9771ab3d26cdcd16ba8f2346d0b5736",
+    "bytes": 686,
+    "lines": 22,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/category/service/CategoryService.java",
+    "sha256": "ea58ae6e512b7284921e6f17e3957117f4d37001310fcd7917c887af42081748",
+    "bytes": 656,
+    "lines": 25,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/category/service/impl/CategoryServiceImpl.java",
+    "sha256": "80d426ec59f72d5ab1a40b35142c00cf4c3640fc7f65db3f9eeee9882dc3972a",
+    "bytes": 8615,
+    "lines": 218,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/category/vo/CategoryVO.java",
+    "sha256": "a5b444b40fcd7fd06e9da35d3306906f059d6e136b9016d5f1399c11dfcfa215",
+    "bytes": 314,
+    "lines": 15,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/customlink/controller/CustomLinkController.java",
+    "sha256": "a46cc03ffd800585a23ff57e4c69969d2e71b03e3eea248488a03c1dd1132133",
+    "bytes": 2993,
+    "lines": 78,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/customlink/dto/CustomLinkDTO.java",
+    "sha256": "06251d685f7c4e6b1c1355d049e02355b406888e295a9084946d9d1f386195f9",
+    "bytes": 877,
+    "lines": 26,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/customlink/entity/CustomLink.java",
+    "sha256": "e8acf3719a7a876755a8193fbca1a406fcf3602266e9bd528ef261b059c92dec",
+    "bytes": 642,
+    "lines": 25,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/customlink/mapper/CustomLinkMapper.java",
+    "sha256": "3c87712af5c4e5118adb42743ac5d0fac7b8d06f49ff5c0f56070a8df26dcc92",
+    "bytes": 237,
+    "lines": 7,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/customlink/service/CustomLinkService.java",
+    "sha256": "b2842a53b153db73a7108a503d84d2c7ab9effd043834ee013a76c52911de691",
+    "bytes": 591,
+    "lines": 24,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/customlink/service/impl/CustomLinkServiceImpl.java",
+    "sha256": "8f78dfa42d08ece13103300fda5a57e0e4841e6d5fab10aa74406dbfcf1112db",
+    "bytes": 9645,
+    "lines": 253,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/customlink/vo/CustomLinkVO.java",
+    "sha256": "a7702c5b3b156faf4024f13d7ed4c23c2707332c7355914b7b583da85fdb16c4",
+    "bytes": 368,
+    "lines": 16,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/datapackage/controller/PortableDataPackageController.java",
+    "sha256": "8d35b630ef6f585d4e51e1d1f41e4855e6d3860b74bd6a7aba24ef7594f01a94",
+    "bytes": 5251,
+    "lines": 109,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/datapackage/model/PortablePackageModels.java",
+    "sha256": "3f5c8881a21147f45b30bd66fe99d2cdf649ae84605b9b860e5885c13fac1dca",
+    "bytes": 5231,
+    "lines": 206,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/datapackage/service/BookmarkMarkdownExportService.java",
+    "sha256": "866b075faf859abfe51fcc296f698d81dfe50f46cfc94eed14321ec7036ceeaa",
+    "bytes": 11045,
+    "lines": 240,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/datapackage/service/InMemoryPortableImportJobStore.java",
+    "sha256": "b26dd6bf7a8d1318fbaf8fb43d9be8662aa34fd7e333e32d4a3aa1e8cd6dee88",
+    "bytes": 5271,
+    "lines": 141,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/datapackage/service/PortableDataPackageService.java",
+    "sha256": "461321ef6c74d2df46a6aea24e7c8088fc0054bdcd6c04dc3f5d30341e5a4168",
+    "bytes": 29253,
+    "lines": 655,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/datapackage/service/PortableDataSnapshotService.java",
+    "sha256": "2097f12b6d0ff115d773c99e8ac891414792e3e44611d2b1b7fb1d724c107ee1",
+    "bytes": 14023,
+    "lines": 316,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/datapackage/service/PortableDataValidator.java",
+    "sha256": "0cb6f952df171e01c6a605a40b5ec1b47e9d424c8bdf514cb9673c76a7a9c74f",
+    "bytes": 20482,
+    "lines": 420,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/datapackage/service/PortableImageInspector.java",
+    "sha256": "f39828614a8d81fba996081d70bfcc6979b9d48fc96b81ad1ebbc429614b3dd1",
+    "bytes": 3693,
+    "lines": 90,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/datapackage/service/PortableImportCommitStore.java",
+    "sha256": "497b6c364c62ce8bf57d7b682bc96039a3b2c74828c71c2a7ab9144a0f33f4e6",
+    "bytes": 3943,
+    "lines": 100,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/datapackage/service/PortableImportJobStore.java",
+    "sha256": "fcda58822f8abab1f44e53aa3e9515430afef1000ebc6d165d157f859a3a4bb3",
+    "bytes": 2659,
+    "lines": 91,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/datapackage/service/PortableImportTransactionService.java",
+    "sha256": "9f11975187f41c4fa4dd1d7676e8a5de187a53e200c1625e91dd1617328ef3e7",
+    "bytes": 24963,
+    "lines": 463,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/datapackage/service/PortablePackageReader.java",
+    "sha256": "800303973de1e8810d7c4ae466b3fda71083e74d1adc359ddc28d392d8d504b7",
+    "bytes": 20543,
+    "lines": 447,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/datapackage/service/PortablePackageWriter.java",
+    "sha256": "09f991e92c1dc674dae63e9340bb15a6db003f16104a9830c637e923c0b7796d",
+    "bytes": 7155,
+    "lines": 163,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/datapackage/service/RedisPortableImportJobStore.java",
+    "sha256": "d8e0ad3c168d2f2e2b89cb6d5fb9dd12457303c394609903336c21bf7bf020e8",
+    "bytes": 7440,
+    "lines": 198,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/datapackage/service/RedisPortableImportScripts.java",
+    "sha256": "7154332de858cf750dfef73638bf8aec0a28f0cf10688de86a217af74ebf8434",
+    "bytes": 10339,
+    "lines": 195,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/health/controller/HealthController.java",
+    "sha256": "49be65f8ad8090abf26dcfaed6fab5b21ad0a1b9818347c0bbd384c75d2ee734",
+    "bytes": 8254,
+    "lines": 176,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/health/vo/HealthVO.java",
+    "sha256": "7e7a7fcf9aeb72983c6def12caa756f1a46ce716c57471aa592079f7c920b313",
+    "bytes": 147,
+    "lines": 6,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/controller/InstallController.java",
+    "sha256": "d374aff360b629fbd72cf3920aaeea1b006a2cbed03c0ac09d546ce9820bfea0",
+    "bytes": 4560,
+    "lines": 116,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/dto/DatabaseConfigureDTO.java",
+    "sha256": "3544780b780c197db419a64aa1de196d745db5f6e987b9d7f6da351a20d76d36",
+    "bytes": 406,
+    "lines": 13,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/dto/DatabaseConnectionDTO.java",
+    "sha256": "89adfe29c7584d4688a2fbfd134f388da394ad09e19cb67804cee142fc53def9",
+    "bytes": 1112,
+    "lines": 36,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/dto/InstallCompleteDTO.java",
+    "sha256": "4173d5b75a6e63f5279d3e0687c116a9ac3e1f6273039df8bb1e40bfbe621208",
+    "bytes": 1121,
+    "lines": 30,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/dto/RedisConfigureDTO.java",
+    "sha256": "4e7f03e1fb0015772a94792a6290a4712591fa894d6f4dd6916dcb3550f586b1",
+    "bytes": 362,
+    "lines": 11,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/dto/RedisConnectionDTO.java",
+    "sha256": "8e52fc19036be199c2451e5fd5db2f15da6246f6be7da1ecc16d3377b12cac7b",
+    "bytes": 1244,
+    "lines": 40,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/model/DatabaseConnectionSpec.java",
+    "sha256": "4dd2fee71da40b62edaf1566bacb0fe5e89fbe99d3852aefa45ee548580802c4",
+    "bytes": 823,
+    "lines": 27,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/model/DatabaseSchemaState.java",
+    "sha256": "34d7324315c8da24da84882f57e6de3535c04cfa7f5e195f347b8c3b055e4428",
+    "bytes": 137,
+    "lines": 7,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/model/DatabaseSslMode.java",
+    "sha256": "d5ad3a9243d1ed86a413a2efb93ce1bc5babec334c7b74049bec99c68c262268",
+    "bytes": 394,
+    "lines": 19,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/model/InstallCommand.java",
+    "sha256": "33da5b12bf1f8d390650d84b4d0d7e2b190dcce32fad55a2c5465e3ff80451c6",
+    "bytes": 622,
+    "lines": 20,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/model/RedisConnectionSpec.java",
+    "sha256": "f761e124d0b9967eeafd977fadfb5c067f43c1191a45150cf388d913d803f383",
+    "bytes": 974,
+    "lines": 30,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/model/RedisTlsMode.java",
+    "sha256": "f5cfbd3093290fb09c0a86cf822fddb5ce50c7091c8e27bb7cbf277017da8635",
+    "bytes": 116,
+    "lines": 7,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/service/DatabaseConfigurationStore.java",
+    "sha256": "a49a34d1c4337dccaf9f9db83a561a5d92710aed15d5bd8b44be2c29b472a12c",
+    "bytes": 19353,
+    "lines": 448,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/service/DatabaseConnectionTicketStore.java",
+    "sha256": "0980d4e40b2eb4e21e2ba6f2175e0168e2121dd1d6b673b69c62cf5a07aab2e0",
+    "bytes": 4510,
+    "lines": 122,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/service/DatabaseIdentityService.java",
+    "sha256": "3ca0e91290996846baac4c31d2d89bf0fa4b7a8b45d08b660016faf959761ec3",
+    "bytes": 3002,
+    "lines": 93,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/service/DatabaseSetupService.java",
+    "sha256": "6dcf6679295532fb79fae68e2f52048bf0c3cff2cb75bd9ad0508d13b1270849",
+    "bytes": 46753,
+    "lines": 923,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/service/InstallAccessService.java",
+    "sha256": "36676130e64febd39c8f7f0e4c8d86d3664467cdba1b1ee481c2ce6591c2b504",
+    "bytes": 655,
+    "lines": 22,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/service/InstallService.java",
+    "sha256": "87510c374940595fdaf434554c9010408dead95f04e3837188e6ede054a1ff9b",
+    "bytes": 26295,
+    "lines": 560,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/service/InstallTransactionService.java",
+    "sha256": "421ae5bab5c1af3c01ebb256aca286f45fc5f8d667857bf838b50f4d975f7334",
+    "bytes": 3896,
+    "lines": 87,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/service/RedisConfigurationStore.java",
+    "sha256": "247fe4f832e7b9fcadf2528304e334682c5eda4d2ce9dfa043619861b539c828",
+    "bytes": 24112,
+    "lines": 561,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/service/RedisConnectionTicketStore.java",
+    "sha256": "bf0b3b54f8d03119f9877094450e8c01e3a20abe9f70d3b4a9332d71a5b74b6f",
+    "bytes": 4459,
+    "lines": 125,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/service/RedisConnectionVerifier.java",
+    "sha256": "3a42e3ef35a999f571dda785807995142cd402b24fca44c8be18c143b74de7ff",
+    "bytes": 9064,
+    "lines": 207,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/service/RedisSetupService.java",
+    "sha256": "fbcaafefadcfa5c4c756b9c26e23cd5459d22587a2c6e83834592781d7bda480",
+    "bytes": 18778,
+    "lines": 376,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/vo/DatabaseConfigureVO.java",
+    "sha256": "92c8883ca7c36310ffd512512aa60f382c9d31964e2da77cdf62fe632fe28c70",
+    "bytes": 201,
+    "lines": 9,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/vo/DatabaseTestVO.java",
+    "sha256": "ae108e09b797c93a1f8d7a13304f5099d9b0c912467703e96bb1e17a4268fd3d",
+    "bytes": 254,
+    "lines": 12,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/vo/InstallCheckVO.java",
+    "sha256": "4d8a73022b0c273b3bc34b12b03e2b3beb7531462b00128b0f1565bf5ffb7213",
+    "bytes": 105,
+    "lines": 4,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/vo/InstallChecksVO.java",
+    "sha256": "bc2f8c5ea6697cc4299fa0d194788e6718e1c5d758dfcab10ef5ab1e044c0fa8",
+    "bytes": 240,
+    "lines": 10,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/vo/InstallCompleteVO.java",
+    "sha256": "f659727303aa7a9305f4911d4612171f533516ef0e5d09488191537cf8cc2612",
+    "bytes": 99,
+    "lines": 4,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/vo/InstallEnvironmentVO.java",
+    "sha256": "649d6816bbfad872120dfc1151ff70941ff00e78de847c9a783b090a3e12b0cb",
+    "bytes": 122,
+    "lines": 4,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/vo/InstallStatusVO.java",
+    "sha256": "695e7fcf5965b0b6bdd0bd1ef9e681b6b2d30a0a26b4a64608d17578ac1a6e66",
+    "bytes": 198,
+    "lines": 9,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/vo/RedisConfigureVO.java",
+    "sha256": "13b84a8ee202f65c64b29ff5f42efcf885e262953aead0737f284f27ba0a1dab",
+    "bytes": 142,
+    "lines": 7,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/install/vo/RedisTestVO.java",
+    "sha256": "e7a666b548dac4b07ead4882a22ae75616b42ae81058450695758eebc4ce0638",
+    "bytes": 183,
+    "lines": 10,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/publicdata/PublicDataCacheGenerationStore.java",
+    "sha256": "26c02de6a3f1a33122833589eb15735310756ba4b2b6fb5239307f0d5d5ecd1f",
+    "bytes": 3804,
+    "lines": 100,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/publicdata/PublicDataCacheInvalidator.java",
+    "sha256": "83793d074cc8a10255ab61befc5dc2d1587160f25f0a71263c11611f9d388313",
+    "bytes": 2407,
+    "lines": 62,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/publicdata/PublicDataCacheNames.java",
+    "sha256": "b3fe1fb6cb38017b107094183d488ca7f3c59bf648e1233df45cad3139fd3b57",
+    "bytes": 400,
+    "lines": 12,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/publicdata/PublicDataCacheVersion.java",
+    "sha256": "dd9488c5013d3cfc218479b82698fffc1dad4392d5dee7b152d50db86402368c",
+    "bytes": 5024,
+    "lines": 110,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/publicdata/controller/PublicController.java",
+    "sha256": "c36ddd58c122c92522b2b1c14f9cdd95dc3b921f3ea3dddcc7ee5235570e93d7",
+    "bytes": 1758,
+    "lines": 49,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/publicdata/service/PublicDataService.java",
+    "sha256": "5927b14424c4aee4c45fe27288ce9a4688cbb7a57f921b3462ff979e82cc2f31",
+    "bytes": 504,
+    "lines": 19,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/publicdata/service/impl/PublicDataServiceImpl.java",
+    "sha256": "09d928bd15c40ad6a91edae1726a0bb9a4d31ab2dd5fec2a0f19b1bb00839f2b",
+    "bytes": 3825,
+    "lines": 89,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/publicdata/vo/NavigationVO.java",
+    "sha256": "d1dc8937beb61dd3131c13bb86719f7703e85eafb646db7d6e2ba722ab5619d8",
+    "bytes": 359,
+    "lines": 16,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/search/controller/SearchEngineController.java",
+    "sha256": "a022e5f48f3a53f6be54d4c0a99a6487fa8ab0c51a2131621598f78befc95ee4",
+    "bytes": 3242,
+    "lines": 84,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/search/dto/SearchEngineDTO.java",
+    "sha256": "01d85306292a1a12788269d2ceeae71b449905d3e35de783640b45fe2ad9d5be",
+    "bytes": 1049,
+    "lines": 29,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/search/entity/SearchEngine.java",
+    "sha256": "64eced56f5fd2f25a048362fc86c1f9706af299ad82d005663cb60adb62e4162",
+    "bytes": 795,
+    "lines": 29,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/search/mapper/SearchEngineMapper.java",
+    "sha256": "cd994bdf2814b1d15205437329b501bfce7373ef8e80ebaeaaf36591fcb544da",
+    "bytes": 401,
+    "lines": 13,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/search/service/SearchEngineService.java",
+    "sha256": "7c7f0ddc6bf2af6d6d0755521266da209309a802f50b171887ce473ac9cd84cd",
+    "bytes": 642,
+    "lines": 26,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/search/service/impl/SearchEngineServiceImpl.java",
+    "sha256": "d931cdadd04e2da71b259e20827280254f61e745541480fdaff5302b4aeabf3d",
+    "bytes": 12129,
+    "lines": 296,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/search/vo/SearchEngineVO.java",
+    "sha256": "1f3f14d330af7f252e43e3118dc2a4784e8b3cebbac2704e14eff12ad81d8232",
+    "bytes": 324,
+    "lines": 15,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/site/controller/SiteConfigController.java",
+    "sha256": "77f4c153e2323ed38101dfdfd7a4b4f03d4cecadc207c2f576173ebc8300afa7",
+    "bytes": 1453,
+    "lines": 38,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/site/dto/SiteConfigUpdateDTO.java",
+    "sha256": "23717a34aef796965574a2d17319e04c75cbbd13794372a03d6ca02054875d63",
+    "bytes": 2031,
+    "lines": 54,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/site/entity/SiteConfig.java",
+    "sha256": "e41357208cc1b26effe498a953b8b223590343371a79b79e741bf30f2fd1642a",
+    "bytes": 1116,
+    "lines": 38,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/site/mapper/SiteConfigMapper.java",
+    "sha256": "34568cec12171a3d7f0aa412236197156e5a7f5c2477e6f7b8cfb08439541cd7",
+    "bytes": 2348,
+    "lines": 59,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/site/service/SiteConfigService.java",
+    "sha256": "29bbc472998d3aacc3fe09dac4464ba58e735ff5c97b0a03bbb622083770e021",
+    "bytes": 286,
+    "lines": 11,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/site/service/impl/SiteConfigServiceImpl.java",
+    "sha256": "d37ac16cd514958a9c7cfc8c93118153de27e4242f42a4b1bcc52265e3d04091",
+    "bytes": 6891,
+    "lines": 138,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/site/vo/SiteConfigVO.java",
+    "sha256": "16f632563bb506ba53ec03c8a18b73b24a3bbcfea57d917fd2aa56c3cd27659b",
+    "bytes": 697,
+    "lines": 26,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/upload/config/UploadSchedulingConfig.java",
+    "sha256": "202e8c8562d2115dce8f0d40c1bd8c78b12c224e529fe72a59f422468e591265",
+    "bytes": 249,
+    "lines": 9,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/upload/config/UploadStorageProperties.java",
+    "sha256": "6bc78bcd647fae0c2d9a31248b2f8f3b526e3dcbf4151029134cc9c4f8945610",
+    "bytes": 1774,
+    "lines": 74,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/upload/controller/ImageUploadController.java",
+    "sha256": "a1190ed57ad6e4ca5486125fc02c65bef63fbe61e6ed277d9dcc9b1b8db6d057",
+    "bytes": 1200,
+    "lines": 30,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/upload/service/BackgroundImageCleanupScheduler.java",
+    "sha256": "beb7228ab73332c127076869efc355dbc646df95d034305abbd7518d0154d0b1",
+    "bytes": 1497,
+    "lines": 39,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/upload/service/BackgroundImageStorageService.java",
+    "sha256": "0baea3f141a0354ebe3c96fcdfaf0aa52b51bb1d45fa9734c20ff291a4576041",
+    "bytes": 22461,
+    "lines": 527,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/upload/service/ImageUploadService.java",
+    "sha256": "4ca057172682179161ac3526b2645792cf3dd484fd7f17363a203d48f0c85ee7",
+    "bytes": 6290,
+    "lines": 167,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/upload/vo/ImageUploadVO.java",
+    "sha256": "f11fe718d23dc02249f34f46d5e4b2cacafcb94aacbdb1293e3fb9651354d539",
+    "bytes": 180,
+    "lines": 10,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/user/entity/User.java",
+    "sha256": "28f3ecc78ccd059ad37d13aa80a9eb69e4e1dc89dbc5c9cdd91b6f96d612f9e3",
+    "bytes": 689,
+    "lines": 27,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/user/mapper/UserMapper.java",
+    "sha256": "82906eb45392778b8dcaae19be2ff92d1585abf7e0a391d865778f186408ed0a",
+    "bytes": 1296,
+    "lines": 36,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/module/user/vo/UserVO.java",
+    "sha256": "c8fca280437c18c55f681c89ddb54bec0caefab66a1de84a7b79588c3f0b6db7",
+    "bytes": 179,
+    "lines": 10,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/security/DatabaseIdentityFilter.java",
+    "sha256": "9606de15ab0efc8ab92f4aa165d4e475d15dc1b89ae81ca2fa8861e3aba04156",
+    "bytes": 2920,
+    "lines": 69,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/security/JwtAuthenticationFilter.java",
+    "sha256": "3758cf48a59ba6b6d49bc4723e6450f91a907689b90abc48455d2e6489b119e8",
+    "bytes": 6192,
+    "lines": 130,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/security/JwtTokenService.java",
+    "sha256": "3bf7b148541966ea73211c0194d89bcfae27300504c3b67a34d6ea1c79d21a8a",
+    "bytes": 1914,
+    "lines": 55,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/security/RestAccessDeniedHandler.java",
+    "sha256": "4a9ce5d771631fc21072e4ddbe2d24161a00aebe9020e02f0c2536d9366a778b",
+    "bytes": 1295,
+    "lines": 33,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/security/RestAuthenticationEntryPoint.java",
+    "sha256": "487e0dd7188188cacdec2f41ac0044afa32a78048c3eaf8aeaec794fb34b1d31",
+    "bytes": 1318,
+    "lines": 33,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/java/com/example/nav/security/SecurityConfig.java",
+    "sha256": "63f9d01c276c7da9efbf8ec67d4b5aa6f45a8e8c2aa06df4d5667972bb447a17",
+    "bytes": 3328,
+    "lines": 65,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/resources/META-INF/spring.factories",
+    "sha256": "5aa151b81fa59d511d2bf841f8ef6c67fef7d540c570078c062995c6fc8f76c1",
+    "bytes": 344,
+    "lines": 6,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/resources/application-local.yml",
+    "sha256": "5724bfeb86ab25565f4e011e5e3b0a95cb9dc3c3690b0489bcfe78155790e113",
+    "bytes": 519,
+    "lines": 23,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/resources/application-prod.yml",
+    "sha256": "f1110831993c780488d4e6ddcd40f2e439c14c4e4c304d1466f931fb9e679f4a",
+    "bytes": 1789,
+    "lines": 60,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/resources/application.yml",
+    "sha256": "b2865147f2ce224469e921329ea22a94a4f869d64629b57a972ebcde33c4ec00",
+    "bytes": 3256,
+    "lines": 89,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/resources/database/migrations/20260904_0004_portable_import_operations.sql",
+    "sha256": "4de5e2df8c8f6780f6d1b25e16ee1dd99b7335c7b7475afb83c63f78cfa7ac63",
+    "bytes": 775,
+    "lines": 21,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/resources/schema-h2.sql",
+    "sha256": "df2a95c3203672f861e2e9be697e1b881bbb89ac731a7defb9b3f064b48cb057",
+    "bytes": 5707,
+    "lines": 144,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/main/resources/schema-postgresql.sql",
+    "sha256": "95cfba298e5aaa6f04df6b41748325c6bacd2736a48ed6be0ba7ac4db569828a",
+    "bytes": 10931,
+    "lines": 241,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/AuthIntegrationTest.java",
+    "sha256": "d4bf2af840e7e8b4b0e539a672c884cd9ac57a4a7cc8883e9efe539d9d9dc9fa",
+    "bytes": 13146,
+    "lines": 317,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/BookmarkMarkdownExportIntegrationTest.java",
+    "sha256": "94451088689630b3afd567dda9dd5cb85f16eff5674fec58230296d4fc833869",
+    "bytes": 9200,
+    "lines": 212,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/CategoryBookmarkIntegrationTest.java",
+    "sha256": "46ec90c65edae2c6ca26a9cc6e5ebd289585c7b79edeace111528e4e7dbd8452",
+    "bytes": 22986,
+    "lines": 456,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/CustomLinkIntegrationTest.java",
+    "sha256": "f1689218182a96efcc5b0e130d26701f057db1e8b47bab108a44e393f6879215",
+    "bytes": 15219,
+    "lines": 341,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/FreshProdRedisInstallerContextTest.java",
+    "sha256": "ac9bb2aa73c223373030bcda54c431dd2deafe0cf275c0bb4412710b29e719f6",
+    "bytes": 2326,
+    "lines": 50,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/HealthControllerIntegrationTest.java",
+    "sha256": "a70c441acf137ad9283276170c0833e5053b84088586654e5a6a2673dbb682a3",
+    "bytes": 1479,
+    "lines": 37,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/PortableDataPackageIntegrationTest.java",
+    "sha256": "101b72fb1126d66c6442d9f6fefb1d3f6f23ea8d0264c07124ff7575a0c48075",
+    "bytes": 30696,
+    "lines": 621,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/PostgreSqlCompatibilityIntegrationTest.java",
+    "sha256": "c1ba57b98dc1412f7b59c081e3b94e25b79ae09ce5064ba6af58d40ae1beaf0d",
+    "bytes": 5162,
+    "lines": 133,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/PublicNavigationIntegrationTest.java",
+    "sha256": "d7d03be3945cdf228a5a409d9974273bc5457c61c3baec06855c85fbacc24244",
+    "bytes": 2133,
+    "lines": 47,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/RestartedWebInstallStateIntegrationTest.java",
+    "sha256": "6cad605883b96405276d052c74fd6c866f0cc3c2247e2b9d9b75058985fe76db",
+    "bytes": 5803,
+    "lines": 120,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/SearchEngineIntegrationTest.java",
+    "sha256": "e5509a2ff3d969b3e95c9f5170b528f5608a2b693045e5392d361bc2ff8c173f",
+    "bytes": 13844,
+    "lines": 316,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/SiteConfigIntegrationTest.java",
+    "sha256": "2f453653b2f5aa9a66e52c39b3f2f4532dae0d84e7f03f0e420653b483339709",
+    "bytes": 8774,
+    "lines": 180,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/WebInstallIntegrationTest.java",
+    "sha256": "12027feaadbfd5a90d46926b1e18f26b474102f9965e1e26c632df871cfc9f40",
+    "bytes": 15749,
+    "lines": 342,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/common/config/DataInitializerTest.java",
+    "sha256": "8ec3b48bb9e5034f9542176ed6cc839f0a61c288d6340c01b17356bdfcec04d0",
+    "bytes": 7033,
+    "lines": 157,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/common/config/ExternalRedisPropertiesTest.java",
+    "sha256": "3aa3e310aec175955d0cbc331d63227211b452c521a22efed04df494a3e82be8",
+    "bytes": 2986,
+    "lines": 86,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/common/config/JwtPropertiesTest.java",
+    "sha256": "47ba29b42eb4741c897ba7cbbd2377fdf8836ba00ed36590d5899e09e9b48aa7",
+    "bytes": 1327,
+    "lines": 34,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/common/config/PersistedDatabaseEnvironmentPostProcessorTest.java",
+    "sha256": "d8755a06c55e5fea8384c8989adb48c4118ae70311fafc9bf27266a29c2e721c",
+    "bytes": 7621,
+    "lines": 143,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/common/config/PersistedRedisEnvironmentPostProcessorTest.java",
+    "sha256": "732abb789a1460bf2c85f82b8e83cc21855749d36f48079f3283d43a8ccaa7ce",
+    "bytes": 9438,
+    "lines": 193,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/common/config/PostgresqlMigrationRunnerTest.java",
+    "sha256": "d649e8fcb2bf1fa38bd99ace8326a069562b5f82044f168dcd6f4b0392fb5fac",
+    "bytes": 4089,
+    "lines": 93,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/common/config/ProductionRedisConfigurationValidatorTest.java",
+    "sha256": "6d8f1be991c462d92b9c697a578710633a8d1533aa325dacfdbe03843f1cb39a",
+    "bytes": 2539,
+    "lines": 55,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/common/config/RedisCacheTransactionConfigurationTest.java",
+    "sha256": "982387fe59a63f2d78966fcec392bf74ca7dcd451149055c902e0c0604db81c7",
+    "bytes": 765,
+    "lines": 22,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/common/security/SecureTransportPolicyTest.java",
+    "sha256": "bfe7200d9010988cd6802731f6e83a774056f6ea3aebbf436038130bcb27249d",
+    "bytes": 1632,
+    "lines": 44,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/common/validation/SafeUrlDtoValidationTest.java",
+    "sha256": "1dba47a8ea4a587dee027ff6abec144c9bbaf38954ad48853dbabcc5ed009dfc",
+    "bytes": 2044,
+    "lines": 54,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/common/validation/SafeUrlRulesTest.java",
+    "sha256": "4841216fff304b784f911fe2c36541f90b90b4992de9392f94b44683d47ffb9d",
+    "bytes": 918,
+    "lines": 23,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/category/service/impl/CategoryServiceImplTest.java",
+    "sha256": "9027e1723f380ff079d1ac324ee0dc5a03311088afb1062ea2dc3f3582f32a1e",
+    "bytes": 1957,
+    "lines": 47,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/datapackage/service/PortableDataPackageExpiryTest.java",
+    "sha256": "6b406d35632ffab871e5f17525aeb3f2170d977645f5baf8e5fe1d9384ede805",
+    "bytes": 3714,
+    "lines": 110,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/datapackage/service/PortableDataPackagePostCommitTruthTest.java",
+    "sha256": "d3333b6579a8b0e6a8972c6014461e2175f4cd10dbcf75bd582fe56883793f31",
+    "bytes": 6019,
+    "lines": 114,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/datapackage/service/PortableDataPackageRestartRecoveryTest.java",
+    "sha256": "913e8a12d4851cd41e9c0b29204558b1d9925dc342fd390e2190340907282386",
+    "bytes": 5983,
+    "lines": 138,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/datapackage/service/PortableImportCommitStoreTest.java",
+    "sha256": "b1f31834d0fad6847404224d04ffe7c61967a2db621dbd1fe2c55f76d11732ac",
+    "bytes": 4609,
+    "lines": 108,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/datapackage/service/PortableImportJobStoreProfileTest.java",
+    "sha256": "841391381f0f3b5d0b0dc65567b4aa79d6f4dd1bfd8a378a11bc8416c7fb9333",
+    "bytes": 1130,
+    "lines": 30,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/datapackage/service/PortableImportJobStoreTest.java",
+    "sha256": "7b6f551108eebf0c1bbb0846441eb6a6d268467982333b994e9663120898a0dc",
+    "bytes": 10228,
+    "lines": 233,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/health/controller/HealthControllerExternalRedisTest.java",
+    "sha256": "e5f6df4b45424aa11a81cd1a156b1930b046ac631c4a3673870baf882e967e4a",
+    "bytes": 6091,
+    "lines": 149,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/install/service/DatabaseConfigurationStoreTest.java",
+    "sha256": "7827715d332a6a801aef9997e3ef589f9da357cda1626e8668eb13fa8428a7a3",
+    "bytes": 4052,
+    "lines": 92,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/install/service/DatabaseConnectionTicketStoreTest.java",
+    "sha256": "498a970849ccb1af941d1d3f94c394bb2cccbec8eb365d4bba873640b71ee698",
+    "bytes": 4492,
+    "lines": 121,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/install/service/DatabaseSetupServiceGuardIntegrityTest.java",
+    "sha256": "fb526da3114c53b30b366c85a4fcda8720f90f77a70ed03c5c9f779ad06de3f4",
+    "bytes": 4930,
+    "lines": 93,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/install/service/DatabaseSetupServiceValidationTest.java",
+    "sha256": "6de8e21ff4325eb9592fce5c28dffb0dfa30e176f72932322f2eaa94fe904ab2",
+    "bytes": 3371,
+    "lines": 90,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/install/service/InstallAccessServiceTest.java",
+    "sha256": "9900660c36c7c0dd676615881eccf0057b9f6b44c0a3aececf104a20acc23bf5",
+    "bytes": 1119,
+    "lines": 32,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/install/service/InstallServiceTest.java",
+    "sha256": "ef916288092a7cc08842dc1da7bd64d7d9a15739c66f7346a79b713f139f9b41",
+    "bytes": 8294,
+    "lines": 189,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/install/service/InstallTransactionServiceIdentityTest.java",
+    "sha256": "1fb94cc43bf418faeff0f84c071df2e0e820fbe81ad75e8d8712be05f98a84fd",
+    "bytes": 3664,
+    "lines": 81,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/install/service/RealRedisTestGuard.java",
+    "sha256": "d63edf49a0e96b644007ac76fd00e2c7e3459153e63c1777ddda04d0f66ebb0b",
+    "bytes": 719,
+    "lines": 17,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/install/service/RedisAtomicProbeContractTest.java",
+    "sha256": "d6f14cf506e9d3d44f077789de1045beca7d9ab88480c53a8780295d0ca21211",
+    "bytes": 3372,
+    "lines": 70,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/install/service/RedisCiEnforcementContractTest.java",
+    "sha256": "789acb13e84bfcaa018f6bea5a5e1d0c61fb4b03ee2b99c4dc00b99db0051018",
+    "bytes": 1467,
+    "lines": 31,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/install/service/RedisConfigurationStoreTest.java",
+    "sha256": "fd8e3c20d0b7133350da7fab5cf239274141cbee1b94e4699e3f507e0e4d7672",
+    "bytes": 6275,
+    "lines": 142,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/install/service/RedisConnectionTicketStoreTest.java",
+    "sha256": "81e0eaeb2f1e0810b0b6fdef55f0c0efb7e349f951c9d740b705a94b75307e36",
+    "bytes": 3521,
+    "lines": 97,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/install/service/RedisConnectionVerifierTest.java",
+    "sha256": "06998f4d92b724c1dc8488e6fd76c663a893ae49330d0caa2a09fdde1a22ac4c",
+    "bytes": 3930,
+    "lines": 79,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/install/service/RedisRealAclIntegrationTest.java",
+    "sha256": "f57d0e2ada459e054311d95f67dbcec9cc50a5027f70a2799194b87fd208f70c",
+    "bytes": 7737,
+    "lines": 180,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/install/service/RedisRuntimeAclContractTest.java",
+    "sha256": "3c8694e4231afdf278d67fda09fcbc71946319eea7640b82ae503ca63dbad276",
+    "bytes": 3965,
+    "lines": 77,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/install/service/RedisSetupServiceValidationTest.java",
+    "sha256": "a540c0c107f9c9571489cae1cbcbc008edda6f1abc168ee38ed7447287b2bd98",
+    "bytes": 8244,
+    "lines": 184,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/publicdata/CacheMutationTransactionContractTest.java",
+    "sha256": "f6640aeed192d2d8acb1a893e1673e2b7aedc758415c18422e5d9600a507a7ef",
+    "bytes": 2244,
+    "lines": 41,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/publicdata/PublicDataCacheGenerationStoreTest.java",
+    "sha256": "a3e1bed685780ae779155b483d7b13aaad09dcfea0e5b05978487d5a4cd865be",
+    "bytes": 3731,
+    "lines": 71,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/publicdata/PublicDataCacheInvalidatorTest.java",
+    "sha256": "3bc1d372f6309ef143018bf8a7476a19ac6a5304ed46d46c389a62ed928d7421",
+    "bytes": 4730,
+    "lines": 99,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/publicdata/PublicDataCacheRecoveryIntegrationTest.java",
+    "sha256": "ef60481dd5c24c9ee355dd7da69a61a3c81a371c74535c447f02513b8c874d59",
+    "bytes": 8081,
+    "lines": 201,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/publicdata/PublicDataCacheVersionTest.java",
+    "sha256": "d58e176ba97f18dd8933b6129c57e076d478a448942c0a5ab50bbc915715e9ab",
+    "bytes": 6732,
+    "lines": 132,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/publicdata/PublicDataCacheVersionTransactionTest.java",
+    "sha256": "b1b605882f298dab56dd2d4714ac281d3476b470d0fff1b0fc1ba304c966aee7",
+    "bytes": 8355,
+    "lines": 158,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/publicdata/PublicDataCachingContractTest.java",
+    "sha256": "dd163d3f71125fe3e48d6aaebc17b139e6e67c49e797a4bf72259bdbed845ce7",
+    "bytes": 3393,
+    "lines": 70,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/publicdata/service/impl/PublicDataServiceImplTest.java",
+    "sha256": "2bc145cdda8493896e4ad92ce4615f599c5b6f765d3ce12c6abb1812547eda07",
+    "bytes": 2997,
+    "lines": 69,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/site/service/impl/SiteConfigServiceSingletonTest.java",
+    "sha256": "4fd7becb107e7f2a485c082c5a46e77f9b849bccc377614ba632e3c5b00c452b",
+    "bytes": 1072,
+    "lines": 27,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/upload/service/BackgroundImageStorageServiceTest.java",
+    "sha256": "09cbb0e098384095c2ecc456c1e54f182742a4a2079a933bf94aaea3810290ce",
+    "bytes": 11090,
+    "lines": 256,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/java/com/example/nav/module/upload/service/ImageUploadServiceTest.java",
+    "sha256": "d73ec1aa469f2c439a4b897cd33370daa8346aff3cf11d86f49209d09861a9c7",
+    "bytes": 3947,
+    "lines": 95,
+    "text": true
+  },
+  {
+    "path": "nav-backend/src/test/resources/application.properties",
+    "sha256": "9e60b145481a762d315306f7cbf08093495a048e9e0894f23523497265cb29fc",
+    "bytes": 23,
+    "lines": 1,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/.dockerignore",
+    "sha256": "a41b6e7fc180eb5486f886156388fbac2af9711fb4398bc19bceeb6f43f14229",
+    "bytes": 128,
+    "lines": 16,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/.gitignore",
+    "sha256": "d4eb4b2a58d28b9568507d05a125c520fa48604046472340d390f08861168095",
+    "bytes": 42,
+    "lines": 5,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/Dockerfile",
+    "sha256": "e5bc41c6f41671429ed4e6334f544cb9efc65f38e99f52d1661ae1d16671b525",
+    "bytes": 803,
+    "lines": 22,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/env.d.ts",
+    "sha256": "4f100c6c5aaed4cccc2f15701547670c4fa587e6ae8fa54e45785271a3201394",
+    "bytes": 203,
+    "lines": 10,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/index.html",
+    "sha256": "a27c66b818271417874393af87f08f19bbdd31d1b862b36e180bca77f878bc33",
+    "bytes": 477,
+    "lines": 14,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/nginx/05-validate-proxy-env.envsh",
+    "sha256": "d1bba3a90d2761d8f5a5827704463ff51ab94bacfcfaf9851a4326ce1f3cee60",
+    "bytes": 1546,
+    "lines": 49,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/nginx/nginx.conf.template",
+    "sha256": "248e46df75df93de066304827f0394d0230258cf99ebfed743080b9e3f843154",
+    "bytes": 16025,
+    "lines": 424,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/package-lock.json",
+    "sha256": "ad2ccef11da5e4e6110a60117d6e18685039c5f1fac4c15487f1ff5d040f228e",
+    "bytes": 95435,
+    "lines": 2811,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/package.json",
+    "sha256": "1b1f444aad7f767f641651b3ba8fc7265e948e70d44a1a9ac61c62dc5cb6668f",
+    "bytes": 696,
+    "lines": 30,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/App.vue",
+    "sha256": "0b8a4870148802a2a9b3037b443fb2cd1019b3b8855fc17cb656ae9ab8ac3838",
+    "bytes": 40,
+    "lines": 3,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/api/auth.api.test.ts",
+    "sha256": "14186d8d2b933ce6720bc016b0526c156e2430865d9591f7a5bafe2696508a80",
+    "bytes": 3475,
+    "lines": 92,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/api/auth.api.ts",
+    "sha256": "a018f2116e9f2f65f1e598e785bdcdd8eb908ce3b544aa5f5de64119c097774a",
+    "bytes": 1227,
+    "lines": 38,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/api/bookmark.api.ts",
+    "sha256": "b62cbe620c11160ab2999a178d72d393ca6edf32ea92db9fb40bd354b70c7570",
+    "bytes": 1439,
+    "lines": 40,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/api/category.api.ts",
+    "sha256": "decdc034848bdd404821886aeaddb50b6e514911fd501a9dc794d58a02ae7a00",
+    "bytes": 1137,
+    "lines": 27,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/api/data.api.test.ts",
+    "sha256": "dcf9592270c73a13cce23daca45e0dbbd6f6deeadd636f211cd38c697233e46a",
+    "bytes": 926,
+    "lines": 34,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/api/data.api.ts",
+    "sha256": "a45e83e2a7b8cd0c10416932007b7bc06cb00f1bdc26a3c8ef9a04e5c1bbcbde",
+    "bytes": 3065,
+    "lines": 92,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/api/install.api.test.ts",
+    "sha256": "10b2bcae057e0f15a6ef50590fca5805b9f6910f68a9150e62086f3fdd21c129",
+    "bytes": 5413,
+    "lines": 178,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/api/install.api.ts",
+    "sha256": "f0d8ea3233b2f0016e3c1a2dc5226237b775a0ec75e3f660a491c5b5cd2c3d4b",
+    "bytes": 2693,
+    "lines": 80,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/api/public.api.test.ts",
+    "sha256": "eda4051129bec9f60454e93dd9756a8d7bac97a5c42131f6cbb6c6bc0eedcf95",
+    "bytes": 909,
+    "lines": 34,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/api/public.api.ts",
+    "sha256": "8a4169d84cc7817088d3c91c80b4dd43d849d1a314386656f60a2fe8cfe19330",
+    "bytes": 695,
+    "lines": 16,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/api/request.ts",
+    "sha256": "5b40a2cc6dc84aa3c5dc4b5ecb21f7c926d331c2d648b4ec1325c9f5675f7ccb",
+    "bytes": 3363,
+    "lines": 104,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/api/searchEngine.api.ts",
+    "sha256": "f00199af4669df90de4409a7a9afb5773780ddd7cbd836b260f181793f155d41",
+    "bytes": 1471,
+    "lines": 44,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/api/site.api.ts",
+    "sha256": "eb269b94c486330eb76718e2cd47d1b27809f37f7c1e5408ffe5b9bdd1cc7675",
+    "bytes": 428,
+    "lines": 10,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/api/upload.api.test.ts",
+    "sha256": "d264ef6f26517c039bbf861a348afe13c80f1782991dbfe3c9d57ef6fe02c8b3",
+    "bytes": 971,
+    "lines": 30,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/api/upload.api.ts",
+    "sha256": "6e12c4bda258a19113fc6c557f9ec808ac48519b3d9bbe450fba1d3222623534",
+    "bytes": 644,
+    "lines": 25,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/components/admin/AdminHeader.vue",
+    "sha256": "60d932dbfa86a42946d630ab1a438c6a507d0f43b0698d1613dcb344be18712f",
+    "bytes": 2883,
+    "lines": 90,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/components/admin/AdminSidebar.vue",
+    "sha256": "a94b3fbdb2855d69f7d7dc91def13672ee5d80e085f1dd01d0af4b2cfd656dcc",
+    "bytes": 2349,
+    "lines": 78,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/components/admin/BackgroundImageField.test.ts",
+    "sha256": "3e452cb61fecc8e815fc98d8352cc9bbbcb9719b506d20ac3f7d0bfd76d8ff07",
+    "bytes": 1049,
+    "lines": 19,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/components/admin/BackgroundImageField.vue",
+    "sha256": "816047a0cd61bb33f7b4d5b675275a839e1404b9e2aa7bd7b61c20b4e897b4e0",
+    "bytes": 4434,
+    "lines": 144,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/components/admin/BookmarkFormDialog.vue",
+    "sha256": "a49f0e476faec78f8dc1873d6c4ef0c471a990b7046633d901a01cb80495cd40",
+    "bytes": 4685,
+    "lines": 124,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/components/admin/CategoryFormDialog.vue",
+    "sha256": "163112166de4b673eadb5c628554c83a83a3ecb5caa9f4528e05052d9fe26378",
+    "bytes": 2969,
+    "lines": 77,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/components/admin/DataExportPanel.vue",
+    "sha256": "ad17277bf5dc17f0c6173e4f489c9c5559e6cd1f2b034d571e08c9dfe3bca0f6",
+    "bytes": 2862,
+    "lines": 91,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/components/admin/DataImportPanel.test.ts",
+    "sha256": "968499e13e2cfc4805e41bc0ea6226a10875b1d4c3d88ad498aa7e4604588b77",
+    "bytes": 1443,
+    "lines": 29,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/components/admin/DataImportPanel.vue",
+    "sha256": "707d679f062f4c8239f38a8eb850ac7f93c82df8b875e5b8ef072ef13380d18b",
+    "bytes": 14558,
+    "lines": 433,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/components/admin/ImportPreviewDialog.vue",
+    "sha256": "e08a3b98ccb92a8adcfe35ddf088fd0ffd4845e690772e5b1adb0bc31a55eb60",
+    "bytes": 9026,
+    "lines": 218,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/components/admin/ImportProgressDialog.vue",
+    "sha256": "d46d9adee259495a54bd7b0debf71c1d3dfd3176460241c245f456fc668d4fe5",
+    "bytes": 3486,
+    "lines": 92,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/components/admin/MarkdownBookmarkBackupPanel.vue",
+    "sha256": "380bb952c2cf15886752bd8d2ecac182a1683deb27bc084a9199ba4d51d65375",
+    "bytes": 5722,
+    "lines": 164,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/components/admin/PageHeading.vue",
+    "sha256": "49c1d610b3ff6c00e0853f6d4984685d5549da7c76fc48a74c3190af26ef212a",
+    "bytes": 387,
+    "lines": 20,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/components/admin/SearchEngineDialog.vue",
+    "sha256": "b0a4e8905f4f71969613f90ddd00374d709a89d4080d2cb301a52c167c746bd8",
+    "bytes": 5534,
+    "lines": 178,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/components/admin/SortOrderDialog.vue",
+    "sha256": "f6b33b73e437ac6551f5e4870a5bf877efa7f8fe6d9f6682ebd8cf07e43c17a7",
+    "bytes": 4074,
+    "lines": 139,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/components/portal/BookmarkItem.vue",
+    "sha256": "3312edc81888f54f7773ec369580d845fcbb5bdf489aab9e0b4781a5c0ff234c",
+    "bytes": 1145,
+    "lines": 40,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/components/portal/CategoryCard.vue",
+    "sha256": "678d07a8557c2db5398781cec3b9d80cfe8d19fa5f145b119735c67a8075bd92",
+    "bytes": 1319,
+    "lines": 47,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/components/portal/CategoryGrid.vue",
+    "sha256": "f878d8e6837e827ec74c6fec206b6f6f8e4a68d360c7161549f465ba6a6f26c1",
+    "bytes": 1733,
+    "lines": 46,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/components/portal/SearchBar.vue",
+    "sha256": "c5526c8133e8a9a1d4e73f5cc8169005eb832e45879fdf02b1563e16cb6a37dd",
+    "bytes": 5578,
+    "lines": 173,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/components/portal/SiteHeader.vue",
+    "sha256": "e21a3ad4151fcdb0d07ecc16a6652c62aa39d001a750a450d3ffd77c786ca401",
+    "bytes": 291,
+    "lines": 13,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/components/portal/TopActionBar.vue",
+    "sha256": "abbd363d6ed619242dc1aaadce0a144300894ec3c082f3acaee4ef2a57221c35",
+    "bytes": 977,
+    "lines": 29,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/composables/useBookmarks.ts",
+    "sha256": "98164cf8a32763db6cebdae39fc97e7b30968e7f5186f890b42688cce6936366",
+    "bytes": 373,
+    "lines": 13,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/composables/useSearch.ts",
+    "sha256": "b42a00d73e0f44aa1264d326a71a41865bb042f03bc88bde4d5e15f0b7218e92",
+    "bytes": 950,
+    "lines": 27,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/composables/useSiteConfig.ts",
+    "sha256": "701b9d0bbecc91fb9a612d9acaffe9e6dc772fad8a68823b88bfca4a789981b0",
+    "bytes": 295,
+    "lines": 8,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/composables/useTheme.test.ts",
+    "sha256": "f43abba1b688996af70e5fe505d6362cb024376c7b364dadedb77a5783b9813c",
+    "bytes": 2793,
+    "lines": 85,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/composables/useTheme.ts",
+    "sha256": "ca8c4e8d310c1395a903cdc87557866f44f27e1fa3ab173ec0fae9310fa087ef",
+    "bytes": 1532,
+    "lines": 45,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/data/fallback.ts",
+    "sha256": "9465a2f77e277c4660127ab9b59561a8c4c2dcf96e7fa6b94bb22ee6414c604b",
+    "bytes": 8570,
+    "lines": 113,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/main.ts",
+    "sha256": "44beece7c33ba7ba325afcee36f584c8765676cce722ca69731dd94304725373",
+    "bytes": 613,
+    "lines": 19,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/router/admin.routes.ts",
+    "sha256": "9050fcf026c7700c16ffe0db1a1b48dd0bf9a292fe9e82b5507bd2c12ca317f6",
+    "bytes": 1314,
+    "lines": 25,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/router/index.ts",
+    "sha256": "4d0176eddab346bae4fbddc7d0a9d8cc395c10782b92916e856d35d9ae76f41d",
+    "bytes": 2204,
+    "lines": 66,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/router/install.routes.ts",
+    "sha256": "a0a7983e0845e76b547de8e9ee26a85a728e85fbc221fb14960c6f1f1a0ac21d",
+    "bytes": 217,
+    "lines": 9,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/router/portal.routes.ts",
+    "sha256": "d29c349710157a8c9c60fb21ea7950b92e889d60c8da6766582a22be3185d2b6",
+    "bytes": 211,
+    "lines": 9,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/stores/auth.store.test.ts",
+    "sha256": "5e681dac2b8e655745a8fb3a9e57be79c16b78c08b7c1c09f89d1ae90a838e0f",
+    "bytes": 13708,
+    "lines": 364,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/stores/auth.store.ts",
+    "sha256": "4e4904c6b24a14dc7c7ef341f897e8a19c371ac7581f0cabe416f86fc5f1b591",
+    "bytes": 6990,
+    "lines": 197,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/stores/install.store.test.ts",
+    "sha256": "3705b78b9613776764d7f9acdc4c145d03fafe13e351608394c8feb4485a21c4",
+    "bytes": 2532,
+    "lines": 84,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/stores/install.store.ts",
+    "sha256": "c36fd41c3862f1bdac940986bf7f2e46bc561c89657aa45d1d92c190f152b1ad",
+    "bytes": 1656,
+    "lines": 61,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/stores/navigation.store.test.ts",
+    "sha256": "b26d1747de0c8ab4501e9795020ca74b7ac9ae3589603c1280c2f4a0b17a28b1",
+    "bytes": 2752,
+    "lines": 94,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/stores/navigation.store.ts",
+    "sha256": "b9f87c08a60df9c1a7c2fb8abe3aae5a4eefce9a1fc16a6384366441d815f11d",
+    "bytes": 1688,
+    "lines": 46,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/stores/site.store.test.ts",
+    "sha256": "312eddb7769a4e115c7f4bee39cced89e47f07fc209f9a3c00e5cad903ce76e1",
+    "bytes": 2475,
+    "lines": 75,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/stores/site.store.ts",
+    "sha256": "ed3b150d5c92235ea3b2ca82a8f0b89026d8ebba324c370368d0a9c86f0951a0",
+    "bytes": 1389,
+    "lines": 39,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/styles/_common.scss",
+    "sha256": "ae9d0d73f4293e6d0e0595206515b7793717877e54d62d81eed403eeb128cf66",
+    "bytes": 708,
+    "lines": 33,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/styles/_reset.scss",
+    "sha256": "24bb500d4c0582c773d5f6b265d9aeacefe3221d4dae4601acffb14b05afe12f",
+    "bytes": 646,
+    "lines": 49,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/styles/_variables.scss",
+    "sha256": "9e9148c4c5b39edcdf63bc2d27ccde1fb74c3f7702eb49b72f92d652e5b9d619",
+    "bytes": 169,
+    "lines": 7,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/styles/admin/_account.scss",
+    "sha256": "754a02896a06a6a0e20aa4e2e2a4e41b8e9ec62fcad72cfc1a2cc67158075c0b",
+    "bytes": 4718,
+    "lines": 302,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/styles/admin/_dashboard.scss",
+    "sha256": "c77670206bcd455f666eb657b07319c49a97ba28a74622558a2f415ff85aac6d",
+    "bytes": 5586,
+    "lines": 365,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/styles/admin/_data.scss",
+    "sha256": "768945e0b5c0f55636d2f0c191ce2f79e816a00ebbe6a3b6bf010434850dc46e",
+    "bytes": 16954,
+    "lines": 1061,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/styles/admin/_forms.scss",
+    "sha256": "653f65c0b0f5a653452954a25342068efc9117529bc817c45d3f7c2f82c9cb72",
+    "bytes": 23013,
+    "lines": 1484,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/styles/admin/_install.scss",
+    "sha256": "63b9d03c9d7ca8e1e581612565acd40106202e1123084a52d0f967d6e6f2212e",
+    "bytes": 14214,
+    "lines": 880,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/styles/admin/_layout.scss",
+    "sha256": "8ccddee4052bbdb2b93bc0b427eab721ba6d7e0b32258a44602c1863542ece1d",
+    "bytes": 7787,
+    "lines": 483,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/styles/admin/_login.scss",
+    "sha256": "40ea7faecd1b4eb250514e88d6f11fe5a5cde79cacfc6e53606b270690419510",
+    "bytes": 4323,
+    "lines": 265,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/styles/admin/index.scss",
+    "sha256": "bd9eadec71161342fe3385bd743bb6edbb65dca20c562b5859ffe43a0af58368",
+    "bytes": 120,
+    "lines": 7,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/styles/categoryCardAlignment.test.ts",
+    "sha256": "e3197073e47f546bb957298b099591a8b89a1b69d9834317345eba477e0d90e0",
+    "bytes": 1055,
+    "lines": 24,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/styles/glassEffect.test.ts",
+    "sha256": "99b76f0469b3d5436c3d07c1b74a8a338c37d9843e7ca67531c09e6cdc09f55e",
+    "bytes": 3617,
+    "lines": 49,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/styles/importConfirmationLayout.test.ts",
+    "sha256": "c7cba99fd37f7d5ff9a0b2f2b1c13147a29d6dbb951aef1c8d1ceeee8522f756",
+    "bytes": 1004,
+    "lines": 25,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/styles/index.scss",
+    "sha256": "73a68c9e892865aa8ac7b500c891428898bd7bd2d10a63d2964082ec2ccdce5d",
+    "bytes": 97,
+    "lines": 4,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/styles/portal/_card.scss",
+    "sha256": "de5fa53fb8ca95635a51df5d5d7fb8986f5cd1d0ec40546d170d79e04fd591df",
+    "bytes": 3202,
+    "lines": 161,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/styles/portal/_layout.scss",
+    "sha256": "610c421b46e8126e271bf255cdea66407f0a2e90d6bc2d9464e2817109f079b0",
+    "bytes": 16235,
+    "lines": 675,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/styles/portal/index.scss",
+    "sha256": "e8f08b30a12aff19b9cde5e7bb1fc01b966d45d104438a1ea1abd9b2a4934902",
+    "bytes": 32,
+    "lines": 2,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/styles/typography.test.ts",
+    "sha256": "8a6235458845c3511866964fe598abf154fec82c0b7c6ba6d4569220f6fffb30",
+    "bytes": 2605,
+    "lines": 65,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/types/auth.ts",
+    "sha256": "4228d229a38bb5933705b1aaed270c96f5c58f2077660592b8ed427c2286e949",
+    "bytes": 416,
+    "lines": 25,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/types/bookmark.ts",
+    "sha256": "d2093cfb811ea1ac5d59128f5d6929c8a1c022ef0a540ba345d1f940d4036244",
+    "bytes": 382,
+    "lines": 18,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/types/category.ts",
+    "sha256": "c6e8adca9bb81b1764a04576e2ba4dcaaea2b82d4ebb565fb44ea84a4ff575b0",
+    "bytes": 446,
+    "lines": 19,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/types/common.ts",
+    "sha256": "8de5fb9c7f33b662e1e9f38cf4913f2a66da57afefdc4030860fb103132256d0",
+    "bytes": 293,
+    "lines": 19,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/types/dataTransfer.ts",
+    "sha256": "03f4121e7ffc52b53683da033b0af853ece9b098b515da3badc829658a15c3ed",
+    "bytes": 1691,
+    "lines": 86,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/types/install.ts",
+    "sha256": "4d6f4d636b0e574117a6f688a37db4f899d46573a24657cb49732f5b876e2a92",
+    "bytes": 2386,
+    "lines": 113,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/types/searchEngine.ts",
+    "sha256": "c602bc93427911dfe33d2334106aae09269bb8fddeb5389f558a657c3c7aa3bc",
+    "bytes": 495,
+    "lines": 26,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/types/site.ts",
+    "sha256": "3d4976a5c9e78a7c2bd1c6bf9e0e221d80031433fefd503c3f776eeb47827552",
+    "bytes": 571,
+    "lines": 24,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/adminNavigationManage.test.ts",
+    "sha256": "cb901efdff8541adfc9c4626f55a11e5dd3293c86deea8c02e145cfc8f6c162a",
+    "bytes": 2862,
+    "lines": 69,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/adminNavigationManage.ts",
+    "sha256": "fd1d6ba786f489a7e3f92fce3cd407058b0efe34f5bafe01571d093277ce7cbe",
+    "bytes": 2482,
+    "lines": 87,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/backgroundConfig.test.ts",
+    "sha256": "b5c0994ac9e6c6c83d6fb939408e9b48ffd14dddc80280bd1cada5d33b42026c",
+    "bytes": 1172,
+    "lines": 33,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/backgroundConfig.ts",
+    "sha256": "0aef511fa1589e833aceff62ca89c6232f2e86f062eee72ea3b49c89564025a1",
+    "bytes": 876,
+    "lines": 29,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/clipboard.test.ts",
+    "sha256": "26d7792a39485f2fad1a8a8bcb9bb43bd31b07862da1ad6cad87ac2573c8dd75",
+    "bytes": 1405,
+    "lines": 31,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/clipboard.ts",
+    "sha256": "1457f77652aa2150ee5169873e6d8b9d03dcdcb2f5f744f3e03a560bd0d6a894",
+    "bytes": 670,
+    "lines": 26,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/dashboardStats.test.ts",
+    "sha256": "a9018a07cb97a9bb5f3a2f3a97071d8d534f209b54fa712d627beec8e9cbf7d1",
+    "bytes": 1178,
+    "lines": 42,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/dashboardStats.ts",
+    "sha256": "0b2d86f1f1e240e7dd3be429759960512c9aadddf96b3ea028d9a8eeb794f747",
+    "bytes": 483,
+    "lines": 17,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/dataTransfer.test.ts",
+    "sha256": "312f4a8a38117c643c0e5031f7d30a49e9332a75df58206cfa3ff3897c07d296",
+    "bytes": 13329,
+    "lines": 320,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/dataTransfer.ts",
+    "sha256": "ba05b0e019d1065f35093c4abbcae5da82c158eb10a0df0fc33ca76ab1c56838",
+    "bytes": 12777,
+    "lines": 383,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/httpError.ts",
+    "sha256": "648c6aad10dae9259c6551c49e391b9246dbce675359d98f2883ea11c1cdac29",
+    "bytes": 622,
+    "lines": 17,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/installDatabase.test.ts",
+    "sha256": "93aa7202ec0973ad517f68cff00411232b002931967486681d2cae723499e5be",
+    "bytes": 3678,
+    "lines": 106,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/installDatabase.ts",
+    "sha256": "6bcbb941f5827ee328da646814d8577b3e4dc75a82162b762921ff2d1198af47",
+    "bytes": 3598,
+    "lines": 117,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/installKeyboard.test.ts",
+    "sha256": "a04f7381c838a09dfc5429467054584b45fff3967de293211f62ef203e5ab3c4",
+    "bytes": 754,
+    "lines": 20,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/installKeyboard.ts",
+    "sha256": "760c24a93f7acc48bd5c782463df78c6662473822318d14fd76b0b07d6641ade",
+    "bytes": 517,
+    "lines": 14,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/installPostgresProvisioning.test.ts",
+    "sha256": "adef4a9a25ef05d982eb1e555a239b289ff84fa02125029359b49aa0816b9ce4",
+    "bytes": 1475,
+    "lines": 30,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/installPostgresProvisioning.ts",
+    "sha256": "68001a4415174585c28110e0b22459cb562bff5933f37a315c648244a24984a1",
+    "bytes": 1622,
+    "lines": 39,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/installRedis.test.ts",
+    "sha256": "8d77613cf57554c05c8b60992253a05ab5c28a54db507f07d28834a19786a6f7",
+    "bytes": 4225,
+    "lines": 110,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/installRedis.ts",
+    "sha256": "5ed5068e366dd83afcb9cb3ededbd65f7b409c84e11cc64713a4af0f69245c32",
+    "bytes": 3037,
+    "lines": 91,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/installState.test.ts",
+    "sha256": "b26c4be0c44f2a82cd3857dbd06ed562e399ff27622974314d1295c63af9b014",
+    "bytes": 4483,
+    "lines": 123,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/installState.ts",
+    "sha256": "ab608efb45470547c7d3e302a780ede72d57471b6f46688a794f982d6ef0b572",
+    "bytes": 3155,
+    "lines": 99,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/installWizard.test.ts",
+    "sha256": "85fb5532adba928840d4cb64708dfeee33bdbbaa2c9574376921bf0cf7f58eab",
+    "bytes": 4324,
+    "lines": 139,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/installWizard.ts",
+    "sha256": "b6ee9e958fcce890850e83a6b26d384ccda775056a222c4fbc9e2f5948f23b8f",
+    "bytes": 3384,
+    "lines": 116,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/passwordPolicy.test.ts",
+    "sha256": "4ae8588264f10acf900edb521aeb2ed020d6f474b9d85b93fb85fa97027bedcd",
+    "bytes": 3490,
+    "lines": 90,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/passwordPolicy.ts",
+    "sha256": "5174fd98d80aa4f11aba13559362deda90b90776a2bcd1bf9d5a75f5fe7837ed",
+    "bytes": 2866,
+    "lines": 81,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/publicRequestRetry.test.ts",
+    "sha256": "238c9bb87ce08daf8d6b8724ac94850cc42e515bb36727d91c21099dc791c3f5",
+    "bytes": 2090,
+    "lines": 48,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/publicRequestRetry.ts",
+    "sha256": "3521961a8d14b876fc3179d005c961cb1e727d9c613e5891bbfc66cfb106d3b1",
+    "bytes": 1494,
+    "lines": 44,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/requestAuth.test.ts",
+    "sha256": "301780f5eed682898afef9cd7653699f35293ab73e6b51fbe81d3a3fb6a28da8",
+    "bytes": 1528,
+    "lines": 45,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/requestAuth.ts",
+    "sha256": "c7e7a858e8d68ba59c1b03ba5eb4476bd1ff8bff3c7e70ca0224056f02f57c44",
+    "bytes": 1363,
+    "lines": 38,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/search.test.ts",
+    "sha256": "8133130d5fb1c519c414b35a77d15e3e81395ad6c4ab71eae37af1877a7a2f3c",
+    "bytes": 735,
+    "lines": 19,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/search.ts",
+    "sha256": "d35135e6ca126b5d2d71275116042890186a7947369174a68b25ff764e80ca41",
+    "bytes": 1081,
+    "lines": 32,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/searchEnginePicker.test.ts",
+    "sha256": "8bcc6bcd6878ad6616dcb8c3ce095069c7ced0887d42ff7f6b93f7c5f548f54d",
+    "bytes": 2703,
+    "lines": 79,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/searchEnginePicker.ts",
+    "sha256": "e0699290fba0a780fe4a27e196f7817bc33da7b9c29b85bc3c4c15f148556f2f",
+    "bytes": 2013,
+    "lines": 69,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/sessionInvalidation.test.ts",
+    "sha256": "8b56753b9d82631aa8511251194b548369fbb6d4cff282bfe28b2729318ff68e",
+    "bytes": 895,
+    "lines": 29,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/sessionInvalidation.ts",
+    "sha256": "79b83cd38bd175133682a675ec1f7c79280de4e17d0e13d0346a957535834234",
+    "bytes": 1173,
+    "lines": 41,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/siteConfigState.test.ts",
+    "sha256": "af059a80404dbf10dfbe29f365d07d411151b270536b40440ef6454dd2da579a",
+    "bytes": 1741,
+    "lines": 53,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/siteConfigState.ts",
+    "sha256": "3f76944e39d22afe63e73db75aa870ed6e6c8f3fa8e466150d6f816e486a2ef7",
+    "bytes": 1679,
+    "lines": 53,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/staleChunkRecovery.test.ts",
+    "sha256": "c7bd602e466ff36b5544466d30ca86b58080a12ba45c426229af59b53cde8506",
+    "bytes": 2295,
+    "lines": 75,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/staleChunkRecovery.ts",
+    "sha256": "a31eb5a2c47915a843a652cd4f0cd42652afc8d7c337e35b1d9d4988166892cd",
+    "bytes": 1345,
+    "lines": 47,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/storage.test.ts",
+    "sha256": "8f24d3e71fe34026b404bb872a3c309364481fc9569d8ef808c765b282a8a066",
+    "bytes": 27864,
+    "lines": 656,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/storage.ts",
+    "sha256": "e712cc002811e548d88189d43416c8682df150fb40c803a15b5920c98e850d0e",
+    "bytes": 18830,
+    "lines": 520,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/url.test.ts",
+    "sha256": "b079a21a7ac7e1de9f7e27887f5d3d8e04bdc0bf29ae55a5a3656926841f8b19",
+    "bytes": 1631,
+    "lines": 50,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/url.ts",
+    "sha256": "c8433b018dc34cced49495ae1c36b28f51f103740f8b2771e7b596c1d8840cc8",
+    "bytes": 1224,
+    "lines": 38,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/visibilityMutation.test.ts",
+    "sha256": "43dbb8cfa4f2e4abc33cca3347336d176744820bd7bdb6a8b099b7e41afa91a8",
+    "bytes": 1760,
+    "lines": 47,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/utils/visibilityMutation.ts",
+    "sha256": "0da6076db9241d2cc2240b6aabc31d517ce431984fc43cd8536696c49a5a2015",
+    "bytes": 669,
+    "lines": 28,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/views/admin/AccountManageView.vue",
+    "sha256": "4504e97a8ef5153bc893a778be76669cd83fa505e7c6fec7e5c932b875decce8",
+    "bytes": 9179,
+    "lines": 238,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/views/admin/AdminLayout.vue",
+    "sha256": "0c91437ce895a427cd9bc6873daa3560b203bd8871d2089f0644be8af6279f5c",
+    "bytes": 6051,
+    "lines": 197,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/views/admin/BookmarkManageView.vue",
+    "sha256": "3b6c4c59e7c7716de4cc429443bd562f1354a6e985180a3e95e9554a717b3fc6",
+    "bytes": 19017,
+    "lines": 458,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/views/admin/CategoryManageView.vue",
+    "sha256": "847e7ce3a511284567caa854091bb5bc1d7670aaf1fe76e2abe5873f3823907b",
+    "bytes": 9001,
+    "lines": 211,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/views/admin/DashboardView.vue",
+    "sha256": "542672bfb5cdb574c7477ce7c40f0cbd73af43595dc90d9ef8fdf8bbb05a0812",
+    "bytes": 7738,
+    "lines": 210,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/views/admin/DataManageView.vue",
+    "sha256": "0c4a422c0953408e71c113fc482c19076808c4e54f3bf4e94c91e4e9c3f65983",
+    "bytes": 755,
+    "lines": 21,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/views/admin/LoginView.vue",
+    "sha256": "b1e13ecf84c82c71ade12f0e02bd7dcac1f528f46b59f60e9bb91a231e87ba82",
+    "bytes": 3767,
+    "lines": 85,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/views/admin/SearchEngineManageView.vue",
+    "sha256": "66be72847c92dd9c0bac6295878dc560b23826050123ed604ee89f326f522fe5",
+    "bytes": 12594,
+    "lines": 371,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/views/admin/SiteConfigView.vue",
+    "sha256": "fc3a3b1445cb1ce5144085142dece8c0fb267545b83627e594d5c228844e4cad",
+    "bytes": 14794,
+    "lines": 372,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/views/install/InstallView.vue",
+    "sha256": "39c76bbb9b52b2512c6c72b04749435a9dfa8a2fa9e7441aee83dab566b82bc0",
+    "bytes": 78198,
+    "lines": 2131,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/views/portal/PortalHome.test.ts",
+    "sha256": "af69785bf5ea0fd28381639804f043233dd8885f4f01b77d22d455cd4d85033c",
+    "bytes": 1595,
+    "lines": 27,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/src/views/portal/PortalHome.vue",
+    "sha256": "cb7960f7ff19b14577fcb4bbb3bbc64b7ed2723a2913c4e7ce8398ffadb99228",
+    "bytes": 6956,
+    "lines": 210,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/tsconfig.app.json",
+    "sha256": "ebe8b2120c86aeb1bbd80b8a1e1b90c9e272ff28fe22016f1c3009ff27b730c9",
+    "bytes": 721,
+    "lines": 26,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/tsconfig.json",
+    "sha256": "770b4140bbb581e2dfd9ea9946ffc9c75a1d86ba7d2db5f77c83e37cbdf9d808",
+    "bytes": 119,
+    "lines": 7,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/tsconfig.node.json",
+    "sha256": "8884bf0072d8006913b5e940ce047093fce7a754321f4bc2f236e8d27daaeb63",
+    "bytes": 496,
+    "lines": 19,
+    "text": true
+  },
+  {
+    "path": "nav-frontend/vite.config.ts",
+    "sha256": "b41d76cd2965d0dd03bb5fa0598eff243bf185985875ba74d26b09a4a0c39bbb",
+    "bytes": 503,
+    "lines": 25,
+    "text": true
+  },
+  {
+    "path": "ops/RELEASE-TRUST-MODEL.md",
+    "sha256": "4fa591173c04722e255d322d3a089708b44b412203b6fba17ab8917774f3b672",
+    "bytes": 8288,
+    "lines": 112,
+    "text": true
+  },
+  {
+    "path": "ops/backend-release.Dockerfile",
+    "sha256": "5d1ada5edba025f11a50058c03c8738f1132f3158ec779b5214b2e76dd338f76",
+    "bytes": 406,
+    "lines": 12,
+    "text": true
+  },
+  {
+    "path": "ops/check-immutable-releases-policy.sh",
+    "sha256": "70a2f3661c7065cb628779647218e1d2a20b200aa3ac5ecdeebadf20a654fbb1",
+    "bytes": 2328,
+    "lines": 49,
+    "text": true
+  },
+  {
+    "path": "ops/compatibility-epoch-rollback-test.sh",
+    "sha256": "added1b5e82594700c034fedc451c527e3df46c63e10b01be5767ae59181bf9a",
+    "bytes": 3353,
+    "lines": 91,
+    "text": true
+  },
+  {
+    "path": "ops/create-release-manifest.py",
+    "sha256": "d14ae502239cd597b94259fc8742f823d1f92071caf3f59b2495c624135cdb5c",
+    "bytes": 2200,
+    "lines": 70,
+    "text": true
+  },
+  {
+    "path": "ops/immutable-release-policy-test.sh",
+    "sha256": "0cc3b5cdace584e37ab5d3a83030a63321c89d2f5f74e5cb10d7389e69c19c7f",
+    "bytes": 2939,
+    "lines": 63,
+    "text": true
+  },
+  {
+    "path": "ops/install-e2e.sh",
+    "sha256": "d989f8f7c35712bc9b6c162e22e9f0ddad9e98927e8f8eb7cbfb53800cd28890",
+    "bytes": 42249,
+    "lines": 1140,
+    "text": true
+  },
+  {
+    "path": "ops/install-pinned-gh.sh",
+    "sha256": "5dd82a57c6ae8c785e3a53cb0aec9fbb78c60f5ef475149dd7bd74071b5d8349",
+    "bytes": 1219,
+    "lines": 34,
+    "text": true
+  },
+  {
+    "path": "ops/install-release-url-test.sh",
+    "sha256": "c78cf188936c485adf1f59ba5a87f7478aaeb139d708c4e22bed008677f1a793",
+    "bytes": 4137,
+    "lines": 122,
+    "text": true
+  },
+  {
+    "path": "ops/install-runtime-config-test.sh",
+    "sha256": "6c00264cd76ec09716a421153701c1d24c3ab91336bbecca646d8cbe77989306",
+    "bytes": 8654,
+    "lines": 250,
+    "text": true
+  },
+  {
+    "path": "ops/lib/common.sh",
+    "sha256": "0ac2b4003014e8d20b233029ef115bc905925220721fded173d5759d48c0cb3e",
+    "bytes": 2576,
+    "lines": 79,
+    "text": true
+  },
+  {
+    "path": "ops/lib/release-transaction.sh",
+    "sha256": "6677d523703a01df6562528f879e2767cd6d39090f1dcebd1ea513aa39e1f1d1",
+    "bytes": 19474,
+    "lines": 445,
+    "text": true
+  },
+  {
+    "path": "ops/migrate-docker-volumes.sh",
+    "sha256": "0180a3e9fbdb00ac99fcd78e0ac6ce630549c479a518afc1eaf62ee567ae54f6",
+    "bytes": 12959,
+    "lines": 351,
+    "text": true
+  },
+  {
+    "path": "ops/mode-protection-test.sh",
+    "sha256": "3f71fde2191b691956ff4e41c007c5099fb0e6dd20e4d287ab940075471d9dd9",
+    "bytes": 2548,
+    "lines": 69,
+    "text": true
+  },
+  {
+    "path": "ops/operations-lock-test.sh",
+    "sha256": "f32867214699eb16c5de8380fbfa93c4b35b0b9ef2bd86cec0f3e34a34acb731",
+    "bytes": 4492,
+    "lines": 129,
+    "text": true
+  },
+  {
+    "path": "ops/package-host-release.sh",
+    "sha256": "ad0e2e717db4505f90853633f45b7ce4de72aba18722c5a00ab524ebd368d1dc",
+    "bytes": 6787,
+    "lines": 201,
+    "text": true
+  },
+  {
+    "path": "ops/postgresql-migration-signal-test.sh",
+    "sha256": "bc7d7221ee4de514607a7b64ec6420a67b3deb9897c4ca94c55989f91996f229",
+    "bytes": 3044,
+    "lines": 81,
+    "text": true
+  },
+  {
+    "path": "ops/postgresql-migration-test.sh",
+    "sha256": "76bc129c6cc66ebe36439ce1e9f7917be6eae68fe9864e57d8097800b0ecfb24",
+    "bytes": 41170,
+    "lines": 643,
+    "text": true
+  },
+  {
+    "path": "ops/publish-workflow-test.sh",
+    "sha256": "30fe098176a8efa9d4b93a13b74925a4ca4960ebf0ea9a2c6c5ff223dae9f7c9",
+    "bytes": 20871,
+    "lines": 372,
+    "text": true
+  },
+  {
+    "path": "ops/release-manifest-test.sh",
+    "sha256": "b91c16b94b5e005ec38d0667ae9dee375e22e18e73aa75c1baeb77bec9a1d47b",
+    "bytes": 3240,
+    "lines": 81,
+    "text": true
+  },
+  {
+    "path": "ops/release-transaction-test.sh",
+    "sha256": "64046b9ee1bedc7d89946d70336f8c1d156c246dda7efe564253c0cc8212a56b",
+    "bytes": 18848,
+    "lines": 367,
+    "text": true
+  },
+  {
+    "path": "ops/release-version-test.sh",
+    "sha256": "840d2e513f101721005a1ff7b5bf1503a6230c2339945fe02f05c11f4b2b6635",
+    "bytes": 1381,
+    "lines": 40,
+    "text": true
+  },
+  {
+    "path": "ops/rollback-release-test.sh",
+    "sha256": "537b54e84b753967171385483364b6167256a8962ca75f6df6031d7c9dd33d57",
+    "bytes": 4109,
+    "lines": 140,
+    "text": true
+  },
+  {
+    "path": "ops/rollback-release.sh",
+    "sha256": "3e83fedc6a4a3532ee9cb01ab8e80c1537cb012c497588e0f5cf570c4189a859",
+    "bytes": 6300,
+    "lines": 158,
+    "text": true
+  },
+  {
+    "path": "ops/validate-release-version.py",
+    "sha256": "0daef6cf9bbc381dbe38b1d2caf3ac0450c10b2c0a5f0cecd1debd193e52d0c9",
+    "bytes": 1098,
+    "lines": 39,
+    "text": true
+  },
+  {
+    "path": "ops/version-transition-test.sh",
+    "sha256": "1f2a3de4a439824db628351768dbb9169e4c2809945846120129b2dae19838b3",
+    "bytes": 10902,
+    "lines": 288,
+    "text": true
+  },
+  {
+    "path": "wenti.md",
+    "sha256": "06dfcbde5ba3a37c2759fb3ff01953e4ee102f8352adf8e27876d2f63404fd10",
+    "bytes": 19766,
+    "lines": 228,
+    "text": true
+  }
+]

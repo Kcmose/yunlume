@@ -35,6 +35,12 @@ describe('URL helpers', () => {
     )
   })
 
+  it('inserts the generated query before an existing fragment', () => {
+    expect(buildSearchUrl('https://example.com/search#section', 'Vue 导航')).toBe(
+      'https://example.com/search?q=Vue+%E5%AF%BC%E8%88%AA#section',
+    )
+  })
+
   it('falls back to Baidu for an unsafe search template', () => {
     expect(buildSearchUrl('javascript:alert({keyword})', 'Vue')).toBe(
       'https://www.baidu.com/s?wd=Vue',

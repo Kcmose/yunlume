@@ -18,15 +18,19 @@ import com.example.nav.module.datapackage.model.PortablePackageModels.SiteConfig
 import com.example.nav.module.search.entity.SearchEngine;
 import com.example.nav.module.search.mapper.SearchEngineMapper;
 import com.example.nav.module.site.entity.SiteConfig;
+import com.example.nav.module.publicdata.PublicDataCacheNames;
+import com.example.nav.module.publicdata.PublicDataCacheInvalidator;
 import com.example.nav.module.site.mapper.SiteConfigMapper;
 import com.example.nav.module.upload.service.BackgroundImageStorageService;
 import org.springframework.stereotype.Service;
+import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.nio.file.Path;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -45,6 +49,8 @@ public class PortableImportTransactionService {
     private final CustomLinkMapper customLinkMapper;
     private final BackgroundImageStorageService imageStorageService;
     private final PortableDataSnapshotService snapshotService;
+    private final PublicDataCacheInvalidator cacheInvalidator;
+    private final PortableImportCommitStore commitStore;
 
     public PortableImportTransactionService(
             SiteConfigMapper siteConfigMapper,
@@ -53,7 +59,9 @@ public class PortableImportTransactionService {
             SearchEngineMapper searchEngineMapper,
             CustomLinkMapper customLinkMapper,
             BackgroundImageStorageService imageStorageService,
-            PortableDataSnapshotService snapshotService
+            PortableDataSnapshotService snapshotService,
+            PublicDataCacheInvalidator cacheInvalidator,
+            PortableImportCommitStore commitStore
     ) {
         this.siteConfigMapper = siteConfigMapper;
         this.categoryMapper = categoryMapper;
@@ -62,6 +70,8 @@ public class PortableImportTransactionService {
         this.customLinkMapper = customLinkMapper;
         this.imageStorageService = imageStorageService;
         this.snapshotService = snapshotService;
+        this.cacheInvalidator = cacheInvalidator;
+        this.commitStore = commitStore;
     }
 
     @Transactional(isolation = Isolation.SERIALIZABLE)
@@ -69,6 +79,11 @@ public class PortableImportTransactionService {
             ParsedPackage parsed,
             Path extractionRoot,
             String expectedRevision,
+            String jobId,
+            String previewToken,
+            long userId,
+            Instant createdAt,
+            Instant startedAt,
             Runnable beforeWriting,
             Runnable beforeVerifying
     ) {
@@ -77,6 +92,18 @@ public class PortableImportTransactionService {
         }
         List<BackgroundImageStorageService.ImportedAsset> importedAssets = List.of();
         try {
+            // Redis only gates scheduling. This row lock is the authoritative
+            // writer serialization point and is held until database completion.
+            commitStore.lockWriter();
+            SiteConfig site = requireSingleSiteForUpdate();
+            if (site.getVersion() == null || site.getVersion() < 0) {
+                throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE,
+                        "站点配置缓存版本超出 0..2147483647 范围");
+            }
+            int oldVersion = site.getVersion();
+            if (oldVersion == Integer.MAX_VALUE) {
+                throw BusinessException.conflict("站点配置版本已达到上限，无法安全导入");
+            }
             PortableDataSnapshotService.Snapshot transactionSnapshot = snapshotService.capture();
             if (expectedRevision == null || !expectedRevision.equals(transactionSnapshot.revision())) {
                 throw BusinessException.conflict("业务数据在预检后已变化，请重新预检");
@@ -87,11 +114,6 @@ public class PortableImportTransactionService {
             Map<String, String> assetUrls = new HashMap<>();
             importedAssets.forEach(asset -> assetUrls.put(asset.key(), asset.url()));
 
-            SiteConfig site = requireSingleSiteForUpdate();
-            int oldVersion = site.getVersion() == null ? 0 : site.getVersion();
-            if (oldVersion == Integer.MAX_VALUE) {
-                throw BusinessException.conflict("站点配置版本已达到上限，无法安全导入");
-            }
             applySite(site, parsed.data().siteConfig(), assetUrls, oldVersion + 1);
             if (updateSiteForImport(site, oldVersion) != 1) {
                 throw BusinessException.conflict("站点配置在导入时发生变化，请重新预检");
@@ -113,6 +135,14 @@ public class PortableImportTransactionService {
             verifyPersistedState(
                     parsed.data(), assetUrls, oldVersion + 1,
                     categoryIds, bookmarkIds, searchEngineIds, customLinkIds);
+            cacheInvalidator.invalidateRecorded(oldVersion + 1L,
+                    PublicDataCacheNames.SITE_CONFIG,
+                    PublicDataCacheNames.NAVIGATION,
+                    PublicDataCacheNames.SEARCH_ENGINES,
+                    PublicDataCacheNames.CUSTOM_LINKS);
+            // This marker commits atomically with every imported business row.
+            commitStore.recordCommitted(
+                    jobId, previewToken, userId, createdAt, startedAt, oldVersion + 1);
             return new TransactionResult(List.copyOf(importedAssets), oldVersion + 1);
         } catch (RuntimeException exception) {
             imageStorageService.deleteImportedAssets(importedAssets);
@@ -269,7 +299,8 @@ public class PortableImportTransactionService {
         List<SiteConfig> configs = siteConfigMapper.selectList(Wrappers.<SiteConfig>lambdaQuery()
                 .orderByAsc(SiteConfig::getId)
                 .last("FOR UPDATE"));
-        if (configs == null || configs.size() != 1 || configs.get(0) == null) {
+        if (configs == null || configs.size() != 1 || configs.get(0) == null
+                || !Long.valueOf(1L).equals(configs.get(0).getId())) {
             throw BusinessException.conflict("站点配置必须且只能有一条，无法执行安全导入");
         }
         return configs.get(0);

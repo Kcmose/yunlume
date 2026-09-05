@@ -84,3 +84,9 @@ export async function getNavigationDataImportJob(jobId: string): Promise<DataImp
     `/admin/data/import/jobs/${encodeURIComponent(jobId)}`,
   )))
 }
+
+export async function getCurrentNavigationDataImportJob(): Promise<DataImportJob> {
+  return parseDataImportJob(unwrapApiData<unknown>(await request.get(
+    '/admin/data/import/jobs/current',
+  )))
+}

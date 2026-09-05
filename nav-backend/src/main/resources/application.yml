@@ -16,6 +16,16 @@ spring:
       max-request-size: 66MB
   cache:
     type: ${CACHE_TYPE:simple}
+    redis:
+      time-to-live: ${CACHE_TTL:5m}
+      cache-null-values: false
+      use-key-prefix: true
+      key-prefix: "nav:cache::"
+  task:
+    scheduling:
+      # Keep the import-lock watchdog independent from preview file cleanup.
+      pool:
+        size: 2
 
 server:
   port: ${SERVER_PORT:8080}
@@ -54,6 +64,8 @@ nav:
     ticket-ttl-seconds: ${NAV_DATABASE_TICKET_TTL_SECONDS:300}
     auto-restart: ${NAV_DATABASE_AUTO_RESTART:false}
     allow-insecure-setup: ${NAV_ALLOW_INSECURE_DATABASE_SETUP:false}
+    trust-forwarded-https: ${NAV_TRUST_FORWARDED_HTTPS:false}
+    trusted-proxy-peers: ${NAV_TRUSTED_PROXY_PEERS:}
   redis-install:
     source: ${NAV_REDIS_SOURCE:LEGACY_ENV}
     config-file: ${NAV_REDIS_CONFIG_FILE:/app/config/redis.properties}

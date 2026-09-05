@@ -25,6 +25,19 @@ PY
 source "${TEST_WORK_DIR}/install-lib.sh"
 trap 'rm -rf -- "${TEST_WORK_DIR}"' EXIT
 
+mkdir -p "${TEST_WORK_DIR}/writable-parent"
+chmod 0777 "${TEST_WORK_DIR}/writable-parent"
+INSTALL_DIR="${TEST_WORK_DIR}/writable-parent/deployment"
+if (validate_install_directory_boundary >"${TEST_WORK_DIR}/writable.out" 2>&1); then
+  printf 'An installation path below a writable parent was accepted.\n' >&2
+  exit 1
+fi
+if ! grep -Fq '不能由其他用户写入' "${TEST_WORK_DIR}/writable.out"; then
+  printf 'Writable installation parent did not produce the expected diagnostic.\n' >&2
+  exit 1
+fi
+chmod 0700 "${TEST_WORK_DIR}/writable-parent"
+
 MODE='docker'
 INSTALL_DIR="${TEST_WORK_DIR}/symlink-deployment"
 mkdir -p "${INSTALL_DIR}"

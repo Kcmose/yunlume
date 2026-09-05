@@ -3,6 +3,7 @@ package com.example.nav.module.install.service;
 import com.example.nav.common.config.RedisConfigurationDigest;
 import com.example.nav.common.config.RedisInstallProperties;
 import com.example.nav.common.exception.BusinessException;
+import com.example.nav.common.security.SecureTransportPolicy;
 import com.example.nav.module.install.dto.RedisConfigureDTO;
 import com.example.nav.module.install.dto.RedisConnectionDTO;
 import com.example.nav.module.install.model.RedisConnectionSpec;
@@ -48,6 +49,7 @@ public class RedisSetupService {
     private final ConfigurableApplicationContext applicationContext;
     private final boolean autoRestart;
     private final boolean allowInsecureSetup;
+    private final SecureTransportPolicy secureTransportPolicy;
 
     public RedisSetupService(
             InstallAccessService accessService,
@@ -71,17 +73,13 @@ public class RedisSetupService {
         this.applicationContext = applicationContext;
         this.autoRestart = redisProperties.isAutoRestart();
         this.allowInsecureSetup = databaseProperties.isAllowInsecureSetup();
+        this.secureTransportPolicy = new SecureTransportPolicy(
+                databaseProperties.isTrustForwardedHttps(), databaseProperties.getTrustedProxyPeers());
     }
 
     public void requireSecureTransport(HttpServletRequest request) {
         if (allowInsecureSetup) return;
-        String forwardedProto = request == null ? null : request.getHeader("X-Forwarded-Proto");
-        boolean forwardedHttps = forwardedProto != null
-                && "https".equalsIgnoreCase(forwardedProto.split(",", 2)[0].trim());
-        if (request == null || (!request.isSecure() && !forwardedHttps)) {
-            throw new BusinessException(HttpStatus.FORBIDDEN,
-                    "Redis 配置包含敏感凭据，只允许通过 HTTPS 提交");
-        }
+        secureTransportPolicy.requireSecure(request, "Redis 配置");
     }
 
     public RedisTestVO test(RedisConnectionDTO dto) {

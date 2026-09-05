@@ -26,6 +26,16 @@ describe('public request retry', () => {
     expect(request).toHaveBeenCalledTimes(1)
   })
 
+  it('uses the short default retry budget for first-screen requests', async () => {
+    const failure = { isAxiosError: true }
+    const request = vi.fn().mockRejectedValue(failure)
+    const sleep = vi.fn(async () => undefined)
+
+    await expect(withPublicRequestRetry(request, { sleep })).rejects.toBe(failure)
+    expect(request).toHaveBeenCalledTimes(3)
+    expect(sleep.mock.calls).toEqual([[250], [750]])
+  })
+
   it('stops after the configured number of retries', async () => {
     const failure = { isAxiosError: true }
     const request = vi.fn().mockRejectedValue(failure)

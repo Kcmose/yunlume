@@ -47,18 +47,18 @@ router.beforeEach(async (to) => {
   const requiresAuth = to.matched.some((record) => record.meta.requiresAuth)
 
   if (requiresAuth) {
-    if (!authStore.token) {
+    if (!authStore.isAuthenticated) {
       return { name: 'admin-login', query: { redirect: to.fullPath } }
     }
     const profile = await authStore.fetchProfile()
-    if (!authStore.token || !profile) {
+    if (!authStore.isAuthenticated || !profile) {
       return { name: 'admin-login', query: { redirect: to.fullPath } }
     }
   }
 
-  if (to.name === 'admin-login' && authStore.token) {
+  if (to.name === 'admin-login' && authStore.isAuthenticated) {
     const profile = await authStore.fetchProfile()
-    if (authStore.token && profile) return { name: 'admin-dashboard' }
+    if (authStore.isAuthenticated && profile) return { name: 'admin-dashboard' }
   }
   return true
 })

@@ -314,7 +314,7 @@ install -d -o redis -g redis -m 0700 /data/tls
 install -o redis -g redis -m 0600 /fixture/redis.key /data/tls/server.key
 install -o redis -g redis -m 0600 /fixture/redis.crt /data/tls/server.crt
 install -o redis -g redis -m 0600 /fixture/ca.crt /data/tls/ca.crt
-printf 'user default off\nuser nav_e2e on >%s ~nav:* +ping +select +set +get +del\n' \
+printf 'user default off\nuser nav_e2e on >%s ~nav:* +ping +select +info +set +get +del +eval +evalsha +exists +incr +psetex +pexpire\n' \
   "${NAV_REDIS_PASSWORD}" >/data/users.acl
 chown redis:redis /data/users.acl
 chmod 0600 /data/users.acl

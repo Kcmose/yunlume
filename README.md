@@ -2,7 +2,15 @@
 
 yunlume 是一个前后端分离的自托管导航站。前台提供搜索、分类和书签入口，后台用于维护当前主题实际使用的站点信息、背景、分类、书签与搜索引擎。
 
-当前正式验收基线为 `v1.0.8`。GitHub Release、Docker/宿主机安装升级、`latest` 升级语义、同代际降级、兼容代际记录和跨代际保护均已通过正式资产验收；证据与边界见 [`ACCEPTANCE.md`](ACCEPTANCE.md)。
+## 发布与版本口径
+
+- GitHub 当前最新正式 Release 为 [`v1.0.10`](https://github.com/Kcmose/yunlume/releases/tag/v1.0.10)；后续最新版本以 [`releases/latest`](https://github.com/Kcmose/yunlume/releases/latest) 为准。
+- 最近完成完整现场闭环的正式验收基线仍为 `v1.0.8`。它不是“当前最新版”的别名；验收证据与适用边界见 [`ACCEPTANCE.md`](ACCEPTANCE.md)。
+- Git 标签和 GitHub Release 使用产品版本 `vX.Y.Z`。`nav-frontend/package.json` 的 npm 版本与 `nav-backend/pom.xml` 的 Maven 版本是私有模块构建版本，独立演进，不用于判断产品 Release 或验收基线。
+- 发布仓库必须启用并由仓库所有者强制执行 Immutable Releases，并配置 Actions secret
+  `IMMUTABLE_RELEASES_READ_TOKEN`：使用仅限本仓库、仅有 **Administration: read** 的 fine-grained
+  PAT 或 GitHub App installation token。发布写入仍只使用 `GITHUB_TOKEN`；该独立 secret 不应授予
+  Administration write。完整信任模型和固定版 `gh` 校验见 [`ops/RELEASE-TRUST-MODEL.md`](ops/RELEASE-TRUST-MODEL.md)。
 
 ## 项目结构
 
@@ -53,7 +61,7 @@ yunlume 是一个前后端分离的自托管导航站。前台提供搜索、分
 
 ## 一键安装
 
-首次安装前先准备外部 PostgreSQL 14+ 空白专用数据库和外部 Redis。安装器只部署 `yunlume` 前后端，不会创建、搬迁或删除 PostgreSQL/Redis。默认监听 `0.0.0.0:8080`，安装完成前直接访问公网 HTTP；不需要安装口令、SSH 通道、IP 白名单或 HTTPS。
+首次安装前先准备外部 PostgreSQL 14+ 空白专用数据库和外部 Redis。安装器只部署 `yunlume` 前后端，不会创建、搬迁或删除 PostgreSQL/Redis。默认监听端口的 HTTP 入口仅用于 `/healthz` 连通性诊断；提交 PostgreSQL、Redis 或管理员凭据前，必须配置受信任域名和 HTTPS 反向代理，并禁止公网绕过代理直连应用端口。
 
 Docker 模式要求服务器已经安装 Docker 与 Compose v2：
 
@@ -79,13 +87,13 @@ curl -fsSL https://github.com/Kcmose/yunlume/releases/latest/download/install.sh
 curl -fsSL https://github.com/Kcmose/yunlume/releases/download/v1.0.7/install.sh | sudo bash -s -- --mode host
 ```
 
-两种模式都可增加 `--port 端口`、`--install-dir 绝对路径`。成功后安装器会优先输出自动识别到的公网访问地址；无法可靠识别时会明确提示替换占位符：
+两种模式都可增加 `--port 端口`、`--install-dir 绝对路径`。成功后安装器输出的 HTTP 地址仅用于连通性诊断：
 
 ```text
-http://服务器公网IP:8080/install
+http://服务器公网IP:8080/healthz
 ```
 
-安装脚本通过严格发行清单固定同一版本的前后端产物并校验 SHA-256。Docker 模式安装到 `/opt/yunlume`，使用 `yunlume_uploads_data`、`yunlume_backend_logs`、`yunlume_database_config` 三个命名卷；宿主机模式使用 `/opt/yunlume/releases`、`/etc/yunlume`、`/var/lib/yunlume`，后端只监听 `127.0.0.1:18081`，系统 Nginx 对公网提供统一入口。
+从首个包含该机制的新 Release 起，安装脚本通过严格发行清单固定同一版本的前后端 OCI digest，并校验 Compose 与宿主机归档的 SHA-256；`v1.0.10` 及更早的既有 Release 仍使用当时发布的标签型清单。版本标签仅作为便于阅读的发布别名，不是新版本安装或回滚的内容锚点。Docker 模式安装到 `/opt/yunlume`，使用 `yunlume_uploads_data`、`yunlume_backend_logs`、`yunlume_database_config` 三个命名卷；宿主机模式使用 `/opt/yunlume/releases`、`/etc/yunlume`、`/var/lib/yunlume`，后端只监听 `127.0.0.1:18081`，系统 Nginx 对公网提供统一入口。
 
 已有实例需要升级到最新正式版本时，直接再次执行 `latest` 安装器；选择该入口本身就是升级授权：
 
@@ -101,9 +109,9 @@ curl -fsSL https://github.com/Kcmose/yunlume/releases/latest/download/install.sh
 仓库包含 `.github/workflows/publish-images.yml`。Pull Request 和普通分支只执行安装器回归检查、前后端测试、生产构建与依赖审计，不会登录镜像仓库或发布镜像。只有以下两种提交在全部门禁通过后发布到 GitHub Container Registry（GHCR）：
 
 - 默认分支：`ghcr.io/<所有者>/yunlume-frontend:latest` 和 `ghcr.io/<所有者>/yunlume-backend:latest`。
-- `v1.2.3` 形式的版本标签：生成 `1.2.3`、`1.2` 和对应完整提交的 `sha-<40位提交摘要>` 标签；默认分支也始终生成对应的完整 SHA 标签。标签门禁通过后还会创建最新 GitHub Release。
+- `v1.2.3` 形式的版本标签：先生成仅用于恢复的 `release-candidate-<40位提交摘要>`，发布后生成不可变的 `1.2.3` 和滚动的 `1.2` 标签；标签事件不生成 `sha-*`。默认分支始终生成对应的完整 SHA 标签。标签门禁通过后还会创建最新 GitHub Release。
 
-镜像路径中的所有者和镜像名会自动转换为小写，以兼容 GHCR 命名规则。两个镜像同时发布 `linux/amd64` 与 `linux/arm64` 清单，并附带 BuildKit provenance 和 SBOM。版本 Release 包含 `install.sh`、`yunlume-compose.yml`、`release-manifest.json`、`yunlume-host-vX.Y.Z.tar.gz`、归档 sidecar 和总 `SHA256SUMS`；同标签 Release 已存在时，工作流在覆盖镜像前失败。工作流中的第三方 Action 全部固定到完整提交 SHA；测试任务只有仓库只读权限，镜像发布临时取得 `packages: write`，Release 任务临时取得 `contents: write`，均使用仓库自动提供的 `GITHUB_TOKEN`，不需要添加数据库、Redis、管理员或安装密钥。两个 Docker 构建上下文分别限制在 `nav-frontend` 与 `nav-backend`，根目录的 `jiyi.md`、`jihua.md`、`.env` 和运行时凭据不会进入构建上下文；多阶段镜像最终层只包含前端静态运行文件或后端 JRE/JAR。
+镜像路径中的所有者和镜像名会自动转换为小写，以兼容 GHCR 命名规则。两个镜像同时发布 `linux/amd64` 与 `linux/arm64` 清单，并附带 BuildKit provenance 和 SBOM。版本 Release 包含 `install.sh`、`yunlume-compose.yml`、`release-manifest.json`、`yunlume-host-vX.Y.Z.tar.gz`、归档 sidecar 和总 `SHA256SUMS`；同标签已发布 Release 只有在提交标记、目标提交、完整资产名称/字节数、校验和及前后端不可变摘要全部精确匹配时才进入只读收敛路径，不会覆盖资产或重新发布。工作流中的第三方 Action 全部固定到完整提交 SHA；测试任务只有仓库只读权限，镜像发布临时取得 `packages: write`，Release 任务临时取得 `contents: write`，均使用仓库自动提供的 `GITHUB_TOKEN`，不需要添加数据库、Redis、管理员或安装密钥。两个 Docker 构建上下文分别限制在 `nav-frontend` 与 `nav-backend`，根目录的 `jiyi.md`、`jihua.md`、`.env` 和运行时凭据不会进入构建上下文；多阶段镜像最终层只包含前端静态运行文件或后端 JRE/JAR。
 
 首次发布后，在 GitHub 仓库的 **Packages** 中确认两个包的可见性。公开项目建议把包设为 Public；私有包部署时应使用只授予 `read:packages` 的令牌登录 `ghcr.io`，不要在服务器上使用个人账号密码。部署时优先固定版本或完整 SHA 标签；`latest` 适合首次体验，但不适合作为可审计的生产版本锚点。
 
@@ -178,7 +186,7 @@ Compose 不创建 PostgreSQL、Redis 容器或对应数据卷；两项服务都�
 
 安装向导中的 Redis 支持“系统信任证书”“自定义 CA”和“可信私网明文”三种方式。前两种都会校验证书与主机身份，自定义 CA 只保存在后端专用配置卷；关闭 TLS 只允许解析到私网地址并要求显式确认风险，不要以关闭 TLS 代替正确的证书配置。
 
-推荐在 1Panel/服务商界面为应用创建独立 Redis ACL 用户和逻辑库，键范围至少允许 `~nav:*`，命令只需 PING、SELECT、SET（含 NX/PX）、GET、DEL 等应用读写能力；不要授予 CONFIG、ACL、FLUSHALL/FLUSHDB、MODULE、DEBUG 或 SHUTDOWN。不要把 Redis 密码直接写进 shell 命令历史。当前版本只支持 standalone 主机/端口与逻辑库，不支持 Sentinel 或 Cluster（Cluster 通常也只能使用 db 0）。
+推荐在 1Panel/服务商界面为应用创建独立 Redis ACL 用户和逻辑库，键范围只需 `~nav:*`，命令需要 PING、SELECT、INFO、SET（含 NX/PX）、GET、DEL、EVAL、EVALSHA、EXISTS、INCR、PSETEX、PEXPIRE；安装向导先读取 `INFO server` 确认 Redis 7+，再以随机 128 位命名空间执行一个原子 Lua 探针，在首次写入前检查全部实际命令/键权限与碰撞，并在同一脚本回复前清理。不要授予 CONFIG、ACL、FLUSHALL/FLUSHDB、MODULE、DEBUG 或 SHUTDOWN。不要把 Redis 密码直接写进 shell 命令历史。当前版本只支持 standalone 主机/端口与逻辑库，不支持 Sentinel 或 Cluster（Cluster 通常也只能使用 db 0）。
 
 ### 从旧四容器拓扑升级
 
@@ -248,7 +256,7 @@ PostgreSQL 和 Redis 都接管并重启验证后，向导才执行数据库结�
 
 安装提交受到 frontend 容器内置 Nginx 的每来源 IP 限流。服务端会在同一事务中再次锁定并检查安装状态，只有用户表为空且安装标记未完成时才能写入；成功后入口永久关闭，不会签发自动登录令牌，需使用刚创建的账号在 `/admin/login` 登录。即使之后误删全部用户，安装标记也不会自动重开。已有管理员的升级部署会在数据库迁移时回填完成标记，不修改管理员、密码或站点业务数据。
 
-默认入口直接监听公网 HTTP，首次部署可访问 `http://服务器公网IP:APP_PORT/install`。新部署默认设置 `NAV_ALLOW_INSECURE_DATABASE_SETUP=true`，允许通过该页面提交 PostgreSQL、Redis 和管理员凭据；这些数据会以明文经过 HTTP 网络。安装完成标记写入后，安装配置和完成接口永久拒绝再次执行。若后续接入 HTTPS 代理，可再按上节配置可信代理头，但这不是首次安装前置条件。
+默认 HTTP 入口只允许用于 `http://服务器公网IP:APP_PORT/healthz` 连通性诊断。新部署默认设置 `NAV_ALLOW_INSECURE_DATABASE_SETUP=false`；必须先按上节配置受信任域名、HTTPS 代理和可信代理来源，再访问 `https://受信任域名/install` 提交 PostgreSQL、Redis 和管理员凭据。安装完成标记写入后，安装配置和完成接口永久拒绝再次执行。
 
 通过安装向导完成的站点升级时继续保持 `NAV_DATABASE_SOURCE=UNCONFIGURED` 与 `NAV_REDIS_SOURCE=UNCONFIGURED`，并原样保留 `yunlume_database_config` 卷。数据库/Redis 连接文件、配置标记、完成标记或已有实例身份任一存在时，依赖断线只会进入故障状态，不会重新开放换库入口。旧版依赖 `DB_URL`/`DB_USERNAME`/`DB_PASSWORD` 与 `LEGACY_ENV` 的直连部署不能直接套用本编排升级，应先在独立环境完成数据迁移和恢复演练。
 
@@ -304,7 +312,7 @@ PostgreSQL 和 Redis 都接管并重启验证后，向导才执行数据库结�
 | `NAV_DEMO_DATA_ENABLED` | 是否由后端补写演示业务数据；生产应关闭 | `false` |
 | `NAV_WEB_INSTALL_ENABLED` | 是否允许未初始化的新库使用网页安装向导 | `true` |
 | `NAV_DATABASE_SOURCE` | 数据库来源；外部数据库安装向导部署保持 `UNCONFIGURED` | `UNCONFIGURED` |
-| `NAV_ALLOW_INSECURE_DATABASE_SETUP` | 是否允许通过 HTTP 提交 PostgreSQL/Redis 凭据；首次公网 HTTP 安装启用 | `true` |
+| `NAV_ALLOW_INSECURE_DATABASE_SETUP` | 是否允许通过 HTTP 提交 PostgreSQL/Redis 凭据；生产安装保持禁用 | `false` |
 | `NAV_DATABASE_TICKET_TTL_SECONDS` | 数据库连接测试 ticket 有效期（服务端限制 30–900 秒） | `300` |
 | `NAV_DATABASE_AUTO_RESTART` | 保存数据库配置后是否让容器自动重启接管 | `true` |
 | `ADMIN_USERNAME` | 传统环境变量引导的管理员用户名 | `admin` |
@@ -336,7 +344,8 @@ PostgreSQL 和 Redis 都接管并重启验证后，向导才执行数据库结�
 
 - 站点配置使用 `version` 做乐观并发控制。管理端 `PUT /api/admin/site-config` 必须携带本次读取到的 `expectedVersion`；保存成功版本加 1，旧页面继续保存会返回 `409`，不会覆盖较新的配置。
 - 后台站点配置只有完整读取服务端数据后才允许编辑和保存；加载失败时表单保持锁定。页面会跟踪整份配置的未保存状态，刷新浏览器、重新加载或离开路由前都会提示，上传中的背景图同样阻止离开。
-- 管理会话只有在受保护接口明确返回 `401/403` 时才清除。网络中断和 `5xx` 会保留本地令牌与最近一次用户资料；资料请求会合并并发调用，已有缓存资料时以 30 秒新鲜度窗口避免故障期间反复请求。
+- 管理会话只在受保护接口明确返回 `401/403` 时因服务端认证失败而清除；网络中断和 `5xx` 会保留当前有效令牌与最近一次用户资料。资料请求会合并并发调用；已有缓存资料时使用 30 秒新鲜度窗口，但每次使用缓存、鉴权 getter 和路由决策前仍会重新核对持久化令牌。其他标签页对认证信封、屏障、固定旧令牌键或用户资料键的变更会触发一次有界同步：同步始终重新读取两把规范认证键，不信任事件 `newValue`，只有完整匹配的 active 对才会更新内存，否则立即清除令牌、用户和资料新鲜度。
+- 退出先同步清除当前标签页内存并尽力写入 removed 墓碑，再等待服务端撤销；登录 API 或登录持久化的任何失败同样清除当前标签页并尽力持久化退出状态。物理边界：如果浏览器拒绝所有持久化写入，旧的完整 active 信封/屏障对可能继续留在介质中，并在存储恢复后的后续刷新中再次被接受；当前标签页仍会立即清空，但客户端不能声称跨刷新持久失效。
 - 总览页的分类、书签和站点状态独立加载；单个接口失败不会清空其他已成功数据，可只重试失败项。“公开展示”只统计同时位于可见分类内且自身可见的书签。
 - 公开首页首次无法取得服务端数据时会明确提示正在展示内置示例并提供重试；已有真实数据不会被后续短暂故障覆盖。站点名称、简介和背景色会同步更新页面标题、描述与 `theme-color` 元信息。
 
@@ -419,7 +428,7 @@ PostgreSQL 和 Redis 都接管并重启验证后，向导才执行数据库结�
 - 导入必须先上传并做零写入预检。服务端校验 ZIP 路径、条目数、压缩/展开大小、JSON 严格结构、SHA-256、图片签名、业务约束和引用完整性，再显示新增、更新、删除与不变数量。
 - 通过预检后还需确认已备份并输入确认短语。预检令牌绑定当前管理员、数据包摘要和当前业务版本，15 分钟过期；预检后业务数据发生变化时返回 `409`，必须重新预检。
 - 正式导入只替换上述业务数据，不修改管理员账号。数据库写入和导入后内容验证位于同一事务；失败会回滚数据库，并清理本次新建的背景资产。任务执行后不提供会误导用户的“取消”。
-- 导入任务状态只保留在当前后端进程内；进程重启后管理端会明确提示“无法确认结果”，不会误报成功或已回滚，此时应先核对当前数据再决定是否重试。
+- 生产 Redis 模式下，导入预检、任务、当前用户索引与租约状态最长保留 24 小时，不依赖单个后端进程；后端重启后仍可查询未过期任务，租约失效的中断任务会在查询时原子恢复为 `FAILED`。24 小时 TTL 到期、Redis 数据丢失或不可用后，临时任务状态可能无法查询，客户端只能提示核对当前数据，不能据此推断事务成功或回滚。PostgreSQL 中已提交的导入操作标记是持久、已提交事实的权威来源；Redis 状态不是提交真相，也不替代 PostgreSQL 备份。只有非 Redis 的本地开发 profile 使用进程内任务状态并在重启后丢失。
 - 格式 v1 的分类、书签、搜索引擎和兼容链接稳定 key 由导出时数据库 ID 生成；全量导入会创建新的数据库 ID。因此同一旧包在成功导入后再次预检时，部分项目可能显示为新增/删除，而不是不变。内容和关联恢复不受影响，确认时应以资源计数与具体预检内容为准。
 
 同一页面还提供独立的“书签 Markdown 备份”：
@@ -460,7 +469,7 @@ PostgreSQL 和 Redis 都接管并重启验证后，向导才执行数据库结�
 
 外部服务整站保护至少包括：PostgreSQL 服务商的加密备份与恢复演练、Redis 服务端持久化/备份、后台可移植 ZIP、上传卷、加密后的 `.env`、镜像版本，以及单独加密保存的 `yunlume_database_config` 卷。该卷包含明文 PostgreSQL/Redis 连接凭据、可选 CA 和实例身份标记；仅有数据库快照和上传文件仍不足以恢复应用连接。当前项目没有在该卷丢失后重新关联既有外部服务的受支持流程，恢复配置卷时必须保持目录 `0700`、文件 `0600` 与所有者 `10001:10001`。
 
-`ops/rollback-release.sh <后端镜像> <前端镜像>` 仅切换已经拉取到本机的应用镜像，不修改数据库、`yunlume_database_config` 或上传卷。执行前必须同时提供 `CONFIRM_ROLLBACK=ROLLBACK-RELEASE` 和 `CONFIRM_EXTERNAL_DATABASE_BACKUP=EXTERNAL-DATABASE-BACKUP-VERIFIED`；完成检查会严格要求后端状态为 `UP` 且安装状态仍为 `COMPLETED`，不会把可打开安装页的 `INSTALLING` 误报成成功回滚。代码回滚不能代替数据库或连接配置恢复，也不能保证新 schema 与旧应用兼容。
+`ops/rollback-release.sh <后端镜像摘要引用> <前端镜像摘要引用>` 仅切换已经拉取到本机的应用镜像；两个参数必须分别使用 `ghcr.io/<owner>/yunlume-backend@sha256:<摘要>` 与 `ghcr.io/<owner>/yunlume-frontend@sha256:<摘要>`，不会接受 `latest`、版本标签或其他可变引用。它不修改数据库、`yunlume_database_config` 或上传卷。执行前必须同时提供 `CONFIRM_ROLLBACK=ROLLBACK-RELEASE` 和 `CONFIRM_EXTERNAL_DATABASE_BACKUP=EXTERNAL-DATABASE-BACKUP-VERIFIED`；完成检查会严格要求后端状态为 `UP` 且安装状态仍为 `COMPLETED`，不会把可打开安装页的 `INSTALLING` 误报成成功回滚。代码回滚不能代替数据库或连接配置恢复，也不能保证新 schema 与旧应用兼容。
 
 绝不要对需要保留的环境执行 `docker compose down -v`、`docker volume prune` 或带 `--remove-orphans` 的切换命令。备份至少应再复制一份到异机/对象存储并定期执行恢复演练；只存在同一虚拟机上的备份不能覆盖宿主机磁盘故障。
 
@@ -468,7 +477,7 @@ PostgreSQL 和 Redis 都接管并重启验证后，向导才执行数据库结�
 
 - 上线前务必为外部数据库创建专用最小权限账号，并更换数据库、Redis、管理员密码以及 `JWT_SECRET`，不要提交 `.env` 或 `yunlume_database_config` 的任何副本。
 - 管理员密码应遵守账号安全页的强度规则并定期更新；轮换 `JWT_SECRET` 会使所有现有 JWT 失效。
-- 默认支持直接通过公网 HTTP 完成首次安装和继续运行，不强制 HTTPS、IP 白名单或 SSH 通道。需要域名和 HTTPS 时可后续接入 1Panel OpenResty 等外层代理，并按实际代理地址配置转发头。
+- 公网 HTTP 仅用于无凭据的连通性诊断。首次安装前必须接入受信任域名和 HTTPS 代理，按实际即时代理地址配置可信转发头，并阻止客户端绕过代理直连应用端口；不要通过 HTTP 提交数据库、Redis 或管理员凭据。
 - 定期轮换密钥、备份数据库和上传文件，并及时更新基础镜像。
 - Swagger/OpenAPI 在生产 profile 默认关闭；只应在受控网络中临时设置 `OPENAPI_ENABLED=true`，使用完立即关闭。
 - 背景图片接口同时校验 MIME、文件魔数、图像格式、尺寸和文件大小；普通 `/api/` 请求体上限为 12MiB，图片业务层最高接受 10MiB。只有数据包预检精确入口允许 66MiB multipart 请求，ZIP 解析器仍限制归档和总展开量为 64MiB、单条目为 16MiB。

@@ -26,6 +26,7 @@ class FreshProdRedisInstallerContextTest {
                 "--spring.profiles.active=prod",
                 "--server.port=0",
                 "--CACHE_TYPE=redis",
+                "--spring.cache.type=redis",
                 "--REDIS_HOST=",
                 "--NAV_REDIS_SOURCE=UNCONFIGURED",
                 "--NAV_REDIS_CONFIG_FILE=" + config + "/redis.properties",

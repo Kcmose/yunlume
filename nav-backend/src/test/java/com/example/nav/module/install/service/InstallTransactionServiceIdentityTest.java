@@ -30,6 +30,7 @@ class InstallTransactionServiceIdentityTest {
         SiteConfigMapper siteConfigMapper = mock(SiteConfigMapper.class);
         SiteConfig config = new SiteConfig();
         config.setId(1L);
+        config.setVersion(0);
         config.setInstallInstanceId(
                 UUID.fromString("e38440cb-07d9-4fdf-9800-5a4ef185ee61"));
         when(siteConfigMapper.selectAllForUpdate()).thenReturn(List.of(config));
@@ -54,6 +55,7 @@ class InstallTransactionServiceIdentityTest {
         SiteConfigMapper siteConfigMapper = mock(SiteConfigMapper.class);
         SiteConfig config = new SiteConfig();
         config.setId(1L);
+        config.setVersion(0);
         config.setInstallInstanceId(null);
         UUID expected = UUID.fromString("e38440cb-07d9-4fdf-9800-5a4ef185ee61");
         when(siteConfigMapper.selectAllForUpdate()).thenReturn(List.of(config));

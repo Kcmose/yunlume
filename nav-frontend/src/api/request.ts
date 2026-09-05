@@ -8,6 +8,19 @@ import {
 import { shouldInvalidateAdminSession } from '@/utils/httpError'
 import { invalidateAdminSession } from '@/utils/sessionInvalidation'
 
+declare module 'axios' {
+  interface AxiosRequestConfig {
+    authTokenMode?: 'captured'
+    authGeneration?: string
+    authCommitment?: string
+  }
+  interface InternalAxiosRequestConfig {
+    authTokenMode?: 'captured'
+    authGeneration?: string
+    authCommitment?: string
+  }
+}
+
 const request = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? '/api',
   timeout: 12000,
@@ -18,8 +31,18 @@ const request = axios.create({
 
 request.interceptors.request.use((config) => {
   if (isProtectedAdminRequest(config.url)) {
-    const token = tokenStorage.get()
-    if (token) config.headers.Authorization = `Bearer ${token}`
+    if (config.authTokenMode !== 'captured') {
+      const snapshot = tokenStorage.getSnapshot()
+      if (snapshot) {
+        config.headers.Authorization = `Bearer ${snapshot.token}`
+        config.authGeneration = snapshot.generation
+        config.authCommitment = snapshot.commitment
+      } else {
+        config.headers.delete('Authorization')
+        delete config.authGeneration
+        delete config.authCommitment
+      }
+    }
   } else {
     config.headers.delete('Authorization')
   }
@@ -37,10 +60,13 @@ request.interceptors.response.use(
     const authorization = typeof headers?.get === 'function'
       ? headers.get('Authorization')
       : headers?.Authorization
+    const currentSnapshot = tokenStorage.getSnapshot()
     const requestStillBelongsToCurrentSession = requestMatchesCurrentAdminToken(
       authorization,
-      tokenStorage.get(),
-    )
+      currentSnapshot?.token ?? '',
+    ) && Boolean(currentSnapshot
+      && error.config?.authGeneration === currentSnapshot.generation
+      && error.config?.authCommitment === currentSnapshot.commitment)
     if (
       isProtectedAdmin
       && requestStillBelongsToCurrentSession

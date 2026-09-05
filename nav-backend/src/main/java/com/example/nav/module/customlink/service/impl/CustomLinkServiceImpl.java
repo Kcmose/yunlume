@@ -8,6 +8,9 @@ import com.example.nav.module.customlink.entity.CustomLink;
 import com.example.nav.module.customlink.mapper.CustomLinkMapper;
 import com.example.nav.module.customlink.service.CustomLinkService;
 import com.example.nav.module.customlink.vo.CustomLinkVO;
+import com.example.nav.module.publicdata.PublicDataCacheNames;
+import com.example.nav.module.publicdata.PublicDataCacheInvalidator;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,9 +35,14 @@ public class CustomLinkServiceImpl implements CustomLinkService {
             .thenComparing(CustomLink::getId, Comparator.nullsLast(Long::compareTo));
 
     private final CustomLinkMapper customLinkMapper;
+    private final PublicDataCacheInvalidator cacheInvalidator;
 
-    public CustomLinkServiceImpl(CustomLinkMapper customLinkMapper) {
+    public CustomLinkServiceImpl(
+            CustomLinkMapper customLinkMapper,
+            PublicDataCacheInvalidator cacheInvalidator
+    ) {
         this.customLinkMapper = customLinkMapper;
+        this.cacheInvalidator = cacheInvalidator;
     }
 
     @Override
@@ -57,6 +65,7 @@ public class CustomLinkServiceImpl implements CustomLinkService {
     }
 
     @Override
+    @Transactional
     public CustomLinkVO create(CustomLinkDTO dto) {
         NormalizedLink normalized = normalize(dto);
         LocalDateTime now = LocalDateTime.now();
@@ -69,10 +78,12 @@ public class CustomLinkServiceImpl implements CustomLinkService {
         link.setCreatedAt(now);
         link.setUpdatedAt(now);
         customLinkMapper.insert(link);
+        invalidatePublicCustomLinks();
         return toVO(link);
     }
 
     @Override
+    @Transactional
     public CustomLinkVO update(Long id, CustomLinkDTO dto) {
         CustomLink link = requireLink(id);
         NormalizedLink normalized = normalize(dto);
@@ -87,21 +98,26 @@ public class CustomLinkServiceImpl implements CustomLinkService {
         if (dto.visible() != null) link.setVisible(dto.visible());
         link.setUpdatedAt(LocalDateTime.now());
         customLinkMapper.updateById(link);
+        invalidatePublicCustomLinks();
         return toVO(link);
     }
 
     @Override
+    @Transactional
     public void delete(Long id) {
         requireLink(id);
         customLinkMapper.deleteById(id);
+        invalidatePublicCustomLinks();
     }
 
     @Override
+    @Transactional
     public CustomLinkVO setVisible(Long id, boolean visible) {
         CustomLink link = requireLink(id);
         link.setVisible(visible);
         link.setUpdatedAt(LocalDateTime.now());
         customLinkMapper.updateById(link);
+        invalidatePublicCustomLinks();
         return toVO(link);
     }
 
@@ -134,7 +150,12 @@ public class CustomLinkServiceImpl implements CustomLinkService {
             link.setUpdatedAt(now);
             customLinkMapper.updateById(link);
         }
+        invalidatePublicCustomLinks();
         return listAll();
+    }
+
+    private void invalidatePublicCustomLinks() {
+        cacheInvalidator.invalidate(PublicDataCacheNames.CUSTOM_LINKS);
     }
 
     private NormalizedLink normalize(CustomLinkDTO dto) {

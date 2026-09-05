@@ -11,6 +11,9 @@ import com.example.nav.module.bookmark.entity.Bookmark;
 import com.example.nav.module.bookmark.mapper.BookmarkMapper;
 import com.example.nav.module.bookmark.service.BookmarkService;
 import com.example.nav.module.bookmark.vo.BookmarkVO;
+import com.example.nav.module.publicdata.PublicDataCacheNames;
+import com.example.nav.module.publicdata.PublicDataCacheInvalidator;
+import org.springframework.cache.annotation.CacheEvict;
 import com.example.nav.module.category.entity.Category;
 import com.example.nav.module.category.mapper.CategoryMapper;
 import org.springframework.stereotype.Service;
@@ -32,10 +35,16 @@ public class BookmarkServiceImpl implements BookmarkService {
 
     private final BookmarkMapper bookmarkMapper;
     private final CategoryMapper categoryMapper;
+    private final PublicDataCacheInvalidator cacheInvalidator;
 
-    public BookmarkServiceImpl(BookmarkMapper bookmarkMapper, CategoryMapper categoryMapper) {
+    public BookmarkServiceImpl(
+            BookmarkMapper bookmarkMapper,
+            CategoryMapper categoryMapper,
+            PublicDataCacheInvalidator cacheInvalidator
+    ) {
         this.bookmarkMapper = bookmarkMapper;
         this.categoryMapper = categoryMapper;
+        this.cacheInvalidator = cacheInvalidator;
     }
 
     @Override
@@ -46,6 +55,16 @@ public class BookmarkServiceImpl implements BookmarkService {
     @Override
     public List<BookmarkVO> listVisible(Long categoryId) {
         return select(categoryId, true);
+    }
+
+    @Override
+    public List<BookmarkVO> listVisibleByCategoryIds(List<Long> categoryIds) {
+        if (categoryIds == null || categoryIds.isEmpty()) return List.of();
+        return bookmarkMapper.selectList(Wrappers.<Bookmark>lambdaQuery()
+                        .in(Bookmark::getCategoryId, categoryIds)
+                        .eq(Bookmark::getVisible, true)
+                        .orderByAsc(Bookmark::getSortOrder, Bookmark::getId))
+                .stream().map(this::toVO).toList();
     }
 
     @Override
@@ -66,10 +85,12 @@ public class BookmarkServiceImpl implements BookmarkService {
         bookmark.setCreatedAt(now);
         bookmark.setUpdatedAt(now);
         bookmarkMapper.insert(bookmark);
+        invalidateNavigation();
         return toVO(bookmark);
     }
 
     @Override
+    @Transactional
     public BookmarkVO update(Long id, BookmarkUpdateDTO dto) {
         Bookmark bookmark = requireBookmark(id);
         requireCategory(dto.categoryId());
@@ -84,21 +105,26 @@ public class BookmarkServiceImpl implements BookmarkService {
         if (dto.visible() != null) bookmark.setVisible(dto.visible());
         bookmark.setUpdatedAt(LocalDateTime.now());
         bookmarkMapper.updateById(bookmark);
+        invalidateNavigation();
         return toVO(bookmark);
     }
 
     @Override
+    @Transactional
     public void delete(Long id) {
         requireBookmark(id);
         bookmarkMapper.deleteById(id);
+        invalidateNavigation();
     }
 
     @Override
+    @Transactional
     public BookmarkVO setVisible(Long id, boolean visible) {
         Bookmark bookmark = requireBookmark(id);
         bookmark.setVisible(visible);
         bookmark.setUpdatedAt(LocalDateTime.now());
         bookmarkMapper.updateById(bookmark);
+        invalidateNavigation();
         return toVO(bookmark);
     }
 
@@ -133,6 +159,7 @@ public class BookmarkServiceImpl implements BookmarkService {
             nextSortOrder += SORT_STEP;
         }
 
+        invalidateNavigation();
         return ids.stream().map(bookmarksById::get).map(this::toVO).toList();
     }
 
@@ -151,7 +178,12 @@ public class BookmarkServiceImpl implements BookmarkService {
                 throw BusinessException.conflict("书签状态已变化，请刷新后重试");
             }
         }
+        invalidateNavigation();
         return list(null);
+    }
+
+    private void invalidateNavigation() {
+        cacheInvalidator.invalidate(PublicDataCacheNames.NAVIGATION);
     }
 
     private List<BookmarkVO> select(Long categoryId, boolean onlyVisible) {

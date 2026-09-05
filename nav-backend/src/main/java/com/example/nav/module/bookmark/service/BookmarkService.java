@@ -14,6 +14,8 @@ public interface BookmarkService {
 
     List<BookmarkVO> listVisible(Long categoryId);
 
+    List<BookmarkVO> listVisibleByCategoryIds(List<Long> categoryIds);
+
     BookmarkVO create(BookmarkCreateDTO createDTO);
 
     BookmarkVO update(Long id, BookmarkUpdateDTO updateDTO);

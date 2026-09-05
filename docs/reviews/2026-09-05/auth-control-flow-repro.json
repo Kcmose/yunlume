@@ -1,0 +1,8 @@
+{
+  "sourceSha256": "4e4904c6b24a14dc7c7ef341f897e8a19c371ac7581f0cabe416f86fc5f1b591",
+  "method": "actual action bodies extracted unchanged except TypeScript function signatures; mocked API/storage fixtures; not mounted Vue/browser integration",
+  "host": "[private-server-redacted]",
+  "exitCode": 0,
+  "stdout": "{\"case\":\"F1 extracted action successful login\",\"resolvedUndefined\":true,\"persisted\":true,\"loginPageWouldSkipNavigation\":true}\n{\"case\":\"F2 extracted actions cross-tab interleaving\",\"newSessionBeforeOldFailure\":\"fixture-B\",\"newSessionAfterOldFailure\":null}\n",
+  "stderr": ""
+}

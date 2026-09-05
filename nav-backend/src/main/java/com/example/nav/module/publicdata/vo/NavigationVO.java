@@ -2,6 +2,7 @@ package com.example.nav.module.publicdata.vo;
 
 import com.example.nav.module.bookmark.vo.BookmarkVO;
 
+import java.io.Serializable;
 import java.util.List;
 
 public record NavigationVO(
@@ -11,5 +12,5 @@ public record NavigationVO(
         Integer sortOrder,
         Boolean visible,
         List<BookmarkVO> bookmarks
-) {
+) implements Serializable {
 }

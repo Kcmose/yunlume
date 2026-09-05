@@ -8,6 +8,9 @@ import com.example.nav.module.search.entity.SearchEngine;
 import com.example.nav.module.search.mapper.SearchEngineMapper;
 import com.example.nav.module.search.service.SearchEngineService;
 import com.example.nav.module.search.vo.SearchEngineVO;
+import com.example.nav.module.publicdata.PublicDataCacheNames;
+import com.example.nav.module.publicdata.PublicDataCacheInvalidator;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,9 +28,14 @@ public class SearchEngineServiceImpl implements SearchEngineService {
     private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile("\\{([^{}]+)}");
 
     private final SearchEngineMapper searchEngineMapper;
+    private final PublicDataCacheInvalidator cacheInvalidator;
 
-    public SearchEngineServiceImpl(SearchEngineMapper searchEngineMapper) {
+    public SearchEngineServiceImpl(
+            SearchEngineMapper searchEngineMapper,
+            PublicDataCacheInvalidator cacheInvalidator
+    ) {
         this.searchEngineMapper = searchEngineMapper;
+        this.cacheInvalidator = cacheInvalidator;
     }
 
     @Override
@@ -61,7 +69,9 @@ public class SearchEngineServiceImpl implements SearchEngineService {
         engine.setUpdatedAt(now);
         searchEngineMapper.insert(engine);
         ensureSingleDefaultEngine();
-        return toVO(searchEngineMapper.selectById(engine.getId()));
+        SearchEngineVO created = toVO(searchEngineMapper.selectById(engine.getId()));
+        invalidatePublicSearchEngines();
+        return created;
     }
 
     @Override
@@ -82,7 +92,9 @@ public class SearchEngineServiceImpl implements SearchEngineService {
 
         if (replacement != null) makeDefault(replacement);
         ensureSingleDefaultEngine();
-        return toVO(searchEngineMapper.selectById(id));
+        SearchEngineVO updated = toVO(searchEngineMapper.selectById(id));
+        invalidatePublicSearchEngines();
+        return updated;
     }
 
     @Override
@@ -100,6 +112,7 @@ public class SearchEngineServiceImpl implements SearchEngineService {
         searchEngineMapper.deleteById(id);
         if (replacement != null) makeDefault(replacement);
         ensureSingleDefaultEngine();
+        invalidatePublicSearchEngines();
     }
 
     @Override
@@ -109,7 +122,9 @@ public class SearchEngineServiceImpl implements SearchEngineService {
         SearchEngine engine = requireEngine(id);
         engine.setVisible(true);
         makeDefault(engine);
-        return toVO(searchEngineMapper.selectById(id));
+        SearchEngineVO updated = toVO(searchEngineMapper.selectById(id));
+        invalidatePublicSearchEngines();
+        return updated;
     }
 
     @Override
@@ -129,7 +144,9 @@ public class SearchEngineServiceImpl implements SearchEngineService {
         searchEngineMapper.updateById(engine);
         if (replacement != null) makeDefault(replacement);
         ensureSingleDefaultEngine();
-        return toVO(searchEngineMapper.selectById(id));
+        SearchEngineVO updated = toVO(searchEngineMapper.selectById(id));
+        invalidatePublicSearchEngines();
+        return updated;
     }
 
     @Override
@@ -149,7 +166,12 @@ public class SearchEngineServiceImpl implements SearchEngineService {
             engine.setUpdatedAt(now);
             searchEngineMapper.updateById(engine);
         }
+        invalidatePublicSearchEngines();
         return listAll();
+    }
+
+    private void invalidatePublicSearchEngines() {
+        cacheInvalidator.invalidate(PublicDataCacheNames.SEARCH_ENGINES);
     }
 
     private void apply(SearchEngine engine, SearchEngineDTO dto) {

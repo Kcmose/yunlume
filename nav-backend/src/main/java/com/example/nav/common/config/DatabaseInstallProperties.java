@@ -13,6 +13,8 @@ public class DatabaseInstallProperties {
     private long ticketTtlSeconds = 300;
     private boolean autoRestart;
     private boolean allowInsecureSetup;
+    private boolean trustForwardedHttps;
+    private String trustedProxyPeers = "";
 
     public enum Source {
         UNCONFIGURED,
@@ -81,5 +83,21 @@ public class DatabaseInstallProperties {
 
     public void setAllowInsecureSetup(boolean allowInsecureSetup) {
         this.allowInsecureSetup = allowInsecureSetup;
+    }
+
+    public boolean isTrustForwardedHttps() {
+        return trustForwardedHttps;
+    }
+
+    public void setTrustForwardedHttps(boolean trustForwardedHttps) {
+        this.trustForwardedHttps = trustForwardedHttps;
+    }
+
+    public String getTrustedProxyPeers() {
+        return trustedProxyPeers;
+    }
+
+    public void setTrustedProxyPeers(String trustedProxyPeers) {
+        this.trustedProxyPeers = trustedProxyPeers;
     }
 }

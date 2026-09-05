@@ -49,7 +49,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -58,7 +57,6 @@ import java.util.stream.Collectors;
 public class PortableDataPackageService {
 
     static final long PREVIEW_TTL_MINUTES = 15;
-    private static final long COMPLETED_JOB_RETENTION_HOURS = 24;
 
     private final PortablePackageWriter packageWriter;
     private final PortablePackageReader packageReader;
@@ -70,8 +68,10 @@ public class PortableDataPackageService {
     private final Clock clock;
     private final Path previewRoot;
     private final Map<String, PreviewState> previews = new ConcurrentHashMap<>();
-    private final Map<String, JobState> jobs = new ConcurrentHashMap<>();
-    private final AtomicBoolean importRunning = new AtomicBoolean(false);
+    private final PortableImportJobStore jobStore;
+    private final PortableImportCommitStore commitStore;
+    private final Object confirmationMonitor = new Object();
+    private volatile JobState activeJob;
 
     @Autowired
     public PortableDataPackageService(
@@ -81,7 +81,9 @@ public class PortableDataPackageService {
             PortableImportTransactionService transactionService,
             UserMapper userMapper,
             ObjectMapper objectMapper,
-            @Qualifier("applicationTaskExecutor") TaskExecutor taskExecutor
+            @Qualifier("applicationTaskExecutor") TaskExecutor taskExecutor,
+            PortableImportJobStore jobStore,
+            PortableImportCommitStore commitStore
     ) {
         this(
                 packageWriter,
@@ -91,6 +93,8 @@ public class PortableDataPackageService {
                 userMapper,
                 objectMapper,
                 taskExecutor,
+                jobStore,
+                commitStore,
                 Clock.systemUTC(),
                 Path.of(System.getProperty("java.io.tmpdir"), "yunlume-import-previews")
         );
@@ -104,6 +108,8 @@ public class PortableDataPackageService {
             UserMapper userMapper,
             ObjectMapper objectMapper,
             TaskExecutor taskExecutor,
+            PortableImportJobStore jobStore,
+            PortableImportCommitStore commitStore,
             Clock clock,
             Path previewRoot
     ) {
@@ -114,6 +120,8 @@ public class PortableDataPackageService {
         this.userMapper = userMapper;
         this.objectMapper = objectMapper;
         this.taskExecutor = taskExecutor;
+        this.jobStore = jobStore;
+        this.commitStore = commitStore;
         this.clock = clock;
         this.previewRoot = previewRoot.toAbsolutePath().normalize();
     }
@@ -180,51 +188,89 @@ public class PortableDataPackageService {
         long userId = currentAdminId(authentication);
         if (token == null || token.isBlank()) throw BusinessException.notFound("导入预检不存在或已过期");
 
-        PreviewState preview = previews.get(token);
-        if (preview == null || !preview.expiresAt().isAfter(clock.instant())) {
-            discardPreview(token, preview);
-            throw BusinessException.notFound("导入预检不存在或已过期");
-        }
-        if (preview.userId() != userId) {
-            throw BusinessException.notFound("导入预检不存在或已过期");
-        }
-        if (!preview.archiveSha256().equals(sha256(preview.archive()))) {
-            discardPreview(token, preview);
-            throw BusinessException.conflict("预检文件已变化，请重新上传");
-        }
-        Snapshot current = snapshotService.capture();
-        if (!preview.businessRevision().equals(current.revision())) {
-            throw BusinessException.conflict("业务数据在预检后已变化，请重新预检");
-        }
-        if (!importRunning.compareAndSet(false, true)) {
-            throw BusinessException.conflict("已有导入任务正在执行，请稍后重试");
-        }
-        if (!previews.remove(token, preview)) {
-            importRunning.set(false);
-            throw BusinessException.conflict("该预检已被确认或失效");
-        }
+        synchronized (confirmationMonitor) {
+            PortableImportJobStore.StoredJob existingJob = commitStore.findByPreviewToken(token)
+                    .map(PortableImportCommitStore.CommittedImport::asCompletedJob)
+                    .or(() -> jobStore.findByPreviewToken(token))
+                    .orElse(null);
+            if (existingJob != null) {
+                if (existingJob.userId() != userId) {
+                    throw BusinessException.notFound("导入预检不存在或已过期");
+                }
+                return new ConfirmResponse(existingJob.jobId());
+            }
 
-        String jobId = randomId();
-        JobState job = new JobState(jobId, userId, clock.instant());
-        jobs.put(jobId, job);
-        try {
-            taskExecutor.execute(() -> runImport(preview, job));
-        } catch (RuntimeException exception) {
-            jobs.remove(jobId);
-            importRunning.set(false);
-            deleteTree(preview.directory());
-            throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE, "导入任务暂时无法启动");
+            PreviewState preview = previews.get(token);
+            if (preview == null || !preview.expiresAt().isAfter(clock.instant())) {
+                discardPreview(token, preview);
+                throw BusinessException.notFound("导入预检不存在或已过期");
+            }
+            if (preview.userId() != userId) {
+                throw BusinessException.notFound("导入预检不存在或已过期");
+            }
+            if (!preview.archiveSha256().equals(sha256(preview.archive()))) {
+                discardPreview(token, preview);
+                throw BusinessException.conflict("预检文件已变化，请重新上传");
+            }
+            Snapshot current = snapshotService.capture();
+            if (!preview.businessRevision().equals(current.revision())) {
+                throw BusinessException.conflict("业务数据在预检后已变化，请重新预检");
+            }
+            String jobId = randomId();
+            JobState job = new JobState(jobId, token, userId, clock.instant());
+            PortableImportJobStore.ClaimResult claim = jobStore.claim(job.stored());
+            if (claim.outcome() == PortableImportJobStore.ClaimOutcome.PREVIEW_ALREADY_CLAIMED) {
+                PortableImportJobStore.StoredJob claimed = jobStore.findByPreviewToken(token)
+                        .orElseThrow(() -> new BusinessException(
+                                HttpStatus.SERVICE_UNAVAILABLE,
+                                "导入任务已创建但状态暂时不可用"
+                        ));
+                if (claimed.userId() != userId) {
+                    throw BusinessException.notFound("导入预检不存在或已过期");
+                }
+                return new ConfirmResponse(claimed.jobId());
+            }
+            if (claim.outcome() == PortableImportJobStore.ClaimOutcome.IMPORT_RUNNING) {
+                throw BusinessException.conflict("已有导入任务正在执行，请稍后重试");
+            }
+            job.lease = claim.lease();
+            if (!previews.remove(token, preview)) {
+                jobStore.abandon(job.lease, job.stored());
+                throw BusinessException.conflict("该预检已被确认或失效");
+            }
+            activeJob = job;
+            try {
+                taskExecutor.execute(() -> runImport(preview, job));
+            } catch (RuntimeException exception) {
+                activeJob = null;
+                jobStore.abandon(job.lease, job.stored());
+                deleteTree(preview.directory());
+                throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE, "导入任务暂时无法启动");
+            }
+            return new ConfirmResponse(jobId);
         }
-        return new ConfirmResponse(jobId);
     }
 
     public JobResponse job(String jobId, Authentication authentication) {
         long userId = currentAdminId(authentication);
-        JobState job = jobs.get(jobId);
-        if (job == null || job.userId != userId) {
-            throw BusinessException.notFound("导入任务不存在、已过期，或服务重启后状态已丢失");
+        PortableImportJobStore.StoredJob job = commitStore.findByJobId(jobId)
+                .map(PortableImportCommitStore.CommittedImport::asCompletedJob)
+                .or(() -> jobStore.findJob(jobId))
+                .orElse(null);
+        if (job == null || job.userId() != userId) {
+            throw BusinessException.notFound("导入任务不存在或已过期");
         }
         return job.response();
+    }
+
+    public JobResponse currentJob(Authentication authentication) {
+        long userId = currentAdminId(authentication);
+        PortableImportJobStore.StoredJob selected = jobStore.findCurrent(userId).orElse(null);
+        if (selected == null || selected.userId() != userId
+                || selected.stage() == JobStage.COMPLETED || selected.stage() == JobStage.FAILED) {
+            throw BusinessException.notFound("当前管理员没有可恢复的导入任务");
+        }
+        return selected.response();
     }
 
     private void runImport(PreviewState preview, JobState job) {
@@ -232,6 +278,7 @@ public class PortableDataPackageService {
         job.stage = JobStage.PREPARING;
         job.message = "正在复核数据包与业务版本";
         try {
+            persist(job);
             if (!preview.expiresAt().isAfter(clock.instant())) {
                 throw BusinessException.conflict("预检已过期，请重新上传");
             }
@@ -253,33 +300,87 @@ public class PortableDataPackageService {
                     confirmed,
                     confirmedExtraction,
                     preview.businessRevision(),
+                    job.jobId,
+                    job.previewToken,
+                    job.userId,
+                    job.createdAt,
+                    job.startedAt,
                     () -> {
                         job.stage = JobStage.WRITING;
                         job.message = "正在事务性替换业务数据";
+                        persist(job);
                     },
                     () -> {
                         job.stage = JobStage.VERIFYING;
                         job.message = "正在同一事务内验证导入结果";
+                        persist(job);
                     }
             );
 
-            job.stage = JobStage.COMPLETED;
-            job.message = "导入完成";
-            job.finishedAt = clock.instant();
+            completeFromDatabase(job);
+            try {
+                persist(job);
+            } catch (RuntimeException redisFailure) {
+                // The database marker and business data are already committed.
+                // Redis completion is best-effort and cannot reverse that truth.
+                log.warn("Portable data import job {} committed but Redis completion persistence failed",
+                        job.jobId, redisFailure);
+            }
         } catch (RuntimeException exception) {
+            try {
+                PortableImportCommitStore.CommittedImport committed =
+                        commitStore.findByJobId(job.jobId).orElse(null);
+                if (committed != null) {
+                    completeFromDatabase(job);
+                    log.warn("Portable data import job {} returned an exception after its database commit",
+                            job.jobId, exception);
+                    return;
+                }
+            } catch (RuntimeException unavailable) {
+                job.message = "导入结果暂时无法确认；数据库恢复后将按提交标记核对";
+                log.error("Cannot determine durable terminal truth for portable import {}",
+                        job.jobId, unavailable);
+                return;
+            }
             JobStage failedStage = job.stage;
             job.stage = JobStage.FAILED;
             job.message = "导入失败；事务未提交，数据库写入已回滚";
             job.error = safeError(exception);
             job.finishedAt = clock.instant();
+            try {
+                persist(job);
+            } catch (BusinessException staleLease) {
+                log.warn("Portable data import job {} could not persist failure state after losing its lease",
+                        job.jobId);
+            }
             // Keep the public job response deliberately generic, but retain the
             // original exception server-side so an operator can diagnose the
             // failure using the task id shown in the UI.
             log.warn("Portable data import job {} failed during {}", job.jobId, failedStage, exception);
         } finally {
-            importRunning.set(false);
-            deleteTree(preview.directory());
+            try {
+                jobStore.release(job.lease);
+            } catch (RuntimeException releaseFailure) {
+                log.warn("Portable data import job {} could not release its Redis lease",
+                        job.jobId, releaseFailure);
+            } finally {
+                if (activeJob == job) activeJob = null;
+                deleteTree(preview.directory());
+            }
         }
+    }
+
+    private void persist(JobState job) {
+        job.heartbeatAt = clock.instant();
+        jobStore.save(job.lease, job.stored());
+    }
+
+
+    private void completeFromDatabase(JobState job) {
+        job.stage = JobStage.COMPLETED;
+        job.message = "导入完成";
+        job.error = null;
+        job.finishedAt = clock.instant();
     }
 
     private PreviewResponse buildPreview(
@@ -428,18 +529,23 @@ public class PortableDataPackageService {
         return user.getId();
     }
 
+    @Scheduled(fixedRate = 30_000, initialDelay = 30_000)
+    public void renewActiveImportLease() {
+        JobState running = activeJob;
+        if (running != null && running.stage != JobStage.COMPLETED && running.stage != JobStage.FAILED) {
+            if (!jobStore.heartbeat(running.lease)) {
+                activeJob = null;
+                log.warn("Portable data import job {} lost its Redis mutex", running.jobId);
+            }
+        }
+    }
+
     @Scheduled(fixedDelay = 300_000, initialDelay = 300_000)
     public void cleanupExpired() {
         Instant now = clock.instant();
         previews.forEach((token, preview) -> {
             if (!preview.expiresAt().isAfter(now) && previews.remove(token, preview)) {
                 deleteTree(preview.directory());
-            }
-        });
-        jobs.forEach((jobId, job) -> {
-            Instant finishedAt = job.finishedAt;
-            if (finishedAt != null && finishedAt.plus(COMPLETED_JOB_RETENTION_HOURS, ChronoUnit.HOURS).isBefore(now)) {
-                jobs.remove(jobId, job);
             }
         });
     }
@@ -512,6 +618,7 @@ public class PortableDataPackageService {
 
     private static final class JobState {
         private final String jobId;
+        private final String previewToken;
         private final long userId;
         private final Instant createdAt;
         private volatile JobStage stage = JobStage.PREPARING;
@@ -519,22 +626,29 @@ public class PortableDataPackageService {
         private volatile Instant finishedAt;
         private volatile String message = "任务等待执行";
         private volatile Issue error;
+        private volatile Instant heartbeatAt;
+        private volatile PortableImportJobStore.Lease lease;
 
-        private JobState(String jobId, long userId, Instant createdAt) {
+        private JobState(String jobId, String previewToken, long userId, Instant createdAt) {
             this.jobId = jobId;
+            this.previewToken = previewToken;
             this.userId = userId;
             this.createdAt = createdAt;
+            this.heartbeatAt = createdAt;
         }
 
-        private JobResponse response() {
-            return new JobResponse(
+        private PortableImportJobStore.StoredJob stored() {
+            return new PortableImportJobStore.StoredJob(
                     jobId,
+                    previewToken,
+                    userId,
                     stage,
                     createdAt,
                     startedAt,
                     finishedAt,
                     message,
-                    error
+                    error,
+                    heartbeatAt
             );
         }
     }

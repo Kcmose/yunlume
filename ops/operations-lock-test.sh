@@ -68,8 +68,8 @@ rollback_command=(
   CONFIRM_ROLLBACK=ROLLBACK-RELEASE
   CONFIRM_EXTERNAL_DATABASE_BACKUP=EXTERNAL-DATABASE-BACKUP-VERIFIED
   bash "${ROOT_DIR}/ops/rollback-release.sh"
-  example.invalid/yunlume-backend:1.0.5
-  example.invalid/yunlume-frontend:1.0.5
+  ghcr.io/example/yunlume-backend@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  ghcr.io/example/yunlume-frontend@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 )
 migration_command=(
   bash "${ROOT_DIR}/ops/migrate-docker-volumes.sh"

@@ -8,6 +8,9 @@ import com.example.nav.module.site.entity.SiteConfig;
 import com.example.nav.module.site.mapper.SiteConfigMapper;
 import com.example.nav.module.site.service.SiteConfigService;
 import com.example.nav.module.site.vo.SiteConfigVO;
+import com.example.nav.module.publicdata.PublicDataCacheNames;
+import com.example.nav.module.publicdata.PublicDataCacheInvalidator;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.http.HttpStatus;
@@ -18,9 +21,14 @@ import java.time.LocalDateTime;
 public class SiteConfigServiceImpl implements SiteConfigService {
 
     private final SiteConfigMapper siteConfigMapper;
+    private final PublicDataCacheInvalidator cacheInvalidator;
 
-    public SiteConfigServiceImpl(SiteConfigMapper siteConfigMapper) {
+    public SiteConfigServiceImpl(
+            SiteConfigMapper siteConfigMapper,
+            PublicDataCacheInvalidator cacheInvalidator
+    ) {
         this.siteConfigMapper = siteConfigMapper;
+        this.cacheInvalidator = cacheInvalidator;
     }
 
     @Override
@@ -36,7 +44,10 @@ public class SiteConfigServiceImpl implements SiteConfigService {
             throw BusinessException.badRequest("配置版本不能为空");
         }
         SiteConfig config = getRequiredConfig();
-        int persistedVersion = config.getVersion() == null ? 0 : config.getVersion();
+        int persistedVersion = config.getVersion();
+        if (persistedVersion == Integer.MAX_VALUE) {
+            throw BusinessException.conflict("站点配置版本已达到上限，无法安全更新");
+        }
         if (persistedVersion != dto.expectedVersion()) {
             throw concurrentUpdate();
         }
@@ -83,19 +94,24 @@ public class SiteConfigServiceImpl implements SiteConfigService {
         if (siteConfigMapper.update(null, update) != 1) {
             throw concurrentUpdate();
         }
-        return toVO(siteConfigMapper.selectById(config.getId()));
+        cacheInvalidator.invalidateRecorded((long) dto.expectedVersion() + 1L,
+                PublicDataCacheNames.SITE_CONFIG);
+        SiteConfigVO updated = toVO(siteConfigMapper.selectById(config.getId()));
+        return updated;
     }
 
     private SiteConfig getRequiredConfig() {
-        SiteConfig config = siteConfigMapper.selectOne(Wrappers.<SiteConfig>lambdaQuery()
-                .orderByAsc(SiteConfig::getId)
-                .last("LIMIT 1"));
-        if (config != null) {
-            return config;
+        var configs = siteConfigMapper.selectList(Wrappers.<SiteConfig>lambdaQuery()
+                .orderByAsc(SiteConfig::getId));
+        if (configs != null && configs.size() == 1 && configs.get(0) != null
+                && Long.valueOf(1L).equals(configs.get(0).getId())
+                && configs.get(0).getVersion() != null
+                && configs.get(0).getVersion() >= 0) {
+            return configs.get(0);
         }
         throw new BusinessException(
                 HttpStatus.SERVICE_UNAVAILABLE,
-                "站点配置不存在，请管理员检查数据库初始化或备份恢复状态"
+                "站点配置必须且只能有一条有效记录，请管理员检查数据库初始化或备份恢复状态"
         );
     }
 

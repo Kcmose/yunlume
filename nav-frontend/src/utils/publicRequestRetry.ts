@@ -1,4 +1,4 @@
-const DEFAULT_RETRY_DELAYS = [300, 900, 1800] as const
+const DEFAULT_RETRY_DELAYS = [250, 750] as const
 const RETRYABLE_STATUS_CODES = new Set([502, 503, 504])
 
 type ErrorWithHttpContext = {

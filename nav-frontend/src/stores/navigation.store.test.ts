@@ -43,7 +43,7 @@ describe('navigation first-screen reliability', () => {
     setActivePinia(createPinia())
   })
 
-  it('does not expose bundled demo categories before the first remote request settles', () => {
+  it('does not expose bundled categories before the first remote request settles', () => {
     const store = useNavigationStore()
 
     expect(store.usingFallback).toBe(false)

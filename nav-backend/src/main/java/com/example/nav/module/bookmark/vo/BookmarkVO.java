@@ -1,5 +1,6 @@
 package com.example.nav.module.bookmark.vo;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 
 public record BookmarkVO(
@@ -15,5 +16,5 @@ public record BookmarkVO(
         Boolean visible,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
-) {
+) implements Serializable {
 }

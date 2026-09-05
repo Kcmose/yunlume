@@ -100,4 +100,10 @@ public class PortableDataPackageController {
     ) {
         return Result.success(dataPackageService.job(jobId, authentication));
     }
+
+    @GetMapping("/import/jobs/current")
+    @Operation(summary = "查询当前管理员最近的可恢复导入任务")
+    public Result<JobResponse> currentJob(Authentication authentication) {
+        return Result.success(dataPackageService.currentJob(authentication));
+    }
 }

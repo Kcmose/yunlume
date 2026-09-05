@@ -35,6 +35,8 @@ public interface SiteConfigMapper extends BaseMapper<SiteConfig> {
                 updated_at = #{completedAt}
             WHERE id = #{id}
               AND install_completed_at IS NULL
+              AND version >= 0
+              AND version < 2147483647
               AND (#{expectedInstanceId} IS NULL
                    OR install_instance_id = #{expectedInstanceId})
             """)

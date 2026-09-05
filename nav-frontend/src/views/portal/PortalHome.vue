@@ -52,6 +52,7 @@ const {
 } = useBookmarks()
 const { themeStyle } = useTheme(config)
 const backgroundViewportHeight = ref('100vh')
+let backgroundViewportWidth = 0
 const portalStyle = computed(() => ({
   ...themeStyle.value,
   '--portal-background-viewport-height': backgroundViewportHeight.value,
@@ -65,7 +66,6 @@ const activeEngineId = ref<SearchEngine['id']>(
 const searchEnginesLoading = ref(false)
 const searchEnginesUsingFallback = ref(false)
 const hasRemoteSearchEngines = ref(false)
-const initialPublicDataSettled = ref(false)
 const activeEngine = computed(() =>
   searchEngines.value.find((engine) => isSameSearchEngine(engine.id, activeEngineId.value))
   ?? searchEngines.value[0]
@@ -133,11 +133,9 @@ async function loadPublicData() {
     fetchNavigation(),
     fetchSearchEngines(),
   ])
-  initialPublicDataSettled.value = true
 }
 
 watchEffect(() => {
-  if (!initialPublicDataSettled.value) return
   const siteName = config.value.siteName.trim() || '导航站'
   const description = config.value.siteDescription.trim() || '常用网站导航'
   document.title = siteName
@@ -145,11 +143,19 @@ watchEffect(() => {
   themeColorMeta?.setAttribute('content', config.value.backgroundColor || '#050505')
 })
 
-onMounted(() => {
+function syncBackgroundViewportHeight() {
+  if (window.innerWidth === backgroundViewportWidth) return
+  backgroundViewportWidth = window.innerWidth
   backgroundViewportHeight.value = `${window.innerHeight}px`
+}
+
+onMounted(() => {
+  syncBackgroundViewportHeight()
+  window.addEventListener('resize', syncBackgroundViewportHeight)
   void loadPublicData()
 })
 onBeforeUnmount(() => {
+  window.removeEventListener('resize', syncBackgroundViewportHeight)
   document.title = originalDocumentTitle
   if (descriptionMeta && originalDescription !== null) {
     descriptionMeta.setAttribute('content', originalDescription)
@@ -171,39 +177,34 @@ onBeforeUnmount(() => {
     :data-background-type="config.backgroundType"
     :style="portalStyle"
   >
-    <template v-if="initialPublicDataSettled">
-      <TopActionBar
-        :announcement-enabled="config.topContentEnabled"
-        :announcement="config.messageText"
+    <TopActionBar
+      :announcement-enabled="config.topContentEnabled"
+      :announcement="config.messageText"
+    />
+    <main>
+      <SiteHeader
+        :name="config.siteName"
+        :description="config.siteDescription"
       />
-      <main>
-        <SiteHeader
-          :name="config.siteName"
-          :description="config.siteDescription"
-        />
-        <SearchBar
-          v-model="keyword"
-          :result-count="bookmarkCount"
-          :engine="activeEngine"
-          :engines="searchEngines"
-          @select-engine="selectSearchEngine"
-          @submit="submitSearch"
-          @clear="clearSearch"
-        />
-        <CategoryGrid
-          :categories="filteredCategories"
-          :loading="publicDataLoading"
-          :using-fallback="publicDataUsingFallback"
-          :search-active="Boolean(keyword.trim())"
-          @retry="loadPublicData"
-        />
-      </main>
-      <footer class="portal-footer">
-        <p>© {{ year }} {{ config.siteName }}</p>
-      </footer>
-    </template>
-    <div v-else class="portal-initial-loading" role="status" aria-live="polite">
-      <span class="sr-only">正在加载导航内容</span>
-    </div>
+      <SearchBar
+        v-model="keyword"
+        :result-count="bookmarkCount"
+        :engine="activeEngine"
+        :engines="searchEngines"
+        @select-engine="selectSearchEngine"
+        @submit="submitSearch"
+        @clear="clearSearch"
+      />
+      <CategoryGrid
+        :categories="filteredCategories"
+        :loading="publicDataLoading"
+        :using-fallback="publicDataUsingFallback"
+        :search-active="Boolean(keyword.trim())"
+        @retry="loadPublicData"
+      />
+    </main>
+    <footer class="portal-footer">
+      <p>© {{ year }} {{ config.siteName }}</p>
+    </footer>
   </div>
 </template>

@@ -315,9 +315,15 @@ class PortableDataPackageIntegrationTest {
         JsonNode preview = preview(baseline, token, status().isOk());
         String previewToken = preview.path("previewToken").asText();
         String jobId = confirm(previewToken, token);
-        mockMvc.perform(post("/api/admin/data/import/{token}/confirm", previewToken)
+        String repeatedConfirmation = mockMvc.perform(post("/api/admin/data/import/{token}/confirm", previewToken)
                         .header("Authorization", bearer(token)))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertEquals(jobId, objectMapper.readTree(repeatedConfirmation).path("data").path("jobId").asText());
+        mockMvc.perform(get("/api/admin/data/import/jobs/current")
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.jobId").value(jobId));
         JsonNode job = awaitTerminalJob(jobId, token);
 
         assertEquals("COMPLETED", job.path("stage").asText());
@@ -331,10 +337,23 @@ class PortableDataPackageIntegrationTest {
         mockMvc.perform(get("/api/admin/data/import/jobs/{jobId}", jobId)
                         .header("Authorization", bearer(jwtTokenService.createToken(insertUser("job-other-admin", "admin")))))
                 .andExpect(status().isNotFound());
-        mockMvc.perform(get("/api/admin/data/import/jobs/not-retained", jobId)
+        mockMvc.perform(get("/api/admin/data/import/jobs/not-retained")
                         .header("Authorization", bearer(token)))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("服务重启")));
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("不存在或已过期")));
+    }
+
+    @Test
+    void exportRejectsBusinessDataThatPortableImportWouldReject() throws Exception {
+        SiteConfig site = singleSite();
+        siteConfigMapper.update(null, Wrappers.<SiteConfig>lambdaUpdate()
+                .eq(SiteConfig::getId, site.getId())
+                .set(SiteConfig::getPublishUrl, "javascript:alert(1)"));
+
+        mockMvc.perform(get("/api/admin/data/export")
+                        .header("Authorization", bearer(adminToken())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("无法导出")));
     }
 
     @Test

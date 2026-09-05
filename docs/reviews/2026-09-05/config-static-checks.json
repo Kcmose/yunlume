@@ -1,0 +1,30 @@
+[
+  {
+    "path": ".github/workflows/publish-images.yml",
+    "ok": true
+  },
+  {
+    "path": "docker-compose.yml",
+    "ok": true
+  },
+  {
+    "path": "nav-backend/pom.xml",
+    "ok": true
+  },
+  {
+    "path": "nav-backend/src/main/resources/application-local.yml",
+    "ok": true
+  },
+  {
+    "path": "nav-backend/src/main/resources/application-prod.yml",
+    "ok": true
+  },
+  {
+    "path": "nav-backend/src/main/resources/application.yml",
+    "ok": true
+  },
+  {
+    "path": "nav-frontend/nginx/05-validate-proxy-env.envsh",
+    "ok": true
+  }
+]

@@ -1,5 +1,6 @@
 package com.example.nav.module.datapackage.service;
 
+import com.example.nav.common.validation.SafeUrlRules;
 import com.example.nav.module.datapackage.model.PortablePackageModels.AssetDescriptor;
 import com.example.nav.module.datapackage.model.PortablePackageModels.BookmarkData;
 import com.example.nav.module.datapackage.model.PortablePackageModels.CategoryData;
@@ -339,33 +340,11 @@ final class PortableDataValidator {
     }
 
     private boolean safeHttpOrInternal(String value) {
-        if (value == null || value.isBlank() || unsafeCharacters(value)) return false;
-        if (value.startsWith("/") && !value.startsWith("//")) {
-            try {
-                URI uri = URI.create(value);
-                return !uri.isAbsolute() && uri.getRawAuthority() == null
-                        && uri.getRawPath() != null && uri.getRawPath().startsWith("/");
-            } catch (IllegalArgumentException exception) {
-                return false;
-            }
-        }
-        return safeHttp(value);
+        return SafeUrlRules.isSafeHttpOrInternal(value);
     }
 
     private boolean safeHttp(String value) {
-        if (value == null || value.isBlank() || unsafeCharacters(value)) return false;
-        try {
-            URI uri = URI.create(value);
-            return ("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()))
-                    && uri.getHost() != null && !uri.getHost().isBlank() && uri.getRawUserInfo() == null;
-        } catch (IllegalArgumentException exception) {
-            return false;
-        }
-    }
-
-    private boolean unsafeCharacters(String value) {
-        return value.indexOf('\\') >= 0
-                || value.codePoints().anyMatch(code -> Character.isWhitespace(code) || Character.isISOControl(code));
+        return SafeUrlRules.isSafeHttp(value);
     }
 
     private void key(String value, String path, Collector collector) {

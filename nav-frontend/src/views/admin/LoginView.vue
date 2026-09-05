@@ -19,7 +19,8 @@ const router = useRouter()
 async function submit() {
   if (!(await formRef.value?.validate().catch(() => false))) return
   try {
-    await authStore.login(form)
+    const result = await authStore.login(form)
+    if (!result) return
     ElMessage.success('登录成功，欢迎回来')
     const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/admin'
     await router.replace(redirect)

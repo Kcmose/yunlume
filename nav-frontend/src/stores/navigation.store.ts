@@ -6,8 +6,6 @@ import { withPublicRequestRetry } from '@/utils/publicRequestRetry'
 
 export const useNavigationStore = defineStore('navigation', {
   state: () => ({
-    // Do not flash bundled demo bookmarks before the server response arrives.
-    // The fallback is populated only when the bounded initial request fails.
     categories: [] as NavigationCategory[],
     loading: false,
     // Do not show a failure warning during the normal first synchronization;

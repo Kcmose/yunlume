@@ -4,6 +4,7 @@ import type { AxiosProgressEvent } from 'axios'
 import { Document, UploadFilled, WarningFilled } from '@element-plus/icons-vue'
 import {
   confirmNavigationDataImport,
+  getCurrentNavigationDataImportJob,
   getNavigationDataImportJob,
   previewNavigationDataImport,
 } from '@/api/data.api'
@@ -45,6 +46,7 @@ let pollTimer: number | undefined
 let polling = false
 let pollFailureCount = 0
 let disposed = false
+let restoreRequestVersion = 0
 
 const busy = computed(() => ['UPLOADING', 'PREVIEWING', 'CONFIRMING', 'RUNNING'].includes(state.value))
 const canPreview = computed(() => Boolean(selectedFile.value)
@@ -86,6 +88,7 @@ function schedulePoll() {
 
 function setFile(file: File | null) {
   if (busy.value) return
+  restoreRequestVersion += 1
   selectedFile.value = file
   preview.value = null
   previewRequestError.value = ''
@@ -267,23 +270,59 @@ function retryJobStatus() {
   void pollJob()
 }
 
-function restoreJob() {
-  try {
-    const session = readImportJobSession(window.sessionStorage)
-    if (!session) return
-    job.value = {
-      jobId: session.jobId,
-      stage: 'PREPARING',
-      createdAt: session.startedAt,
-      startedAt: null,
-      finishedAt: null,
-      message: '正在恢复上次导入任务的进度',
-    }
-    state.value = 'RUNNING'
-    progressVisible.value = true
+function showRecoveredJob(result: DataImportJob) {
+  job.value = result
+  state.value = clientStateForJob(result)
+  progressVisible.value = true
+  if (!isImportJobTerminal(result.stage)) {
+    safeWriteJobSession(result.jobId, result.createdAt)
     void pollJob()
+  } else {
+    safeClearJobSession()
+  }
+}
+
+async function restoreJob() {
+  const restoreRequestId = ++restoreRequestVersion
+  let session: ReturnType<typeof readImportJobSession> = null
+  try {
+    session = readImportJobSession(window.sessionStorage)
   } catch {
     persistentError.value = '浏览器无法读取上次保存的导入任务状态'
+  }
+  if (session) {
+    try {
+      const recovered = await getNavigationDataImportJob(session.jobId)
+      if (disposed || restoreRequestId !== restoreRequestVersion || state.value !== 'IDLE') return
+      showRecoveredJob(recovered)
+      return
+    } catch (error) {
+      if (disposed || restoreRequestId !== restoreRequestVersion || state.value !== 'IDLE') return
+      const status = getHttpStatus(error)
+      if (status === 404 || status === 410) {
+        safeClearJobSession()
+      } else {
+        showRecoveredJob({
+          jobId: session.jobId,
+          stage: 'PREPARING',
+          createdAt: session.startedAt,
+          startedAt: null,
+          finishedAt: null,
+          message: '正在恢复上次导入任务的进度',
+        })
+        return
+      }
+    }
+  }
+  try {
+    const recovered = await getCurrentNavigationDataImportJob()
+    if (disposed || restoreRequestId !== restoreRequestVersion || state.value !== 'IDLE') return
+    showRecoveredJob(recovered)
+  } catch (error) {
+    if (disposed || restoreRequestId !== restoreRequestVersion || state.value !== 'IDLE') return
+    if (getHttpStatus(error) !== 404) {
+      persistentError.value = '暂时无法查询上次导入任务，请稍后刷新重试'
+    }
   }
 }
 
@@ -299,10 +338,11 @@ watch(progressVisible, (visible) => {
 
 onMounted(() => {
   disposed = false
-  restoreJob()
+  void restoreJob()
 })
 onBeforeUnmount(() => {
   disposed = true
+  restoreRequestVersion += 1
   clearPollTimer()
 })
 </script>

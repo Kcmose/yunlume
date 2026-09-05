@@ -1706,7 +1706,7 @@ onBeforeUnmount(() => {
             </div>
 
             <p class="install-database-guidance">
-              建议为 yunlume 创建独立 Redis ACL 用户和逻辑库：仅允许 <code>~nav:*</code> 键及 PING、SELECT、SET、GET、DEL，拒绝 CONFIG、ACL、FLUSH、MODULE、DEBUG 等管理命令。不要使用无密码实例或暴露公网端口。
+              建议为 yunlume 创建独立 Redis ACL 用户和逻辑库：仅允许 <code>~nav:*</code> 键及 PING、SELECT、INFO、SET、GET、DEL、EVAL、EVALSHA、EXISTS、INCR、PSETEX、PEXPIRE，拒绝 CONFIG、ACL、FLUSH、MODULE、DEBUG 等管理命令。连接测试会读取 INFO server 确认 Redis 7+，并实际探测这些运行时能力。不要使用无密码实例或暴露公网端口。
             </p>
 
             <div

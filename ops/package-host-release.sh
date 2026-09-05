@@ -136,20 +136,22 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 readonly PACKAGE_DIR="${STAGING_DIR}/package"
-mkdir -p -- "${PACKAGE_DIR}/backend" "${PACKAGE_DIR}/frontend" "${PACKAGE_DIR}/deploy"
+mkdir -p -- "${PACKAGE_DIR}/backend" "${PACKAGE_DIR}/frontend" "${PACKAGE_DIR}/deploy" \
+  "${PACKAGE_DIR}/database/migrations"
 
 cp -- "${backend_jar}" "${PACKAGE_DIR}/backend/yunlume-backend.jar"
 cp -a -- "${frontend_dist}/." "${PACKAGE_DIR}/frontend/"
 for template in "${REQUIRED_HOST_TEMPLATES[@]}"; do
   cp -- "${HOST_TEMPLATE_DIR}/${template}" "${PACKAGE_DIR}/deploy/${template}"
 done
+cp -- "${PROJECT_DIR}"/database/migrations/*.sql "${PACKAGE_DIR}/database/migrations/"
 printf '%s\n' "${VERSION}" >"${PACKAGE_DIR}/VERSION"
 find "${PACKAGE_DIR}" -type d -exec chmod 0755 {} +
 find "${PACKAGE_DIR}" -type f -exec chmod 0644 {} +
 (
   cd "${PACKAGE_DIR}"
   {
-    find backend frontend deploy -type f -print0
+    find backend frontend deploy database -type f -print0
     printf 'VERSION\0'
   } | sort -z | while IFS= read -r -d '' package_file; do
     sha256sum "${package_file}"
@@ -167,7 +169,7 @@ tar \
   --numeric-owner \
   -C "${PACKAGE_DIR}" \
   -czf "${staged_archive}" \
-  backend frontend deploy VERSION SHA256SUMS
+  backend frontend deploy database VERSION SHA256SUMS
 
 archive_digest="$(sha256sum "${staged_archive}")"
 archive_digest="${archive_digest%% *}"

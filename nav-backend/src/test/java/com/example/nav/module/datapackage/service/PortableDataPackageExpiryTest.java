@@ -40,6 +40,10 @@ class PortableDataPackageExpiryTest {
     private UserMapper userMapper;
     @Autowired
     private ObjectMapper objectMapper;
+    @Autowired
+    private PortableImportJobStore jobStore;
+    @Autowired
+    private PortableImportCommitStore commitStore;
 
     @Test
     void previewTokenExpiresAfterFifteenMinutes(@TempDir Path temporary) {
@@ -52,6 +56,8 @@ class PortableDataPackageExpiryTest {
                 userMapper,
                 objectMapper,
                 new SyncTaskExecutor(),
+                jobStore,
+                commitStore,
                 clock,
                 temporary.resolve("previews")
         );

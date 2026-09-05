@@ -1,0 +1,660 @@
+{
+  "repository": "<repository-root>",
+  "base_head": "e5c65f08b7ea2d82317d9350e45bbcb2800dbbfa",
+  "scope": "当前工作区（含未提交及未跟踪）逐文件静态审查；不以diff代替文件覆盖",
+  "file_count": 42,
+  "total_lines": 10625,
+  "findings_count": 10,
+  "files": [
+    {
+      "path": ".dockerignore",
+      "lines": 27,
+      "sha256": "af4b01da2ae80133810356e01039a878325842c37724f01aaf21d0225cd7ca04",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          27
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读忽略规则/配置样例；检查构建上下文与凭据/运行状态排除边界。"
+    },
+    {
+      "path": ".env.example",
+      "lines": 77,
+      "sha256": "45dc6b3fe37047d16457242fa0cafac880d1a9352994961520722446a09bf196",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          77
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读忽略规则/配置样例；检查构建上下文与凭据/运行状态排除边界。"
+    },
+    {
+      "path": ".github/workflows/publish-images.yml",
+      "lines": 1954,
+      "sha256": "a9d90c07a6ae2028ec91025d235684202e4d2d1c78975d36f2b8a698ae6a45b8",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          1954
+        ]
+      ],
+      "finding_ids": [
+        "OPS-01",
+        "OPS-02",
+        "OPS-04",
+        "OPS-06",
+        "OPS-09",
+        "OPS-10"
+      ],
+      "notes": "完整阅读1954行；事件与权限、全部job依赖、候选/归档/签名/Release提交、重跑、并发、发布后只读路径。"
+    },
+    {
+      "path": ".gitignore",
+      "lines": 78,
+      "sha256": "e72b8cc868745a7a1f0b2060b47a2ee272acd0feb1e288c4266740a6c91bfa4c",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          78
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读忽略规则/配置样例；检查构建上下文与凭据/运行状态排除边界。"
+    },
+    {
+      "path": "README.md",
+      "lines": 483,
+      "sha256": "f1b056596db20f209ba1146dd6d4ffff8dd7c61d2b869184083fc67a67de9f96",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          483
+        ]
+      ],
+      "finding_ids": [
+        "OPS-05",
+        "OPS-07",
+        "OPS-08"
+      ],
+      "notes": "完整阅读；重点核对安装升级、Host TLS、代理契约、不可变发布、手工code-only回滚边界。"
+    },
+    {
+      "path": "deploy/host/app.env.template",
+      "lines": 61,
+      "sha256": "975fbee2f4e3442c23539d357e466169289a960529534be68bc173e7c4cc38f7",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          61
+        ]
+      ],
+      "finding_ids": [
+        "OPS-08"
+      ],
+      "notes": "完整阅读；数据库/Redis托管状态、路径/密钥权限、HTTPS与loopback信任默认。"
+    },
+    {
+      "path": "deploy/host/yunlume-backend.service",
+      "lines": 34,
+      "sha256": "e02830a4cee49e026aa0e60bdf39abc59af8b89a7409c6e9aaab8043e25628be",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          34
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读；受限用户、固定配置路径、重启策略、systemd文件系统沙箱。"
+    },
+    {
+      "path": "deploy/host/yunlume.nginx.conf",
+      "lines": 335,
+      "sha256": "739ea87b73a22f166521a943556ca7e235a4c1c0bf2e9d0adbaeb94b7b1da441",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          335
+        ]
+      ],
+      "finding_ids": [
+        "OPS-08"
+      ],
+      "notes": "完整阅读；Host入口、敏感端点限流/日志/body、代理头、缓存与上传目录。"
+    },
+    {
+      "path": "docker-compose.yml",
+      "lines": 126,
+      "sha256": "1d06d485aee800573996417633eaa426423215e03ec9592698987e2cc1c71717",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          126
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读；环境/Secret插值、named volumes、健康依赖、端口/可信代理、构建与运行职责。"
+    },
+    {
+      "path": "install.sh",
+      "lines": 1471,
+      "sha256": "240fb4cf2d44a70e3ec01a9f8c1e9daa7ac2a4c50387f4720975531d76a91a03",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          1471
+        ]
+      ],
+      "finding_ids": [
+        "OPS-07",
+        "OPS-08"
+      ],
+      "notes": "完整阅读；参数/路径/锁/manifest、代际、dotenv、Docker与Host事务、退出回滚、临时文件与健康门禁。"
+    },
+    {
+      "path": "nav-backend/.dockerignore",
+      "lines": 23,
+      "sha256": "2612620baf5d2d486f74a925948a2b88ddf58dd0ace74ae3fc4a86003dc35433",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          23
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读忽略规则/配置样例；检查构建上下文与凭据/运行状态排除边界。"
+    },
+    {
+      "path": "nav-backend/Dockerfile",
+      "lines": 19,
+      "sha256": "1d1525a1acb84b9274113ac7a5f3d55cd2d12ba454402ae6b80c9fe792463141",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          19
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读；Maven构建与非root运行阶段、config卷所有者、可变基础tag；未构建。"
+    },
+    {
+      "path": "nav-frontend/.dockerignore",
+      "lines": 16,
+      "sha256": "a41b6e7fc180eb5486f886156388fbac2af9711fb4398bc19bceeb6f43f14229",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          16
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读忽略规则/配置样例；检查构建上下文与凭据/运行状态排除边界。"
+    },
+    {
+      "path": "nav-frontend/Dockerfile",
+      "lines": 22,
+      "sha256": "e5bc41c6f41671429ed4e6334f544cb9efc65f38e99f52d1661ae1d16671b525",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          22
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读；BUILDPLATFORM、npm锁文件、重新构建前端、Nginx启动模板；未构建。"
+    },
+    {
+      "path": "nav-frontend/nginx/05-validate-proxy-env.envsh",
+      "lines": 49,
+      "sha256": "d1bba3a90d2761d8f5a5827704463ff51ab94bacfcfaf9851a4326ce1f3cee60",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          49
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读；受信任头开关、绑定地址和CIDR限制、失效回退。"
+    },
+    {
+      "path": "nav-frontend/nginx/nginx.conf.template",
+      "lines": 424,
+      "sha256": "248e46df75df93de066304827f0394d0230258cf99ebfed743080b9e3f843154",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          424
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读424行；来源IP恢复/协议信任、限流分区、敏感日志、上传/import大小与cache。"
+    },
+    {
+      "path": "ops/RELEASE-TRUST-MODEL.md",
+      "lines": 112,
+      "sha256": "4fa591173c04722e255d322d3a089708b44b412203b6fba17ab8917774f3b672",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          112
+        ]
+      ],
+      "finding_ids": [
+        "OPS-05",
+        "OPS-06",
+        "OPS-09"
+      ],
+      "notes": "完整阅读并对照实际实现；区分文档承诺与执行证据，外部文档联网验证受阻。"
+    },
+    {
+      "path": "ops/backend-release.Dockerfile",
+      "lines": 12,
+      "sha256": "5d1ada5edba025f11a50058c03c8738f1132f3158ec779b5214b2e76dd338f76",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          12
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读；COPY已测试JAR而非重编译、运行用户/目录；未构建。"
+    },
+    {
+      "path": "ops/check-immutable-releases-policy.sh",
+      "lines": 49,
+      "sha256": "70a2f3661c7065cb628779647218e1d2a20b200aa3ac5ecdeebadf20a654fbb1",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          49
+        ]
+      ],
+      "finding_ids": [
+        "OPS-05"
+      ],
+      "notes": "完整阅读忽略规则/配置样例；检查构建上下文与凭据/运行状态排除边界。"
+    },
+    {
+      "path": "ops/compatibility-epoch-rollback-test.sh",
+      "lines": 91,
+      "sha256": "added1b5e82594700c034fedc451c527e3df46c63e10b01be5767ae59181bf9a",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          91
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读测试脚本：检查真实覆盖、fixture/mock保真度、负向路径与隔离清理；仅静态审查，未执行该测试套件。"
+    },
+    {
+      "path": "ops/create-release-manifest.py",
+      "lines": 70,
+      "sha256": "d14ae502239cd597b94259fc8742f823d1f92071caf3f59b2495c624135cdb5c",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          70
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读；semver、owner、两OCI digest、两个资产SHA、epoch与输出schema。"
+    },
+    {
+      "path": "ops/immutable-release-policy-test.sh",
+      "lines": 63,
+      "sha256": "0cc3b5cdace584e37ab5d3a83030a63321c89d2f5f74e5cb10d7389e69c19c7f",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          63
+        ]
+      ],
+      "finding_ids": [
+        "OPS-05"
+      ],
+      "notes": "完整阅读测试脚本：检查真实覆盖、fixture/mock保真度、负向路径与隔离清理；仅静态审查，未执行该测试套件。"
+    },
+    {
+      "path": "ops/install-e2e.sh",
+      "lines": 1140,
+      "sha256": "d989f8f7c35712bc9b6c162e22e9f0ddad9e98927e8f8eb7cbfb53800cd28890",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          1140
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读；隔离Compose/TLS PostgreSQL与Redis夹具、安装流程与持久性、退出清理；未执行E2E。"
+    },
+    {
+      "path": "ops/install-pinned-gh.sh",
+      "lines": 34,
+      "sha256": "5dd82a57c6ae8c785e3a53cb0aec9fbb78c60f5ef475149dd7bd74071b5d8349",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          34
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读；两架构固定CLI版本与SHA、下载/解包/安装/能力验证。未下载或安装CLI。"
+    },
+    {
+      "path": "ops/install-release-url-test.sh",
+      "lines": 122,
+      "sha256": "c78cf188936c485adf1f59ba5a87f7478aaeb139d708c4e22bed008677f1a793",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          122
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读测试脚本：检查真实覆盖、fixture/mock保真度、负向路径与隔离清理；仅静态审查，未执行该测试套件。"
+    },
+    {
+      "path": "ops/install-runtime-config-test.sh",
+      "lines": 250,
+      "sha256": "6c00264cd76ec09716a421153701c1d24c3ab91336bbecca646d8cbe77989306",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          250
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读测试脚本：检查真实覆盖、fixture/mock保真度、负向路径与隔离清理；仅静态审查，未执行该测试套件。"
+    },
+    {
+      "path": "ops/lib/common.sh",
+      "lines": 79,
+      "sha256": "0ac2b4003014e8d20b233029ef115bc905925220721fded173d5759d48c0cb3e",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          79
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读；dotenv受限解析、不source凭据、统一root锁、Compose目标。"
+    },
+    {
+      "path": "ops/lib/release-transaction.sh",
+      "lines": 445,
+      "sha256": "6677d523703a01df6562528f879e2767cd6d39090f1dcebd1ea513aa39e1f1d1",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          445
+        ]
+      ],
+      "finding_ids": [
+        "OPS-03",
+        "OPS-09"
+      ],
+      "notes": "完整阅读；固定CLI能力、资产ID、OCI根摘要、候选事务、draft状态屏障、canonical签名、JAR字节校验。"
+    },
+    {
+      "path": "ops/migrate-docker-volumes.sh",
+      "lines": 351,
+      "sha256": "0180a3e9fbdb00ac99fcd78e0ac6ce630549c479a518afc1eaf62ee567ae54f6",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          351
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读；只读源卷、no-copy-up、目标标签排他、权限/内容摘要与失败保留；未运行Docker迁移。"
+    },
+    {
+      "path": "ops/mode-protection-test.sh",
+      "lines": 69,
+      "sha256": "3f71fde2191b691956ff4e41c007c5099fb0e6dd20e4d287ab940075471d9dd9",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          69
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读测试脚本：检查真实覆盖、fixture/mock保真度、负向路径与隔离清理；仅静态审查，未执行该测试套件。"
+    },
+    {
+      "path": "ops/operations-lock-test.sh",
+      "lines": 129,
+      "sha256": "f32867214699eb16c5de8380fbfa93c4b35b0b9ef2bd86cec0f3e34a34acb731",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          129
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读测试脚本：检查真实覆盖、fixture/mock保真度、负向路径与隔离清理；仅静态审查，未执行该测试套件。"
+    },
+    {
+      "path": "ops/package-host-release.sh",
+      "lines": 201,
+      "sha256": "ad0e2e717db4505f90853633f45b7ce4de72aba18722c5a00ab524ebd368d1dc",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          201
+        ]
+      ],
+      "finding_ids": [
+        "OPS-03"
+      ],
+      "notes": "完整阅读；输入边界、禁symlink、归档布局、规范mtime、双资产无覆盖提交与cleanup。"
+    },
+    {
+      "path": "ops/postgresql-migration-signal-test.sh",
+      "lines": 81,
+      "sha256": "bc7d7221ee4de514607a7b64ec6420a67b3deb9897c4ca94c55989f91996f229",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          81
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读测试脚本：检查真实覆盖、fixture/mock保真度、负向路径与隔离清理；仅静态审查，未执行该测试套件。"
+    },
+    {
+      "path": "ops/postgresql-migration-test.sh",
+      "lines": 643,
+      "sha256": "76bc129c6cc66ebe36439ce1e9f7917be6eae68fe9864e57d8097800b0ecfb24",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          643
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读；JAR摘要门禁、镜像和Host启动、真实PG advisory锁并发、schema损坏矩阵、信号清理；未执行构建/容器。"
+    },
+    {
+      "path": "ops/publish-workflow-test.sh",
+      "lines": 372,
+      "sha256": "30fe098176a8efa9d4b93a13b74925a4ca4960ebf0ea9a2c6c5ff223dae9f7c9",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          372
+        ]
+      ],
+      "finding_ids": [
+        "OPS-01",
+        "OPS-02",
+        "OPS-04",
+        "OPS-06",
+        "OPS-10"
+      ],
+      "notes": "完整阅读测试脚本：检查真实覆盖、fixture/mock保真度、负向路径与隔离清理；仅静态审查，未执行该测试套件。"
+    },
+    {
+      "path": "ops/release-manifest-test.sh",
+      "lines": 81,
+      "sha256": "b91c16b94b5e005ec38d0667ae9dee375e22e18e73aa75c1baeb77bec9a1d47b",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          81
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读测试脚本：检查真实覆盖、fixture/mock保真度、负向路径与隔离清理；仅静态审查，未执行该测试套件。"
+    },
+    {
+      "path": "ops/release-transaction-test.sh",
+      "lines": 367,
+      "sha256": "64046b9ee1bedc7d89946d70336f8c1d156c246dda7efe564253c0cc8212a56b",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          367
+        ]
+      ],
+      "finding_ids": [
+        "OPS-03",
+        "OPS-09"
+      ],
+      "notes": "完整阅读测试脚本：检查真实覆盖、fixture/mock保真度、负向路径与隔离清理；仅静态审查，未执行该测试套件。"
+    },
+    {
+      "path": "ops/release-version-test.sh",
+      "lines": 40,
+      "sha256": "840d2e513f101721005a1ff7b5bf1503a6230c2339945fe02f05c11f4b2b6635",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          40
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读测试脚本：检查真实覆盖、fixture/mock保真度、负向路径与隔离清理；仅静态审查，未执行该测试套件。"
+    },
+    {
+      "path": "ops/rollback-release-test.sh",
+      "lines": 140,
+      "sha256": "537b54e84b753967171385483364b6167256a8962ca75f6df6031d7c9dd33d57",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          140
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读测试脚本：检查真实覆盖、fixture/mock保真度、负向路径与隔离清理；仅静态审查，未执行该测试套件。"
+    },
+    {
+      "path": "ops/rollback-release.sh",
+      "lines": 158,
+      "sha256": "3e83fedc6a4a3532ee9cb01ab8e80c1537cb012c497588e0f5cf570c4189a859",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          158
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读；digest参数、dotenv不执行、外部备份确认、回滚失败状态。README472明确code-only兼容性免责；不把该独立应急脚本自动等同正式installer。"
+    },
+    {
+      "path": "ops/validate-release-version.py",
+      "lines": 39,
+      "sha256": "0daef6cf9bbc381dbe38b1d2caf3ac0450c10b2c0a5f0cecd1debd193e52d0c9",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          39
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读；无前导零semver、已发布最高版本排序/比较。"
+    },
+    {
+      "path": "ops/version-transition-test.sh",
+      "lines": 288,
+      "sha256": "1f2a3de4a439824db628351768dbb9169e4c2809945846120129b2dae19838b3",
+      "review_status": "full-file-reviewed",
+      "reviewed_ranges": [
+        [
+          1,
+          288
+        ]
+      ],
+      "finding_ids": [],
+      "notes": "完整阅读测试脚本：检查真实覆盖、fixture/mock保真度、负向路径与隔离清理；仅静态审查，未执行该测试套件。"
+    }
+  ],
+  "related_context_reads": [
+    {
+      "path": "nav-backend/src/main/java/com/example/nav/common/security/SecureTransportPolicy.java",
+      "range": "1-53",
+      "purpose": "Host HTTPS拒绝路径交叉验证"
+    },
+    {
+      "path": "nav-backend/pom.xml",
+      "range": "targeted-search",
+      "purpose": "构建可重复性相关插件/时间戳检查，不计入完整覆盖"
+    }
+  ],
+  "verification": {
+    "local_builds": false,
+    "remote_builds": false,
+    "docker_or_systemd_mutations": false,
+    "github_mutations": false,
+    "shell_syntax_checked": 23,
+    "shell_syntax_failures": 0,
+    "probe_results": "operations-probes.json",
+    "network_limitations": "GitHub docs提取无正文，raw.githubusercontent.com两次30秒超时；浏览器依赖安装也因网络失败。未伪称完成实时API/签名验收。"
+  }
+}

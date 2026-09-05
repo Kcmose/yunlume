@@ -19,6 +19,7 @@ const emit = defineEmits<{
 }>()
 
 const uploading = ref(false)
+const uploadProgress = ref<number | undefined>(undefined)
 const previewFailed = ref(false)
 const urlInputId = `background-image-url-${useId()}`
 const ABSOLUTE_MAX_FILE_BYTES = 10 * 1024 * 1024
@@ -56,9 +57,12 @@ const beforeUpload: UploadProps['beforeUpload'] = (file) => {
 
 async function handleUpload(options: UploadRequestOptions) {
   uploading.value = true
+  uploadProgress.value = undefined
   emit('uploading-change', true)
   try {
-    const result = await uploadImage(options.file)
+    const result = await uploadImage(options.file, (progress) => {
+      uploadProgress.value = progress
+    })
     emit('update:modelValue', result.url)
     ElMessage.success(`图片上传成功（${result.width} × ${result.height}），请点击“保存并应用背景”`)
     return result
@@ -67,6 +71,7 @@ async function handleUpload(options: UploadRequestOptions) {
     throw error
   } finally {
     uploading.value = false
+    uploadProgress.value = undefined
     emit('uploading-change', false)
   }
 }
@@ -115,6 +120,15 @@ async function handleUpload(options: UploadRequestOptions) {
         清空
       </el-button>
     </div>
+
+    <el-progress
+      v-if="uploading"
+      :percentage="uploadProgress ?? 0"
+      :indeterminate="uploadProgress === undefined"
+      :show-text="uploadProgress !== undefined"
+      :stroke-width="8"
+      aria-label="图片上传进度"
+    />
 
     <label class="sr-only" :for="urlInputId">{{ label }}图片地址</label>
     <el-input

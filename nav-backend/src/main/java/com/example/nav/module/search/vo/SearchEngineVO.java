@@ -1,5 +1,7 @@
 package com.example.nav.module.search.vo;
 
+import java.io.Serializable;
+
 public record SearchEngineVO(
         Long id,
         String name,
@@ -9,5 +11,5 @@ public record SearchEngineVO(
         Boolean isDefault,
         Integer sortOrder,
         Boolean visible
-) {
+) implements Serializable {
 }

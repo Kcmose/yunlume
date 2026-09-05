@@ -11,9 +11,9 @@
 
 > 当前首次部署基线：新部署通过 `/install` 响应式安装向导依次连接预先创建的外部 PostgreSQL 与 Redis。两个服务都以短期单次 ticket 完成测试、后端专用配置卷落盘和重启接管；PostgreSQL 只初始化用户明确确认的空白专用库，Redis 支持系统信任、自定义 CA 或受信私网明文模式。安装完成状态、数据库实例 UUID 与 Redis 配置标记交叉绑定；依赖断线、清空用户或保留任一配置文件时都不会重开换库入口。JWT 由权限为 `0600` 的 `.env` 提供，PostgreSQL/Redis 密码只通过安装向导进入后端配置卷；Compose 不启动 PostgreSQL 或 Redis 容器。
 
-> 当前入口基线：`frontend` 镜像内的 Nginx 默认监听宿主机 `0.0.0.0`，首次部署直接通过公网 HTTP 访问 `/install`，不要求安装口令、SSH 通道、IP 白名单或 HTTPS。安装完成标记写入后，所有修改型安装接口永久拒绝再次初始化。
+> 当前入口基线：`frontend` 镜像内的 Nginx 默认监听宿主机端口，但公网 HTTP 仅用于 `/healthz` 连通性诊断。首次部署必须先配置受信任域名与 HTTPS 代理，并阻止绕过代理直连，再通过 HTTPS 提交数据库、Redis 和管理员凭据。安装完成标记写入后，所有修改型安装接口永久拒绝再次初始化。
 
-> 当前验收状态：`v1.0.8` 已完成 GitHub 正式 Release 和 `latest` 直接升级；使用同属兼容代际 `1` 的正式 `v1.0.8` 与 `v1.0.7` Release 完成真实降级闭环，版本、镜像、服务和上传数据均验证通过。此前 Docker/宿主机升级及跨代际拒绝结果继续有效。CI、正式资产及现场结果见 [`ACCEPTANCE.md`](ACCEPTANCE.md)。
+> 当前验收状态：最近完成完整现场闭环的正式验收基线为 `v1.0.8`，不等同于 GitHub 当前最新 Release；使用同属兼容代际 `1` 的正式 `v1.0.8` 与 `v1.0.7` Release 完成真实降级闭环，版本、镜像、服务和上传数据均验证通过。此前 Docker/宿主机升级及跨代际拒绝结果继续有效。CI、正式资产及现场结果见 [`ACCEPTANCE.md`](ACCEPTANCE.md)。
 
 ---
 
@@ -166,7 +166,7 @@ Maven
 ### 3.3 部署技术栈
 
 ```text
-1Panel OpenResty（可选外层 HTTPS 入口）
+1Panel OpenResty（生产凭据入口所需的外层 HTTPS，或使用等价受信任代理）
 Docker
 Docker Compose
 Java 17 + systemd + Nginx（宿主机模式）
@@ -175,7 +175,7 @@ Java 17 + systemd + Nginx（宿主机模式）
 部署结构：
 
 ```text
-1Panel OpenResty（可选）
+1Panel OpenResty（生产凭据入口必需，或使用等价受信任 HTTPS 代理）
 └── 域名、HTTPS 与最外层反向代理
 
 Docker Compose
@@ -1290,7 +1290,7 @@ GET  /api/admin/data/import/jobs/{jobId}
 - `prod` 只允许 `CACHE_TYPE=redis`。新部署必须使用安装向导测试并保存外部 Redis 的主机、端口、可选 ACL 用户名、密码、逻辑库与超时；旧部署可用 `NAV_REDIS_SOURCE=LEGACY_ENV` 继续读取环境变量。TLS 默认使用系统信任证书，也可保存独立私有 CA；只有解析到可信私网地址并显式确认风险时才允许关闭。
 - 数据库尚未接管时 Redis 配置接口不开放；数据库身份验证成功后状态进入 `REDIS_REQUIRED`，Redis test/configure 完成并重启接管后才进入站点环境检查。配置阶段 `/api/health` 返回 `INSTALLING` 以保持安装页可达；安装完成后必须同时探测数据库与 Redis，任一不可用都不得报告 `UP`，也不得重新开放连接配置入口。
 - Nginx 对登录 POST 按来源 IP 限制为平均每分钟 5 次；PostgreSQL test/configure、Redis test/configure、安装检查/完成各使用互相独立的平均每分钟 3 次且允许 3 次突发预算，匿名安装状态查询另有每分钟 30 次的 GET 限流；公开健康接口限为每分钟 60 次、允许 20 次突发，后端将 Redis 实际读写探针合并缓存 5 秒。OPTIONS 不消耗安装预算，连接凭据接口不写访问日志。
-- `frontend` Nginx 默认监听公网 HTTP 并忽略客户端转发头；直接公网使用不要求代理、SSH 通道或 IP 白名单。后续接入外层 TLS 代理时，可再启用 `WEB_TRUST_PROXY_HEADERS` 并按即时代理来源配置 `WEB_TRUSTED_PROXY_CIDR`。
+- `frontend` Nginx 的 HTTP 端口仅用于无凭据连通性诊断并忽略客户端转发头；提交安装凭据前必须接入外层 TLS 代理，启用 `WEB_TRUST_PROXY_HEADERS`，按即时代理来源配置 `WEB_TRUSTED_PROXY_CIDR`，并禁止公网绕过代理直连。
 - `nav-backend/src/main/resources/schema-postgresql.sql` 是安装向导初始化已确认空白外部库的唯一权威 schema。外部数据库升级不由 Compose 自动执行，必须先取得服务商可恢复快照，再按每个版本的受控迁移说明执行。
 
 ### 背景图生命周期
@@ -1523,7 +1523,7 @@ GET  /api/admin/data/import/jobs/{jobId}
 5. 编写 Docker/宿主机统一 install.sh、版本清单和 SHA-256 校验
 6. 配置外部 PostgreSQL/Redis 安装初始化与服务商备份边界
 7. 配置上传、日志和安装配置持久化
-8. 增加公网 HTTP 六步安装向导和持久化完成标记，不增加安装口令、SSH 通道或 IP 白名单
+8. 增加 HTTPS 六步安装向导和持久化完成标记；公网 HTTP 仅用于连通性诊断
 9. 为两种模式实现显式升级、健康检查和失败回滚
 ```
 
@@ -1532,7 +1532,7 @@ GET  /api/admin/data/import/jobs/{jobId}
 ```text
 1. install.sh 默认 Docker 模式可以启动 frontend/backend
 2. install.sh --mode host 可以启动 JAR、静态前端、systemd 与系统 Nginx
-3. 两种模式均可通过公网 HTTP 访问前端、后台和 API
+3. 两种模式的公网凭据与管理入口均通过受信任域名和 HTTPS 访问，HTTP 仅验证连通性
 4. 上传文件不会因容器或服务重启丢失
 5. 新库自动进入六步安装向导，环境检查与强密码校验通过后可创建唯一管理员
 6. 已安装站点和并发重复提交均不能再次初始化
@@ -1839,7 +1839,7 @@ MVP 之后仍暂缓的功能：
 5. Docker Compose 部署文件
 6. 项目 README
 7. 接口文档（生产默认关闭，仅受控环境开启）
-8. 管理员引导说明（local 为 `admin / Local!Start2026`；生产默认直接使用公网 HTTP 六步网页安装，也可显式启用环境变量引导）
+8. 管理员引导说明（local 为 `admin / Local!Start2026`；生产先配置受信任 HTTPS 域名，再使用六步网页安装，也可显式启用环境变量引导）
 9. Docker/宿主机统一安装脚本、发行清单与宿主机发行包
 ```
 

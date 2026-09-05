@@ -11,6 +11,9 @@ import com.example.nav.module.category.entity.Category;
 import com.example.nav.module.category.mapper.CategoryMapper;
 import com.example.nav.module.category.service.CategoryService;
 import com.example.nav.module.category.vo.CategoryVO;
+import com.example.nav.module.publicdata.PublicDataCacheNames;
+import com.example.nav.module.publicdata.PublicDataCacheInvalidator;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,10 +32,16 @@ public class CategoryServiceImpl implements CategoryService {
 
     private final CategoryMapper categoryMapper;
     private final BookmarkMapper bookmarkMapper;
+    private final PublicDataCacheInvalidator cacheInvalidator;
 
-    public CategoryServiceImpl(CategoryMapper categoryMapper, BookmarkMapper bookmarkMapper) {
+    public CategoryServiceImpl(
+            CategoryMapper categoryMapper,
+            BookmarkMapper bookmarkMapper,
+            PublicDataCacheInvalidator cacheInvalidator
+    ) {
         this.categoryMapper = categoryMapper;
         this.bookmarkMapper = bookmarkMapper;
+        this.cacheInvalidator = cacheInvalidator;
     }
 
     @Override
@@ -47,10 +56,11 @@ public class CategoryServiceImpl implements CategoryService {
         return categoryMapper.selectList(Wrappers.<Category>lambdaQuery()
                         .eq(Category::getVisible, true)
                         .orderByAsc(Category::getSortOrder, Category::getId))
-                .stream().map(this::toVO).toList();
+                .stream().map(this::toNavigationVO).toList();
     }
 
     @Override
+    @Transactional
     public CategoryVO create(CategoryCreateDTO dto) {
         LocalDateTime now = LocalDateTime.now();
         Category category = new Category();
@@ -61,10 +71,12 @@ public class CategoryServiceImpl implements CategoryService {
         category.setCreatedAt(now);
         category.setUpdatedAt(now);
         categoryMapper.insert(category);
+        invalidateNavigation();
         return toVO(category);
     }
 
     @Override
+    @Transactional
     public CategoryVO update(Long id, CategoryUpdateDTO dto) {
         Category category = requireCategory(id);
         category.setName(dto.name().trim());
@@ -73,6 +85,7 @@ public class CategoryServiceImpl implements CategoryService {
         if (dto.visible() != null) category.setVisible(dto.visible());
         category.setUpdatedAt(LocalDateTime.now());
         categoryMapper.updateById(category);
+        invalidateNavigation();
         return toVO(category);
     }
 
@@ -85,14 +98,17 @@ public class CategoryServiceImpl implements CategoryService {
             throw BusinessException.conflict("该分类下仍有书签，请先移动或删除书签");
         }
         categoryMapper.deleteById(id);
+        invalidateNavigation();
     }
 
     @Override
+    @Transactional
     public CategoryVO setVisible(Long id, boolean visible) {
         Category category = requireCategory(id);
         category.setVisible(visible);
         category.setUpdatedAt(LocalDateTime.now());
         categoryMapper.updateById(category);
+        invalidateNavigation();
         return toVO(category);
     }
 
@@ -111,7 +127,12 @@ public class CategoryServiceImpl implements CategoryService {
                 throw BusinessException.conflict("分类状态已变化，请刷新后重试");
             }
         }
+        invalidateNavigation();
         return listAll();
+    }
+
+    private void invalidateNavigation() {
+        cacheInvalidator.invalidate(PublicDataCacheNames.NAVIGATION);
     }
 
     private Map<Long, Category> validateSortItems(List<SortItemDTO> items) {
@@ -185,6 +206,13 @@ public class CategoryServiceImpl implements CategoryService {
                 category.getId(), category.getName(), category.getIcon() == null ? "" : category.getIcon(),
                 category.getSortOrder(),
                 category.getVisible(), count, category.getCreatedAt(), category.getUpdatedAt()
+        );
+    }
+
+    private CategoryVO toNavigationVO(Category category) {
+        return new CategoryVO(
+                category.getId(), category.getName(), category.getIcon() == null ? "" : category.getIcon(),
+                category.getSortOrder(), category.getVisible(), 0, category.getCreatedAt(), category.getUpdatedAt()
         );
     }
 }

@@ -1,0 +1,14 @@
+[
+  {
+    "case": "commit",
+    "exitCode": 1,
+    "stdout": "",
+    "stderr": "bash: line 3: commit: unbound variable\n"
+  },
+  {
+    "case": "tag",
+    "exitCode": 1,
+    "stdout": "",
+    "stderr": "bash: line 3: tag: unbound variable\n"
+  }
+]

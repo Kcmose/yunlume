@@ -1,5 +1,6 @@
 package com.example.nav.module.site.dto;
 
+import com.example.nav.common.validation.SafeUrl;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -13,6 +14,7 @@ public record SiteConfigUpdateDTO(
         String siteDescription,
 
         @Size(max = 255, message = "发布地址不能超过 255 个字符")
+        @SafeUrl
         String publishUrl,
 
         @Pattern(regexp = "color|image", message = "背景类型只能是 color 或 image")
@@ -22,11 +24,11 @@ public record SiteConfigUpdateDTO(
         String backgroundColor,
 
         @Size(max = 500, message = "背景图片地址不能超过 500 个字符")
-        @Pattern(regexp = "(?i)^(?:$|https?://[^\\s\"'\\\\]+|/(?!/)[^\\s\"'\\\\]*)$", message = "PC 背景图片必须是安全的 HTTP(S) 地址或站内绝对路径")
+        @SafeUrl(message = "PC 背景图片必须是安全的 HTTP(S) 地址或站内绝对路径")
         String backgroundImage,
 
         @Size(max = 500, message = "移动端背景图片地址不能超过 500 个字符")
-        @Pattern(regexp = "(?i)^(?:$|https?://[^\\s\"'\\\\]+|/(?!/)[^\\s\"'\\\\]*)$", message = "移动端背景图片必须是安全的 HTTP(S) 地址或站内绝对路径")
+        @SafeUrl(message = "移动端背景图片必须是安全的 HTTP(S) 地址或站内绝对路径")
         String mobileBackgroundImage,
 
         @Pattern(regexp = "^#[0-9a-fA-F]{6}$", message = "字体颜色必须是六位十六进制颜色")
@@ -36,6 +38,7 @@ public record SiteConfigUpdateDTO(
         Boolean musicEnabled,
 
         @Size(max = 500, message = "音乐地址不能超过 500 个字符")
+        @SafeUrl
         String musicUrl,
 
         Boolean subscribeEnabled,

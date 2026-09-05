@@ -120,8 +120,8 @@ cat >"${TEST_WORK_DIR}/release-manifest.json" <<'JSON'
   "docker": {
     "compose": "yunlume-compose.yml",
     "composeSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    "backendImage": "ghcr.io/kcmose/yunlume-backend:1.0.7",
-    "frontendImage": "ghcr.io/kcmose/yunlume-frontend:1.0.7"
+    "backendImage": "ghcr.io/kcmose/yunlume-backend@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "frontendImage": "ghcr.io/kcmose/yunlume-frontend@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
   },
   "host": {
     "archive": "yunlume-host-v1.0.7.tar.gz",

@@ -26,6 +26,7 @@ import {
   reconcileSelectedKeys,
   selectionAfterBatchRequest,
 } from '@/utils/adminNavigationManage'
+import { commitVisibleChange } from '@/utils/visibilityMutation'
 
 interface BookmarkTableInstance {
   clearSelection: () => void
@@ -46,7 +47,12 @@ const moveTargetCategory = ref<EntityId | ''>('')
 const moving = ref(false)
 const sortVisible = ref(false)
 const savingSort = ref(false)
+const visibilityUpdatingIds = ref(new Set<string>())
 let restoringTableSelection = false
+
+function visibilityUpdating(row: Bookmark) {
+  return visibilityUpdatingIds.value.has(entityKey(row.id))
+}
 
 const categoryMap = computed(() => new Map(categories.value.map((item) => [entityKey(item.id), item.name])))
 const filtered = computed(() => {
@@ -156,9 +162,12 @@ async function remove(row: Bookmark) {
 
 async function toggleVisible(row: Bookmark) {
   try {
-    await setBookmarkVisible(row.id, row.visible)
+    await commitVisibleChange(
+      row,
+      visibilityUpdatingIds.value,
+      setBookmarkVisible,
+    )
   } catch (error) {
-    row.visible = !row.visible
     ElMessage.error(error instanceof Error ? error.message : '状态更新失败')
   }
 }
@@ -390,12 +399,12 @@ onMounted(() => void load())
           </el-table-column>
           <el-table-column prop="sortOrder" label="排序" width="85" />
           <el-table-column label="前台展示" width="110">
-            <template #default="{ row }"><el-switch v-model="row.visible" :aria-label="`${row.name}前台展示`" @change="toggleVisible(row)" /></template>
+            <template #default="{ row }"><el-switch v-model="row.visible" :loading="visibilityUpdating(row)" :disabled="visibilityUpdating(row)" :aria-label="`${row.name}前台展示`" @change="toggleVisible(row)" /></template>
           </el-table-column>
           <el-table-column label="操作" width="150" align="right">
             <template #default="{ row }">
-              <el-button circle :icon="Edit" :aria-label="`编辑书签${row.name}`" @click="openEdit(row)" />
-              <el-button circle type="danger" plain :icon="Delete" :aria-label="`删除书签${row.name}`" @click="remove(row)" />
+              <el-button circle :icon="Edit" :disabled="visibilityUpdating(row)" :aria-label="`编辑书签${row.name}`" @click="openEdit(row)" />
+              <el-button circle type="danger" plain :icon="Delete" :disabled="visibilityUpdating(row)" :aria-label="`删除书签${row.name}`" @click="remove(row)" />
             </template>
           </el-table-column>
           <template #empty><el-empty description="暂无符合条件的书签" /></template>
@@ -418,10 +427,10 @@ onMounted(() => void load())
             <span>排序值 {{ row.sortOrder }}</span>
           </div>
           <footer>
-            <label><span>前台展示</span><el-switch v-model="row.visible" :aria-label="`${row.name}前台展示`" @change="toggleVisible(row)" /></label>
+            <label><span>前台展示</span><el-switch v-model="row.visible" :loading="visibilityUpdating(row)" :disabled="visibilityUpdating(row)" :aria-label="`${row.name}前台展示`" @change="toggleVisible(row)" /></label>
             <div>
-              <el-button circle :icon="Edit" :aria-label="`编辑书签${row.name}`" @click="openEdit(row)" />
-              <el-button circle type="danger" plain :icon="Delete" :aria-label="`删除书签${row.name}`" @click="remove(row)" />
+              <el-button circle :icon="Edit" :disabled="visibilityUpdating(row)" :aria-label="`编辑书签${row.name}`" @click="openEdit(row)" />
+              <el-button circle type="danger" plain :icon="Delete" :disabled="visibilityUpdating(row)" :aria-label="`删除书签${row.name}`" @click="remove(row)" />
             </div>
           </footer>
         </article>

@@ -40,6 +40,10 @@ public class InstallService {
     private static final String INSTANCE_MIGRATION = "20260815_0003_install_instance_identity.sql";
     private static final String INSTANCE_MIGRATION_CHECKSUM =
             "17df5851046d9a79eb24923b4760f8d0440b15a9a68d1609e2bffe2f1ce280fb";
+    private static final String IMPORT_OPERATION_MIGRATION =
+            "20260904_0004_portable_import_operations.sql";
+    private static final String IMPORT_OPERATION_MIGRATION_CHECKSUM =
+            "4de5e2df8c8f6780f6d1b25e16ee1dd99b7335c7b7475afb83c63f78cfa7ac63";
     private static final SecureRandom REDIS_PROBE_RANDOM = new SecureRandom();
 
     static final String STATE_REQUIRED = "REQUIRED";
@@ -115,7 +119,7 @@ public class InstallService {
         } catch (RuntimeException exception) {
             return unavailableStatus();
         }
-        if (facts == null) {
+        if (facts == null || !facts.portableImportGuardValid()) {
             return unavailableStatus();
         }
 
@@ -186,7 +190,7 @@ public class InstallService {
         } catch (RuntimeException exception) {
             throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE, "安装状态暂不可检查");
         }
-        if (facts == null) {
+        if (facts == null || !facts.portableImportGuardValid()) {
             throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE, "安装状态暂不可检查");
         }
         if (facts.userCount() > 0 || facts.completedCount() > 0) {
@@ -293,6 +297,12 @@ public class InstallService {
                            install_completed_at, install_instance_id, created_at, updated_at
                     FROM site_config WHERE 1 = 0
                     """);
+            jdbcTemplate.queryForList("SELECT id FROM portable_import_guard WHERE 1 = 0");
+            jdbcTemplate.queryForList("""
+                    SELECT job_id, preview_token, user_id, created_at, started_at,
+                           committed_at, site_version
+                    FROM portable_import_operation WHERE 1 = 0
+                    """);
             jdbcTemplate.queryForList("""
                     SELECT id, name, icon, sort_order, visible, created_at, updated_at
                     FROM nav_category WHERE 1 = 0
@@ -333,6 +343,22 @@ public class InstallService {
             if (!Integer.valueOf(1).equals(identityMigrationCount)) {
                 return failed("数据库实例身份迁移尚未登记或校验失败");
             }
+            Integer importMigrationCount = jdbcTemplate.queryForObject("""
+                            SELECT COUNT(*) FROM schema_migration
+                            WHERE filename = ? AND checksum = ?
+                            """, Integer.class,
+                    IMPORT_OPERATION_MIGRATION, IMPORT_OPERATION_MIGRATION_CHECKSUM);
+            if (!Integer.valueOf(1).equals(importMigrationCount)) {
+                return failed("数据导入事务标记迁移尚未登记或校验失败");
+            }
+            Integer guardCount = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM portable_import_guard", Integer.class);
+            Integer validGuardCount = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM portable_import_guard WHERE id = 1", Integer.class);
+            if (!Integer.valueOf(1).equals(guardCount)
+                    || !Integer.valueOf(1).equals(validGuardCount)) {
+                return failed("数据导入单例锁记录损坏");
+            }
             return passed("数据库结构完整");
         } catch (RuntimeException exception) {
             return failed("数据库结构尚未完成升级");
@@ -344,12 +370,17 @@ public class InstallService {
                         SELECT
                             (SELECT COUNT(*) FROM sys_user) AS user_count,
                             (SELECT COUNT(*) FROM site_config) AS site_config_count,
-                            (SELECT COUNT(*) FROM site_config WHERE install_completed_at IS NOT NULL) AS completed_count
+                            (SELECT COUNT(*) FROM site_config WHERE install_completed_at IS NOT NULL) AS completed_count,
+                            (SELECT COUNT(*) FROM portable_import_guard) AS portable_import_guard_count,
+                            (SELECT COUNT(*) FROM portable_import_guard WHERE id = 1)
+                                AS portable_import_guard_id_one_count
                         """,
                 (resultSet, rowNumber) -> new InstallationFacts(
                         resultSet.getLong("user_count"),
                         resultSet.getLong("site_config_count"),
-                        resultSet.getLong("completed_count")
+                        resultSet.getLong("completed_count"),
+                        resultSet.getLong("portable_import_guard_count"),
+                        resultSet.getLong("portable_import_guard_id_one_count")
                 ));
     }
 
@@ -506,7 +537,16 @@ public class InstallService {
         return new InstallCheckVO(false, message);
     }
 
-    private record InstallationFacts(long userCount, long siteConfigCount, long completedCount) {
+    private record InstallationFacts(
+            long userCount,
+            long siteConfigCount,
+            long completedCount,
+            long portableImportGuardCount,
+            long portableImportGuardIdOneCount
+    ) {
+        private boolean portableImportGuardValid() {
+            return portableImportGuardCount == 1 && portableImportGuardIdOneCount == 1;
+        }
     }
 
     private record NormalizedInstallInput(

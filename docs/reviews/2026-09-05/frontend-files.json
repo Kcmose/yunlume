@@ -1,0 +1,1245 @@
+{
+  "root": "<repository-root>/nav-frontend",
+  "review_mode": "read-only full working-tree static review; no build/test/deploy executed",
+  "excluded": [
+    "node_modules/**",
+    "dist/**",
+    ".git/**",
+    "known dependency lockfiles",
+    "*.tsbuildinfo"
+  ],
+  "requested_scope_count": 152,
+  "reviewed_count": 152,
+  "unreviewed": [],
+  "counts_by_category": {
+    "config": 12,
+    "source": 86,
+    "test": 39,
+    "style": 15
+  },
+  "supplemental_call_path_read": [
+    {
+      "file": "<repository-root>/nav-backend/src/main/java/com/example/nav/module/datapackage/service/PortableDataPackageService.java",
+      "lines": "198-317",
+      "purpose": "verify server confirmation idempotence and current-job recovery contract"
+    }
+  ],
+  "files": [
+    {
+      "file": ".dockerignore",
+      "category": "config",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 16,
+      "sha256": "a41b6e7fc180eb5486f886156388fbac2af9711fb4398bc19bceeb6f43f14229"
+    },
+    {
+      "file": ".gitignore",
+      "category": "config",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 5,
+      "sha256": "d4eb4b2a58d28b9568507d05a125c520fa48604046472340d390f08861168095"
+    },
+    {
+      "file": "Dockerfile",
+      "category": "config",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 22,
+      "sha256": "e5bc41c6f41671429ed4e6334f544cb9efc65f38e99f52d1661ae1d16671b525"
+    },
+    {
+      "file": "env.d.ts",
+      "category": "config",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 10,
+      "sha256": "4f100c6c5aaed4cccc2f15701547670c4fa587e6ae8fa54e45785271a3201394"
+    },
+    {
+      "file": "index.html",
+      "category": "config",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 14,
+      "sha256": "a27c66b818271417874393af87f08f19bbdd31d1b862b36e180bca77f878bc33"
+    },
+    {
+      "file": "nginx/05-validate-proxy-env.envsh",
+      "category": "config",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 49,
+      "sha256": "d1bba3a90d2761d8f5a5827704463ff51ab94bacfcfaf9851a4326ce1f3cee60"
+    },
+    {
+      "file": "nginx/nginx.conf.template",
+      "category": "config",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 424,
+      "sha256": "248e46df75df93de066304827f0394d0230258cf99ebfed743080b9e3f843154"
+    },
+    {
+      "file": "package.json",
+      "category": "config",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 30,
+      "sha256": "1b1f444aad7f767f641651b3ba8fc7265e948e70d44a1a9ac61c62dc5cb6668f"
+    },
+    {
+      "file": "src/App.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 3,
+      "sha256": "0b8a4870148802a2a9b3037b443fb2cd1019b3b8855fc17cb656ae9ab8ac3838"
+    },
+    {
+      "file": "src/api/auth.api.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 92,
+      "sha256": "14186d8d2b933ce6720bc016b0526c156e2430865d9591f7a5bafe2696508a80"
+    },
+    {
+      "file": "src/api/auth.api.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 38,
+      "sha256": "a018f2116e9f2f65f1e598e785bdcdd8eb908ce3b544aa5f5de64119c097774a"
+    },
+    {
+      "file": "src/api/bookmark.api.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 40,
+      "sha256": "b62cbe620c11160ab2999a178d72d393ca6edf32ea92db9fb40bd354b70c7570"
+    },
+    {
+      "file": "src/api/category.api.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 27,
+      "sha256": "decdc034848bdd404821886aeaddb50b6e514911fd501a9dc794d58a02ae7a00"
+    },
+    {
+      "file": "src/api/data.api.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 34,
+      "sha256": "dcf9592270c73a13cce23daca45e0dbbd6f6deeadd636f211cd38c697233e46a"
+    },
+    {
+      "file": "src/api/data.api.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 92,
+      "sha256": "a45e83e2a7b8cd0c10416932007b7bc06cb00f1bdc26a3c8ef9a04e5c1bbcbde"
+    },
+    {
+      "file": "src/api/install.api.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 178,
+      "sha256": "10b2bcae057e0f15a6ef50590fca5805b9f6910f68a9150e62086f3fdd21c129"
+    },
+    {
+      "file": "src/api/install.api.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 80,
+      "sha256": "f0d8ea3233b2f0016e3c1a2dc5226237b775a0ec75e3f660a491c5b5cd2c3d4b"
+    },
+    {
+      "file": "src/api/public.api.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 34,
+      "sha256": "eda4051129bec9f60454e93dd9756a8d7bac97a5c42131f6cbb6c6bc0eedcf95"
+    },
+    {
+      "file": "src/api/public.api.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 16,
+      "sha256": "8a4169d84cc7817088d3c91c80b4dd43d849d1a314386656f60a2fe8cfe19330"
+    },
+    {
+      "file": "src/api/request.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 104,
+      "sha256": "5b40a2cc6dc84aa3c5dc4b5ecb21f7c926d331c2d648b4ec1325c9f5675f7ccb"
+    },
+    {
+      "file": "src/api/searchEngine.api.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 44,
+      "sha256": "f00199af4669df90de4409a7a9afb5773780ddd7cbd836b260f181793f155d41"
+    },
+    {
+      "file": "src/api/site.api.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 10,
+      "sha256": "eb269b94c486330eb76718e2cd47d1b27809f37f7c1e5408ffe5b9bdd1cc7675"
+    },
+    {
+      "file": "src/api/upload.api.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 30,
+      "sha256": "d264ef6f26517c039bbf861a348afe13c80f1782991dbfe3c9d57ef6fe02c8b3"
+    },
+    {
+      "file": "src/api/upload.api.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 25,
+      "sha256": "6e12c4bda258a19113fc6c557f9ec808ac48519b3d9bbe450fba1d3222623534"
+    },
+    {
+      "file": "src/components/admin/AdminHeader.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 90,
+      "sha256": "60d932dbfa86a42946d630ab1a438c6a507d0f43b0698d1613dcb344be18712f"
+    },
+    {
+      "file": "src/components/admin/AdminSidebar.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 78,
+      "sha256": "a94b3fbdb2855d69f7d7dc91def13672ee5d80e085f1dd01d0af4b2cfd656dcc"
+    },
+    {
+      "file": "src/components/admin/BackgroundImageField.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 19,
+      "sha256": "3e452cb61fecc8e815fc98d8352cc9bbbcb9719b506d20ac3f7d0bfd76d8ff07"
+    },
+    {
+      "file": "src/components/admin/BackgroundImageField.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 144,
+      "sha256": "816047a0cd61bb33f7b4d5b675275a839e1404b9e2aa7bd7b61c20b4e897b4e0"
+    },
+    {
+      "file": "src/components/admin/BookmarkFormDialog.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 124,
+      "sha256": "a49f0e476faec78f8dc1873d6c4ef0c471a990b7046633d901a01cb80495cd40"
+    },
+    {
+      "file": "src/components/admin/CategoryFormDialog.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 77,
+      "sha256": "163112166de4b673eadb5c628554c83a83a3ecb5caa9f4528e05052d9fe26378"
+    },
+    {
+      "file": "src/components/admin/DataExportPanel.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 91,
+      "sha256": "ad17277bf5dc17f0c6173e4f489c9c5559e6cd1f2b034d571e08c9dfe3bca0f6"
+    },
+    {
+      "file": "src/components/admin/DataImportPanel.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 29,
+      "sha256": "968499e13e2cfc4805e41bc0ea6226a10875b1d4c3d88ad498aa7e4604588b77"
+    },
+    {
+      "file": "src/components/admin/DataImportPanel.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 433,
+      "sha256": "707d679f062f4c8239f38a8eb850ac7f93c82df8b875e5b8ef072ef13380d18b"
+    },
+    {
+      "file": "src/components/admin/ImportPreviewDialog.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 218,
+      "sha256": "e08a3b98ccb92a8adcfe35ddf088fd0ffd4845e690772e5b1adb0bc31a55eb60"
+    },
+    {
+      "file": "src/components/admin/ImportProgressDialog.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 92,
+      "sha256": "d46d9adee259495a54bd7b0debf71c1d3dfd3176460241c245f456fc668d4fe5"
+    },
+    {
+      "file": "src/components/admin/MarkdownBookmarkBackupPanel.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 164,
+      "sha256": "380bb952c2cf15886752bd8d2ecac182a1683deb27bc084a9199ba4d51d65375"
+    },
+    {
+      "file": "src/components/admin/PageHeading.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 20,
+      "sha256": "49c1d610b3ff6c00e0853f6d4984685d5549da7c76fc48a74c3190af26ef212a"
+    },
+    {
+      "file": "src/components/admin/SearchEngineDialog.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 178,
+      "sha256": "b0a4e8905f4f71969613f90ddd00374d709a89d4080d2cb301a52c167c746bd8"
+    },
+    {
+      "file": "src/components/admin/SortOrderDialog.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 139,
+      "sha256": "f6b33b73e437ac6551f5e4870a5bf877efa7f8fe6d9f6682ebd8cf07e43c17a7"
+    },
+    {
+      "file": "src/components/portal/BookmarkItem.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 40,
+      "sha256": "3312edc81888f54f7773ec369580d845fcbb5bdf489aab9e0b4781a5c0ff234c"
+    },
+    {
+      "file": "src/components/portal/CategoryCard.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 47,
+      "sha256": "678d07a8557c2db5398781cec3b9d80cfe8d19fa5f145b119735c67a8075bd92"
+    },
+    {
+      "file": "src/components/portal/CategoryGrid.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 46,
+      "sha256": "f878d8e6837e827ec74c6fec206b6f6f8e4a68d360c7161549f465ba6a6f26c1"
+    },
+    {
+      "file": "src/components/portal/SearchBar.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 173,
+      "sha256": "c5526c8133e8a9a1d4e73f5cc8169005eb832e45879fdf02b1563e16cb6a37dd"
+    },
+    {
+      "file": "src/components/portal/SiteHeader.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 13,
+      "sha256": "e21a3ad4151fcdb0d07ecc16a6652c62aa39d001a750a450d3ffd77c786ca401"
+    },
+    {
+      "file": "src/components/portal/TopActionBar.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 29,
+      "sha256": "abbd363d6ed619242dc1aaadce0a144300894ec3c082f3acaee4ef2a57221c35"
+    },
+    {
+      "file": "src/composables/useBookmarks.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 13,
+      "sha256": "98164cf8a32763db6cebdae39fc97e7b30968e7f5186f890b42688cce6936366"
+    },
+    {
+      "file": "src/composables/useSearch.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 27,
+      "sha256": "b42a00d73e0f44aa1264d326a71a41865bb042f03bc88bde4d5e15f0b7218e92"
+    },
+    {
+      "file": "src/composables/useSiteConfig.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 8,
+      "sha256": "701b9d0bbecc91fb9a612d9acaffe9e6dc772fad8a68823b88bfca4a789981b0"
+    },
+    {
+      "file": "src/composables/useTheme.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 85,
+      "sha256": "f43abba1b688996af70e5fe505d6362cb024376c7b364dadedb77a5783b9813c"
+    },
+    {
+      "file": "src/composables/useTheme.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 45,
+      "sha256": "ca8c4e8d310c1395a903cdc87557866f44f27e1fa3ab173ec0fae9310fa087ef"
+    },
+    {
+      "file": "src/data/fallback.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 113,
+      "sha256": "9465a2f77e277c4660127ab9b59561a8c4c2dcf96e7fa6b94bb22ee6414c604b"
+    },
+    {
+      "file": "src/main.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 19,
+      "sha256": "44beece7c33ba7ba325afcee36f584c8765676cce722ca69731dd94304725373"
+    },
+    {
+      "file": "src/router/admin.routes.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 25,
+      "sha256": "9050fcf026c7700c16ffe0db1a1b48dd0bf9a292fe9e82b5507bd2c12ca317f6"
+    },
+    {
+      "file": "src/router/index.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 66,
+      "sha256": "4d0176eddab346bae4fbddc7d0a9d8cc395c10782b92916e856d35d9ae76f41d"
+    },
+    {
+      "file": "src/router/install.routes.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 9,
+      "sha256": "a0a7983e0845e76b547de8e9ee26a85a728e85fbc221fb14960c6f1f1a0ac21d"
+    },
+    {
+      "file": "src/router/portal.routes.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 9,
+      "sha256": "d29c349710157a8c9c60fb21ea7950b92e889d60c8da6766582a22be3185d2b6"
+    },
+    {
+      "file": "src/stores/auth.store.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 364,
+      "sha256": "5e681dac2b8e655745a8fb3a9e57be79c16b78c08b7c1c09f89d1ae90a838e0f"
+    },
+    {
+      "file": "src/stores/auth.store.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 197,
+      "sha256": "4e4904c6b24a14dc7c7ef341f897e8a19c371ac7581f0cabe416f86fc5f1b591"
+    },
+    {
+      "file": "src/stores/install.store.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 84,
+      "sha256": "3705b78b9613776764d7f9acdc4c145d03fafe13e351608394c8feb4485a21c4"
+    },
+    {
+      "file": "src/stores/install.store.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 61,
+      "sha256": "c36fd41c3862f1bdac940986bf7f2e46bc561c89657aa45d1d92c190f152b1ad"
+    },
+    {
+      "file": "src/stores/navigation.store.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 94,
+      "sha256": "b26d1747de0c8ab4501e9795020ca74b7ac9ae3589603c1280c2f4a0b17a28b1"
+    },
+    {
+      "file": "src/stores/navigation.store.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 46,
+      "sha256": "b9f87c08a60df9c1a7c2fb8abe3aae5a4eefce9a1fc16a6384366441d815f11d"
+    },
+    {
+      "file": "src/stores/site.store.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 75,
+      "sha256": "312eddb7769a4e115c7f4bee39cced89e47f07fc209f9a3c00e5cad903ce76e1"
+    },
+    {
+      "file": "src/stores/site.store.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 39,
+      "sha256": "ed3b150d5c92235ea3b2ca82a8f0b89026d8ebba324c370368d0a9c86f0951a0"
+    },
+    {
+      "file": "src/styles/_common.scss",
+      "category": "style",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 33,
+      "sha256": "ae9d0d73f4293e6d0e0595206515b7793717877e54d62d81eed403eeb128cf66"
+    },
+    {
+      "file": "src/styles/_reset.scss",
+      "category": "style",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 49,
+      "sha256": "24bb500d4c0582c773d5f6b265d9aeacefe3221d4dae4601acffb14b05afe12f"
+    },
+    {
+      "file": "src/styles/_variables.scss",
+      "category": "style",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 7,
+      "sha256": "9e9148c4c5b39edcdf63bc2d27ccde1fb74c3f7702eb49b72f92d652e5b9d619"
+    },
+    {
+      "file": "src/styles/admin/_account.scss",
+      "category": "style",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 302,
+      "sha256": "754a02896a06a6a0e20aa4e2e2a4e41b8e9ec62fcad72cfc1a2cc67158075c0b"
+    },
+    {
+      "file": "src/styles/admin/_dashboard.scss",
+      "category": "style",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 365,
+      "sha256": "c77670206bcd455f666eb657b07319c49a97ba28a74622558a2f415ff85aac6d"
+    },
+    {
+      "file": "src/styles/admin/_data.scss",
+      "category": "style",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 1061,
+      "sha256": "768945e0b5c0f55636d2f0c191ce2f79e816a00ebbe6a3b6bf010434850dc46e"
+    },
+    {
+      "file": "src/styles/admin/_forms.scss",
+      "category": "style",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 1484,
+      "sha256": "653f65c0b0f5a653452954a25342068efc9117529bc817c45d3f7c2f82c9cb72"
+    },
+    {
+      "file": "src/styles/admin/_install.scss",
+      "category": "style",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 880,
+      "sha256": "63b9d03c9d7ca8e1e581612565acd40106202e1123084a52d0f967d6e6f2212e"
+    },
+    {
+      "file": "src/styles/admin/_layout.scss",
+      "category": "style",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 483,
+      "sha256": "8ccddee4052bbdb2b93bc0b427eab721ba6d7e0b32258a44602c1863542ece1d"
+    },
+    {
+      "file": "src/styles/admin/_login.scss",
+      "category": "style",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 265,
+      "sha256": "40ea7faecd1b4eb250514e88d6f11fe5a5cde79cacfc6e53606b270690419510"
+    },
+    {
+      "file": "src/styles/admin/index.scss",
+      "category": "style",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 7,
+      "sha256": "bd9eadec71161342fe3385bd743bb6edbb65dca20c562b5859ffe43a0af58368"
+    },
+    {
+      "file": "src/styles/categoryCardAlignment.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 24,
+      "sha256": "e3197073e47f546bb957298b099591a8b89a1b69d9834317345eba477e0d90e0"
+    },
+    {
+      "file": "src/styles/glassEffect.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 49,
+      "sha256": "99b76f0469b3d5436c3d07c1b74a8a338c37d9843e7ca67531c09e6cdc09f55e"
+    },
+    {
+      "file": "src/styles/importConfirmationLayout.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 25,
+      "sha256": "c7cba99fd37f7d5ff9a0b2f2b1c13147a29d6dbb951aef1c8d1ceeee8522f756"
+    },
+    {
+      "file": "src/styles/index.scss",
+      "category": "style",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 4,
+      "sha256": "73a68c9e892865aa8ac7b500c891428898bd7bd2d10a63d2964082ec2ccdce5d"
+    },
+    {
+      "file": "src/styles/portal/_card.scss",
+      "category": "style",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 161,
+      "sha256": "de5fa53fb8ca95635a51df5d5d7fb8986f5cd1d0ec40546d170d79e04fd591df"
+    },
+    {
+      "file": "src/styles/portal/_layout.scss",
+      "category": "style",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 675,
+      "sha256": "610c421b46e8126e271bf255cdea66407f0a2e90d6bc2d9464e2817109f079b0"
+    },
+    {
+      "file": "src/styles/portal/index.scss",
+      "category": "style",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 2,
+      "sha256": "e8f08b30a12aff19b9cde5e7bb1fc01b966d45d104438a1ea1abd9b2a4934902"
+    },
+    {
+      "file": "src/styles/typography.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 65,
+      "sha256": "8a6235458845c3511866964fe598abf154fec82c0b7c6ba6d4569220f6fffb30"
+    },
+    {
+      "file": "src/types/auth.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 25,
+      "sha256": "4228d229a38bb5933705b1aaed270c96f5c58f2077660592b8ed427c2286e949"
+    },
+    {
+      "file": "src/types/bookmark.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 18,
+      "sha256": "d2093cfb811ea1ac5d59128f5d6929c8a1c022ef0a540ba345d1f940d4036244"
+    },
+    {
+      "file": "src/types/category.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 19,
+      "sha256": "c6e8adca9bb81b1764a04576e2ba4dcaaea2b82d4ebb565fb44ea84a4ff575b0"
+    },
+    {
+      "file": "src/types/common.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 19,
+      "sha256": "8de5fb9c7f33b662e1e9f38cf4913f2a66da57afefdc4030860fb103132256d0"
+    },
+    {
+      "file": "src/types/dataTransfer.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 86,
+      "sha256": "03f4121e7ffc52b53683da033b0af853ece9b098b515da3badc829658a15c3ed"
+    },
+    {
+      "file": "src/types/install.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 113,
+      "sha256": "4d6f4d636b0e574117a6f688a37db4f899d46573a24657cb49732f5b876e2a92"
+    },
+    {
+      "file": "src/types/searchEngine.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 26,
+      "sha256": "c602bc93427911dfe33d2334106aae09269bb8fddeb5389f558a657c3c7aa3bc"
+    },
+    {
+      "file": "src/types/site.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 24,
+      "sha256": "3d4976a5c9e78a7c2bd1c6bf9e0e221d80031433fefd503c3f776eeb47827552"
+    },
+    {
+      "file": "src/utils/adminNavigationManage.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 69,
+      "sha256": "cb901efdff8541adfc9c4626f55a11e5dd3293c86deea8c02e145cfc8f6c162a"
+    },
+    {
+      "file": "src/utils/adminNavigationManage.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 87,
+      "sha256": "fd1d6ba786f489a7e3f92fce3cd407058b0efe34f5bafe01571d093277ce7cbe"
+    },
+    {
+      "file": "src/utils/backgroundConfig.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 33,
+      "sha256": "b5c0994ac9e6c6c83d6fb939408e9b48ffd14dddc80280bd1cada5d33b42026c"
+    },
+    {
+      "file": "src/utils/backgroundConfig.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 29,
+      "sha256": "0aef511fa1589e833aceff62ca89c6232f2e86f062eee72ea3b49c89564025a1"
+    },
+    {
+      "file": "src/utils/clipboard.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 31,
+      "sha256": "26d7792a39485f2fad1a8a8bcb9bb43bd31b07862da1ad6cad87ac2573c8dd75"
+    },
+    {
+      "file": "src/utils/clipboard.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 26,
+      "sha256": "1457f77652aa2150ee5169873e6d8b9d03dcdcb2f5f744f3e03a560bd0d6a894"
+    },
+    {
+      "file": "src/utils/dashboardStats.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 42,
+      "sha256": "a9018a07cb97a9bb5f3a2f3a97071d8d534f209b54fa712d627beec8e9cbf7d1"
+    },
+    {
+      "file": "src/utils/dashboardStats.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 17,
+      "sha256": "0b2d86f1f1e240e7dd3be429759960512c9aadddf96b3ea028d9a8eeb794f747"
+    },
+    {
+      "file": "src/utils/dataTransfer.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 320,
+      "sha256": "312f4a8a38117c643c0e5031f7d30a49e9332a75df58206cfa3ff3897c07d296"
+    },
+    {
+      "file": "src/utils/dataTransfer.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 383,
+      "sha256": "ba05b0e019d1065f35093c4abbcae5da82c158eb10a0df0fc33ca76ab1c56838"
+    },
+    {
+      "file": "src/utils/httpError.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 17,
+      "sha256": "648c6aad10dae9259c6551c49e391b9246dbce675359d98f2883ea11c1cdac29"
+    },
+    {
+      "file": "src/utils/installDatabase.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 106,
+      "sha256": "93aa7202ec0973ad517f68cff00411232b002931967486681d2cae723499e5be"
+    },
+    {
+      "file": "src/utils/installDatabase.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 117,
+      "sha256": "6bcbb941f5827ee328da646814d8577b3e4dc75a82162b762921ff2d1198af47"
+    },
+    {
+      "file": "src/utils/installKeyboard.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 20,
+      "sha256": "a04f7381c838a09dfc5429467054584b45fff3967de293211f62ef203e5ab3c4"
+    },
+    {
+      "file": "src/utils/installKeyboard.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 14,
+      "sha256": "760c24a93f7acc48bd5c782463df78c6662473822318d14fd76b0b07d6641ade"
+    },
+    {
+      "file": "src/utils/installPostgresProvisioning.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 30,
+      "sha256": "adef4a9a25ef05d982eb1e555a239b289ff84fa02125029359b49aa0816b9ce4"
+    },
+    {
+      "file": "src/utils/installPostgresProvisioning.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 39,
+      "sha256": "68001a4415174585c28110e0b22459cb562bff5933f37a315c648244a24984a1"
+    },
+    {
+      "file": "src/utils/installRedis.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 110,
+      "sha256": "8d77613cf57554c05c8b60992253a05ab5c28a54db507f07d28834a19786a6f7"
+    },
+    {
+      "file": "src/utils/installRedis.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 91,
+      "sha256": "5ed5068e366dd83afcb9cb3ededbd65f7b409c84e11cc64713a4af0f69245c32"
+    },
+    {
+      "file": "src/utils/installState.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 123,
+      "sha256": "b26c4be0c44f2a82cd3857dbd06ed562e399ff27622974314d1295c63af9b014"
+    },
+    {
+      "file": "src/utils/installState.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 99,
+      "sha256": "ab608efb45470547c7d3e302a780ede72d57471b6f46688a794f982d6ef0b572"
+    },
+    {
+      "file": "src/utils/installWizard.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 139,
+      "sha256": "85fb5532adba928840d4cb64708dfeee33bdbbaa2c9574376921bf0cf7f58eab"
+    },
+    {
+      "file": "src/utils/installWizard.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 116,
+      "sha256": "b6ee9e958fcce890850e83a6b26d384ccda775056a222c4fbc9e2f5948f23b8f"
+    },
+    {
+      "file": "src/utils/passwordPolicy.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 90,
+      "sha256": "4ae8588264f10acf900edb521aeb2ed020d6f474b9d85b93fb85fa97027bedcd"
+    },
+    {
+      "file": "src/utils/passwordPolicy.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 81,
+      "sha256": "5174fd98d80aa4f11aba13559362deda90b90776a2bcd1bf9d5a75f5fe7837ed"
+    },
+    {
+      "file": "src/utils/publicRequestRetry.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 48,
+      "sha256": "238c9bb87ce08daf8d6b8724ac94850cc42e515bb36727d91c21099dc791c3f5"
+    },
+    {
+      "file": "src/utils/publicRequestRetry.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 44,
+      "sha256": "3521961a8d14b876fc3179d005c961cb1e727d9c613e5891bbfc66cfb106d3b1"
+    },
+    {
+      "file": "src/utils/requestAuth.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 45,
+      "sha256": "301780f5eed682898afef9cd7653699f35293ab73e6b51fbe81d3a3fb6a28da8"
+    },
+    {
+      "file": "src/utils/requestAuth.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 38,
+      "sha256": "c7e7a858e8d68ba59c1b03ba5eb4476bd1ff8bff3c7e70ca0224056f02f57c44"
+    },
+    {
+      "file": "src/utils/search.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 19,
+      "sha256": "8133130d5fb1c519c414b35a77d15e3e81395ad6c4ab71eae37af1877a7a2f3c"
+    },
+    {
+      "file": "src/utils/search.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 32,
+      "sha256": "d35135e6ca126b5d2d71275116042890186a7947369174a68b25ff764e80ca41"
+    },
+    {
+      "file": "src/utils/searchEnginePicker.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 79,
+      "sha256": "8bcc6bcd6878ad6616dcb8c3ce095069c7ced0887d42ff7f6b93f7c5f548f54d"
+    },
+    {
+      "file": "src/utils/searchEnginePicker.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 69,
+      "sha256": "e0699290fba0a780fe4a27e196f7817bc33da7b9c29b85bc3c4c15f148556f2f"
+    },
+    {
+      "file": "src/utils/sessionInvalidation.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 29,
+      "sha256": "8b56753b9d82631aa8511251194b548369fbb6d4cff282bfe28b2729318ff68e"
+    },
+    {
+      "file": "src/utils/sessionInvalidation.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 41,
+      "sha256": "79b83cd38bd175133682a675ec1f7c79280de4e17d0e13d0346a957535834234"
+    },
+    {
+      "file": "src/utils/siteConfigState.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 53,
+      "sha256": "af059a80404dbf10dfbe29f365d07d411151b270536b40440ef6454dd2da579a"
+    },
+    {
+      "file": "src/utils/siteConfigState.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 53,
+      "sha256": "3f76944e39d22afe63e73db75aa870ed6e6c8f3fa8e466150d6f816e486a2ef7"
+    },
+    {
+      "file": "src/utils/staleChunkRecovery.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 75,
+      "sha256": "c7bd602e466ff36b5544466d30ca86b58080a12ba45c426229af59b53cde8506"
+    },
+    {
+      "file": "src/utils/staleChunkRecovery.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 47,
+      "sha256": "a31eb5a2c47915a843a652cd4f0cd42652afc8d7c337e35b1d9d4988166892cd"
+    },
+    {
+      "file": "src/utils/storage.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 656,
+      "sha256": "8f24d3e71fe34026b404bb872a3c309364481fc9569d8ef808c765b282a8a066"
+    },
+    {
+      "file": "src/utils/storage.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 520,
+      "sha256": "e712cc002811e548d88189d43416c8682df150fb40c803a15b5920c98e850d0e"
+    },
+    {
+      "file": "src/utils/url.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 50,
+      "sha256": "b079a21a7ac7e1de9f7e27887f5d3d8e04bdc0bf29ae55a5a3656926841f8b19"
+    },
+    {
+      "file": "src/utils/url.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 38,
+      "sha256": "c8433b018dc34cced49495ae1c36b28f51f103740f8b2771e7b596c1d8840cc8"
+    },
+    {
+      "file": "src/utils/visibilityMutation.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 47,
+      "sha256": "43dbb8cfa4f2e4abc33cca3347336d176744820bd7bdb6a8b099b7e41afa91a8"
+    },
+    {
+      "file": "src/utils/visibilityMutation.ts",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 28,
+      "sha256": "0da6076db9241d2cc2240b6aabc31d517ce431984fc43cd8536696c49a5a2015"
+    },
+    {
+      "file": "src/views/admin/AccountManageView.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 238,
+      "sha256": "4504e97a8ef5153bc893a778be76669cd83fa505e7c6fec7e5c932b875decce8"
+    },
+    {
+      "file": "src/views/admin/AdminLayout.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 197,
+      "sha256": "0c91437ce895a427cd9bc6873daa3560b203bd8871d2089f0644be8af6279f5c"
+    },
+    {
+      "file": "src/views/admin/BookmarkManageView.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 458,
+      "sha256": "3b6c4c59e7c7716de4cc429443bd562f1354a6e985180a3e95e9554a717b3fc6"
+    },
+    {
+      "file": "src/views/admin/CategoryManageView.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 211,
+      "sha256": "847e7ce3a511284567caa854091bb5bc1d7670aaf1fe76e2abe5873f3823907b"
+    },
+    {
+      "file": "src/views/admin/DashboardView.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 210,
+      "sha256": "542672bfb5cdb574c7477ce7c40f0cbd73af43595dc90d9ef8fdf8bbb05a0812"
+    },
+    {
+      "file": "src/views/admin/DataManageView.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 21,
+      "sha256": "0c4a422c0953408e71c113fc482c19076808c4e54f3bf4e94c91e4e9c3f65983"
+    },
+    {
+      "file": "src/views/admin/LoginView.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 85,
+      "sha256": "b1e13ecf84c82c71ade12f0e02bd7dcac1f528f46b59f60e9bb91a231e87ba82"
+    },
+    {
+      "file": "src/views/admin/SearchEngineManageView.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 371,
+      "sha256": "66be72847c92dd9c0bac6295878dc560b23826050123ed604ee89f326f522fe5"
+    },
+    {
+      "file": "src/views/admin/SiteConfigView.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 372,
+      "sha256": "fc3a3b1445cb1ce5144085142dece8c0fb267545b83627e594d5c228844e4cad"
+    },
+    {
+      "file": "src/views/install/InstallView.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 2131,
+      "sha256": "39c76bbb9b52b2512c6c72b04749435a9dfa8a2fa9e7441aee83dab566b82bc0"
+    },
+    {
+      "file": "src/views/portal/PortalHome.test.ts",
+      "category": "test",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 28,
+      "sha256": "af69785bf5ea0fd28381639804f043233dd8885f4f01b77d22d455cd4d85033c"
+    },
+    {
+      "file": "src/views/portal/PortalHome.vue",
+      "category": "source",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 210,
+      "sha256": "cb7960f7ff19b14577fcb4bbb3bbc64b7ed2723a2913c4e7ce8398ffadb99228"
+    },
+    {
+      "file": "tsconfig.app.json",
+      "category": "config",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 26,
+      "sha256": "ebe8b2120c86aeb1bbd80b8a1e1b90c9e272ff28fe22016f1c3009ff27b730c9"
+    },
+    {
+      "file": "tsconfig.json",
+      "category": "config",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 7,
+      "sha256": "770b4140bbb581e2dfd9ea9946ffc9c75a1d86ba7d2db5f77c83e37cbdf9d808"
+    },
+    {
+      "file": "tsconfig.node.json",
+      "category": "config",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 19,
+      "sha256": "8884bf0072d8006913b5e940ce047093fce7a754321f4bc2f236e8d27daaeb63"
+    },
+    {
+      "file": "vite.config.ts",
+      "category": "config",
+      "reviewed": true,
+      "method": "full-file static read; behavioral call-path follow-up where applicable",
+      "lines": 25,
+      "sha256": "b41d76cd2965d0dd03bb5fa0598eff243bf185985875ba74d26b09a4a0c39bbb"
+    }
+  ]
+}

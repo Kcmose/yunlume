@@ -29,10 +29,16 @@ public class InstallTransactionService {
     @Transactional
     public InstallCompleteVO complete(InstallCommand command) {
         List<SiteConfig> configs = siteConfigMapper.selectAllForUpdate();
-        if (configs.size() != 1) {
+        if (configs.size() != 1 || configs.get(0) == null
+                || !Long.valueOf(1L).equals(configs.get(0).getId())) {
             throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE, "站点配置必须且只能有一条");
         }
         SiteConfig config = configs.get(0);
+        if (config.getVersion() == null || config.getVersion() < 0
+                || config.getVersion() == Integer.MAX_VALUE) {
+            throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "站点配置缓存版本无法安全推进");
+        }
         UUID expectedInstanceId = null;
         if (command.expectedDatabaseInstanceId() != null) {
             try {

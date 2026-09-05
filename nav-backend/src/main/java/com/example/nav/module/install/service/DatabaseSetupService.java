@@ -2,6 +2,7 @@ package com.example.nav.module.install.service;
 
 import com.example.nav.common.config.DatabaseInstallProperties;
 import com.example.nav.common.exception.BusinessException;
+import com.example.nav.common.security.SecureTransportPolicy;
 import com.example.nav.module.install.dto.DatabaseConfigureDTO;
 import com.example.nav.module.install.dto.DatabaseConnectionDTO;
 import com.example.nav.module.install.model.DatabaseConnectionSpec;
@@ -49,6 +50,8 @@ public class DatabaseSetupService {
             "schema_migration",
             "sys_user",
             "site_config",
+            "portable_import_guard",
+            "portable_import_operation",
             "nav_category",
             "nav_bookmark",
             "search_engine",
@@ -65,6 +68,8 @@ public class DatabaseSetupService {
     private static final Set<String> CORE_INDEXES = Set.of(
             "schema_migration_pkey", "sys_user_pkey", "uk_sys_user_username",
             "site_config_pkey", "nav_category_pkey", "idx_nav_category_sort",
+            "portable_import_guard_pkey", "portable_import_operation_pkey",
+            "uk_portable_import_preview", "idx_portable_import_user_committed",
             "nav_bookmark_pkey", "idx_nav_bookmark_category_sort",
             "search_engine_pkey", "uk_search_engine_one_visible_default",
             "idx_search_engine_visible_sort", "custom_link_pkey",
@@ -73,7 +78,9 @@ public class DatabaseSetupService {
     private static final Set<String> CORE_CONSTRAINTS = Set.of(
             "schema_migration_pkey", "chk_schema_migration_checksum",
             "sys_user_pkey", "uk_sys_user_username",
-            "site_config_pkey", "chk_site_config_background_type",
+            "site_config_pkey", "chk_site_config_background_type", "chk_site_config_version_range",
+            "portable_import_guard_pkey", "chk_portable_import_guard_singleton",
+            "portable_import_operation_pkey", "uk_portable_import_preview",
             "nav_category_pkey", "nav_bookmark_pkey", "fk_nav_bookmark_category",
             "search_engine_pkey", "custom_link_pkey", "chk_custom_link_position"
     );
@@ -94,6 +101,10 @@ public class DatabaseSetupService {
             "site_config.music_url", "site_config.subscribe_enabled", "site_config.top_content_enabled",
             "site_config.message_text", "site_config.version", "site_config.install_completed_at",
             "site_config.install_instance_id", "site_config.created_at", "site_config.updated_at",
+            "portable_import_guard.id", "portable_import_operation.job_id",
+            "portable_import_operation.preview_token", "portable_import_operation.user_id",
+            "portable_import_operation.created_at", "portable_import_operation.started_at",
+            "portable_import_operation.committed_at", "portable_import_operation.site_version",
             "nav_category.id", "nav_category.name", "nav_category.icon", "nav_category.sort_order",
             "nav_category.visible", "nav_category.created_at", "nav_category.updated_at",
             "nav_bookmark.id", "nav_bookmark.category_id", "nav_bookmark.name", "nav_bookmark.url",
@@ -125,6 +136,8 @@ public class DatabaseSetupService {
             new String[]{"20260814_0002_web_install_state.sql",
                     "7347e9e96d3c2347e1067624b786437f3b509e9d7e7614e773c6b1e067596d86"},
             new String[]{INSTANCE_MIGRATION, INSTANCE_MIGRATION_CHECKSUM}
+            ,new String[]{"20260904_0004_portable_import_operations.sql",
+                    "4de5e2df8c8f6780f6d1b25e16ee1dd99b7335c7b7475afb83c63f78cfa7ac63"}
     );
     private static final long INSTALL_ADVISORY_LOCK = 0x58594e4156494741L;
     private static final AtomicBoolean CONFIGURATION_IN_PROGRESS = new AtomicBoolean();
@@ -136,6 +149,7 @@ public class DatabaseSetupService {
     private final ConfigurableApplicationContext applicationContext;
     private final boolean autoRestart;
     private final boolean allowInsecureSetup;
+    private final SecureTransportPolicy secureTransportPolicy;
 
     public DatabaseSetupService(
             InstallAccessService accessService,
@@ -152,17 +166,13 @@ public class DatabaseSetupService {
         this.applicationContext = applicationContext;
         this.autoRestart = properties.isAutoRestart();
         this.allowInsecureSetup = properties.isAllowInsecureSetup();
+        this.secureTransportPolicy = new SecureTransportPolicy(
+                properties.isTrustForwardedHttps(), properties.getTrustedProxyPeers());
     }
 
     public void requireSecureTransport(HttpServletRequest request) {
         if (allowInsecureSetup) return;
-        String forwardedProto = request == null ? null : request.getHeader("X-Forwarded-Proto");
-        boolean forwardedHttps = forwardedProto != null
-                && "https".equalsIgnoreCase(forwardedProto.split(",", 2)[0].trim());
-        if (request == null || (!request.isSecure() && !forwardedHttps)) {
-            throw new BusinessException(HttpStatus.FORBIDDEN,
-                    "数据库配置包含敏感凭据，只允许通过 HTTPS 提交");
-        }
+        secureTransportPolicy.requireSecure(request, "数据库配置");
     }
 
     public DatabaseTestVO test(DatabaseConnectionDTO dto) {
@@ -571,6 +581,9 @@ public class DatabaseSetupService {
                 "SELECT filename, checksum, applied_at FROM schema_migration WHERE 1 = 0",
                 "SELECT id, username, password, role, token_version FROM sys_user WHERE 1 = 0",
                 "SELECT id, install_completed_at, install_instance_id, version FROM site_config WHERE 1 = 0",
+                "SELECT id FROM portable_import_guard WHERE 1 = 0",
+                "SELECT job_id, preview_token, user_id, committed_at, site_version "
+                        + "FROM portable_import_operation WHERE 1 = 0",
                 "SELECT id, name, sort_order, visible FROM nav_category WHERE 1 = 0",
                 "SELECT id, category_id, name, url, sort_order, visible FROM nav_bookmark WHERE 1 = 0",
                 "SELECT id, name, search_url, is_default, visible FROM search_engine WHERE 1 = 0",
@@ -599,6 +612,14 @@ public class DatabaseSetupService {
                     }
                 }
             }
+        }
+        long guardCount = queryLong(connection,
+                "SELECT COUNT(*) FROM public.portable_import_guard");
+        long validGuardCount = queryLong(connection,
+                "SELECT COUNT(*) FROM public.portable_import_guard WHERE id = 1");
+        if (guardCount != 1 || validGuardCount != 1) {
+            throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "目标数据库数据导入单例锁记录损坏");
         }
     }
 

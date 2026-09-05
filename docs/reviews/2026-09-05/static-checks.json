@@ -1,0 +1,122 @@
+[
+  {
+    "path": "install.sh",
+    "ok": true
+  },
+  {
+    "path": "nav-frontend/package-lock.json",
+    "ok": true
+  },
+  {
+    "path": "nav-frontend/package.json",
+    "ok": true
+  },
+  {
+    "path": "nav-frontend/tsconfig.app.json",
+    "ok": true
+  },
+  {
+    "path": "nav-frontend/tsconfig.json",
+    "ok": true
+  },
+  {
+    "path": "nav-frontend/tsconfig.node.json",
+    "ok": true
+  },
+  {
+    "path": "ops/check-immutable-releases-policy.sh",
+    "ok": true
+  },
+  {
+    "path": "ops/compatibility-epoch-rollback-test.sh",
+    "ok": true
+  },
+  {
+    "path": "ops/create-release-manifest.py",
+    "ok": true
+  },
+  {
+    "path": "ops/immutable-release-policy-test.sh",
+    "ok": true
+  },
+  {
+    "path": "ops/install-e2e.sh",
+    "ok": true
+  },
+  {
+    "path": "ops/install-pinned-gh.sh",
+    "ok": true
+  },
+  {
+    "path": "ops/install-release-url-test.sh",
+    "ok": true
+  },
+  {
+    "path": "ops/install-runtime-config-test.sh",
+    "ok": true
+  },
+  {
+    "path": "ops/lib/common.sh",
+    "ok": true
+  },
+  {
+    "path": "ops/lib/release-transaction.sh",
+    "ok": true
+  },
+  {
+    "path": "ops/migrate-docker-volumes.sh",
+    "ok": true
+  },
+  {
+    "path": "ops/mode-protection-test.sh",
+    "ok": true
+  },
+  {
+    "path": "ops/operations-lock-test.sh",
+    "ok": true
+  },
+  {
+    "path": "ops/package-host-release.sh",
+    "ok": true
+  },
+  {
+    "path": "ops/postgresql-migration-signal-test.sh",
+    "ok": true
+  },
+  {
+    "path": "ops/postgresql-migration-test.sh",
+    "ok": true
+  },
+  {
+    "path": "ops/publish-workflow-test.sh",
+    "ok": true
+  },
+  {
+    "path": "ops/release-manifest-test.sh",
+    "ok": true
+  },
+  {
+    "path": "ops/release-transaction-test.sh",
+    "ok": true
+  },
+  {
+    "path": "ops/release-version-test.sh",
+    "ok": true
+  },
+  {
+    "path": "ops/rollback-release-test.sh",
+    "ok": true
+  },
+  {
+    "path": "ops/rollback-release.sh",
+    "ok": true
+  },
+  {
+    "path": "ops/validate-release-version.py",
+    "ok": true
+  },
+  {
+    "path": "ops/version-transition-test.sh",
+    "ok": true
+  }
+]

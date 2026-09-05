@@ -1,5 +1,6 @@
 package com.example.nav.module.site.vo;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 
 public record SiteConfigVO(
@@ -21,5 +22,5 @@ public record SiteConfigVO(
         Integer version,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
-) {
+) implements Serializable {
 }

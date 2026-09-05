@@ -16,6 +16,7 @@ import {
 import type { Category, CategoryPayload } from '@/types/category'
 import type { SortOrderItem } from '@/types/common'
 import { navigationIconLabel, navigationIconUrl } from '@/utils/adminNavigationManage'
+import { commitVisibleChange } from '@/utils/visibilityMutation'
 
 const categories = ref<Category[]>([])
 const loading = ref(true)
@@ -25,6 +26,11 @@ const editing = ref<Category | null>(null)
 const keyword = ref('')
 const sortVisible = ref(false)
 const savingSort = ref(false)
+const visibilityUpdatingIds = ref(new Set<string>())
+
+function visibilityUpdating(row: Category) {
+  return visibilityUpdatingIds.value.has(String(row.id))
+}
 
 const filtered = computed(() => {
   const value = keyword.value.trim().toLocaleLowerCase()
@@ -105,10 +111,13 @@ async function remove(row: Category) {
 
 async function toggleVisible(row: Category) {
   try {
-    await setCategoryVisible(row.id, row.visible)
-    ElMessage.success(row.visible ? '分类已展示' : '分类已隐藏')
+    const updated = await commitVisibleChange(
+      row,
+      visibilityUpdatingIds.value,
+      setCategoryVisible,
+    )
+    if (updated) ElMessage.success(row.visible ? '分类已展示' : '分类已隐藏')
   } catch (error) {
-    row.visible = !row.visible
     ElMessage.error(error instanceof Error ? error.message : '状态更新失败')
   }
 }
@@ -154,12 +163,12 @@ onMounted(() => void load())
           </el-table-column>
           <el-table-column prop="sortOrder" label="排序" width="100" />
           <el-table-column label="前台展示" width="120">
-            <template #default="{ row }"><el-switch v-model="row.visible" :aria-label="`${row.name}前台展示`" @change="toggleVisible(row)" /></template>
+            <template #default="{ row }"><el-switch v-model="row.visible" :loading="visibilityUpdating(row)" :disabled="visibilityUpdating(row)" :aria-label="`${row.name}前台展示`" @change="toggleVisible(row)" /></template>
           </el-table-column>
           <el-table-column label="操作" width="160" align="right">
             <template #default="{ row }">
-              <el-button circle :icon="Edit" :aria-label="`编辑分类${row.name}`" @click="openEdit(row)" />
-              <el-button circle type="danger" plain :icon="Delete" :aria-label="`删除分类${row.name}`" @click="remove(row)" />
+              <el-button circle :icon="Edit" :disabled="visibilityUpdating(row)" :aria-label="`编辑分类${row.name}`" @click="openEdit(row)" />
+              <el-button circle type="danger" plain :icon="Delete" :disabled="visibilityUpdating(row)" :aria-label="`删除分类${row.name}`" @click="remove(row)" />
             </template>
           </el-table-column>
           <template #empty><el-empty description="暂无分类，点击右上角创建第一个分类" /></template>
@@ -177,10 +186,10 @@ onMounted(() => void load())
             <span>{{ row.visible ? '前台展示' : '前台隐藏' }}</span>
           </div>
           <footer>
-            <label><span>前台展示</span><el-switch v-model="row.visible" :aria-label="`${row.name}前台展示`" @change="toggleVisible(row)" /></label>
+            <label><span>前台展示</span><el-switch v-model="row.visible" :loading="visibilityUpdating(row)" :disabled="visibilityUpdating(row)" :aria-label="`${row.name}前台展示`" @change="toggleVisible(row)" /></label>
             <div>
-              <el-button circle :icon="Edit" :aria-label="`编辑分类${row.name}`" @click="openEdit(row)" />
-              <el-button circle type="danger" plain :icon="Delete" :aria-label="`删除分类${row.name}`" @click="remove(row)" />
+              <el-button circle :icon="Edit" :disabled="visibilityUpdating(row)" :aria-label="`编辑分类${row.name}`" @click="openEdit(row)" />
+              <el-button circle type="danger" plain :icon="Delete" :disabled="visibilityUpdating(row)" :aria-label="`删除分类${row.name}`" @click="remove(row)" />
             </div>
           </footer>
         </article>

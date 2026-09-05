@@ -2,10 +2,10 @@
 
 ## 验收基线
 
-- 当前正式版本：`v1.0.8`
-- 当前源码提交：`b867cf480f4319f389eb532d38154dcd313dbf7a`
-- 当前 GitHub Actions：https://github.com/Kcmose/yunlume/actions/runs/33416144671
-- 当前 GitHub Release：https://github.com/Kcmose/yunlume/releases/tag/v1.0.8
+- 本记录验收的正式版本：`v1.0.8`
+- 该验收版本源码提交：`b867cf480f4319f389eb532d38154dcd313dbf7a`
+- 该验收版本 GitHub Actions：https://github.com/Kcmose/yunlume/actions/runs/33416144671
+- 该验收版本 GitHub Release：https://github.com/Kcmose/yunlume/releases/tag/v1.0.8
 - 同代际降级目标：https://github.com/Kcmose/yunlume/releases/tag/v1.0.7
 - 兼容代际：`1`
 

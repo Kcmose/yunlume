@@ -14,6 +14,7 @@ MODE="docker"
 VERSION=""
 REQUESTED_VERSION=""
 APP_PORT="${DEFAULT_PORT}"
+APP_PORT_EXPLICIT="false"
 INSTALL_DIR="${DEFAULT_INSTALL_DIR}"
 RELEASE_BASE_URL="${YUNLUME_RELEASE_BASE_URL:-${DEFAULT_RELEASE_BASE_URL}}"
 WORK_DIR=""
@@ -79,6 +80,9 @@ DOCKER_MANIFEST_BACKUP=""
 DOCKER_COMPATIBILITY_EPOCH_BACKUP=""
 DOCKER_SERVICES_MUTATED="false"
 DOCKER_ROLLBACK_PORT="${DEFAULT_PORT}"
+DOCKER_BIND_ADDRESS="0.0.0.0"
+INSTALL_MODE_WAS_PRESENT="false"
+EXISTING_MANAGED_DEPLOYMENT="false"
 
 die() {
   printf 'ERROR: %s\n' "$*" >&2
@@ -162,11 +166,13 @@ detect_public_access_host() {
 print_access_url() {
   local public_host=""
   if public_host="$(detect_public_access_host)"; then
-    info "请访问: http://${public_host}:${APP_PORT}/install"
-    return
+    info "HTTP 地址仅用于连通性诊断: http://${public_host}:${APP_PORT}/healthz"
+  else
+    info "未能可靠识别服务器公网地址。"
+    info "HTTP 地址仅用于连通性诊断: http://<服务器公网IP>:${APP_PORT}/healthz"
   fi
-  info "未能可靠识别服务器公网地址。"
-  info "请将 <服务器公网IP> 替换为实际地址后访问: http://<服务器公网IP>:${APP_PORT}/install"
+  info "请先配置受信任的 HTTPS 域名和反向代理，再通过 https://<受信任域名>/install 提交安装信息。"
+  info "配置受信任的 HTTPS 域名后再提交数据库、Redis 或管理员凭据。"
 }
 
 cleanup() {
@@ -263,6 +269,7 @@ parse_args() {
       --port)
         [[ $# -ge 2 ]] || die "--port 缺少参数"
         APP_PORT="$2"
+        APP_PORT_EXPLICIT="true"
         shift 2
         ;;
       --install-dir)
@@ -321,7 +328,7 @@ validate_args() {
 
 validate_install_directory_boundary() {
   local current=""
-  local component
+  local component owner mode
   local -a path_parts=()
   IFS=/ read -r -a path_parts <<<"${INSTALL_DIR#/}"
   for component in "${path_parts[@]}"; do
@@ -331,6 +338,14 @@ validate_install_directory_boundary() {
       die "安装目录及其父目录不能经过符号链接: ${current}"
     if [[ -e "${current}" && ! -d "${current}" ]]; then
       die "安装目录路径中存在非目录节点: ${current}"
+    fi
+    if [[ -d "${current}" ]]; then
+      owner="$(stat -c '%u' -- "${current}")"
+      mode="$(stat -c '%a' -- "${current}")"
+      [[ "${owner}" == "0" ]] ||
+        die "安装目录及其已有父目录必须属于 root: ${current}"
+      (( (8#${mode} & 8#022) == 0 )) ||
+        die "安装目录及其已有父目录不能由其他用户写入: ${current}"
     fi
   done
 }
@@ -399,17 +414,16 @@ try:
         raise ValueError("required fields must be non-empty strings")
     if not re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", values[0]):
         raise ValueError("version must use X.Y.Z")
-    version = re.escape(values[0])
     backend_match = re.fullmatch(
-        rf"ghcr\.io/([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)/yunlume-backend:{version}",
+        r"ghcr\.io/([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)/yunlume-backend@sha256:[0-9a-f]{64}",
         values[4],
     )
     frontend_match = re.fullmatch(
-        rf"ghcr\.io/([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)/yunlume-frontend:{version}",
+        r"ghcr\.io/([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)/yunlume-frontend@sha256:[0-9a-f]{64}",
         values[5],
     )
     if not backend_match or not frontend_match:
-        raise ValueError("image references must match the manifest version")
+        raise ValueError("image references must use immutable GHCR digests")
     if backend_match.group(1) != frontend_match.group(1):
         raise ValueError("frontend and backend images must use the same GHCR owner")
 except (OSError, UnicodeError, json.JSONDecodeError, KeyError, ValueError) as exc:
@@ -473,6 +487,7 @@ ensure_install_mode() {
       die "当前部署模式标记格式无效"
     [[ "${existing_mode}" == "${MODE}" ]] ||
       die "当前目录已使用 ${existing_mode} 模式，不能直接切换为 ${MODE}"
+    INSTALL_MODE_WAS_PRESENT="true"
     return
   fi
   if [[ -d "${INSTALL_DIR}" ]] &&
@@ -484,6 +499,7 @@ ensure_install_mode() {
   printf '%s\n' "${MODE}" >"${temporary}"
   chmod 0644 "${temporary}"
   mv -f -- "${temporary}" "${mode_file}"
+  INSTALL_MODE_WAS_PRESENT="false"
 }
 
 version_is_less() {
@@ -632,6 +648,8 @@ check_version_transition() {
   local current_version current_epoch
   [[ ! -L "${version_file}" ]] || die "VERSION 文件不能是符号链接"
   if [[ ! -e "${version_file}" ]]; then
+    [[ "${INSTALL_MODE_WAS_PRESENT}" != "true" ]] ||
+      die "已有托管部署缺少 VERSION，不能判断版本兼容性"
     if [[ -e "${INSTALL_DIR}/COMPATIBILITY_EPOCH" ||
           -e "${INSTALL_DIR}/release-manifest.json" ||
           -e "${INSTALL_DIR}/.env" || -e "${INSTALL_DIR}/compose.yml" ||
@@ -650,6 +668,7 @@ check_version_transition() {
   if [[ "${current_version}" == "${VERSION}" ]]; then
     [[ "${MANIFEST_COMPATIBILITY_EPOCH}" == "${current_epoch}" ]] ||
       die "同一版本的兼容代际与当前部署不一致"
+    EXISTING_MANAGED_DEPLOYMENT="true"
     return 0
   fi
   if version_is_less "${VERSION}" "${current_version}"; then
@@ -659,11 +678,24 @@ check_version_transition() {
     [[ "${MANIFEST_COMPATIBILITY_EPOCH}" == "${current_epoch}" ]] ||
       die "拒绝降级：当前部署兼容代际为 ${current_epoch}，目标版本 ${VERSION} 的兼容代际为 ${MANIFEST_COMPATIBILITY_EPOCH}"
     info "将 yunlume 从 ${current_version} 降级到 ${VERSION}。"
+    EXISTING_MANAGED_DEPLOYMENT="true"
     return 0
   fi
   (( MANIFEST_COMPATIBILITY_EPOCH >= current_epoch )) ||
     die "拒绝升级：目标版本 ${VERSION} 的兼容代际低于当前部署 ${current_epoch}"
   info "将 yunlume 从 ${current_version} 升级到 ${VERSION}。"
+  EXISTING_MANAGED_DEPLOYMENT="true"
+}
+
+validate_managed_runtime_config() {
+  local deployment_mode="$1"
+  shift
+  local runtime_file
+  [[ "${EXISTING_MANAGED_DEPLOYMENT}" == "true" ]] || return 0
+  for runtime_file in "$@"; do
+    [[ ! -L "${runtime_file}" && -f "${runtime_file}" ]] ||
+      die "已有托管 ${deployment_mode} 部署缺少有效运行配置: ${runtime_file}"
+  done
 }
 
 upsert_env() {
@@ -731,7 +763,9 @@ NAV_DEMO_DATA_ENABLED=false
 NAV_WEB_INSTALL_ENABLED=true
 NAV_DATABASE_SOURCE=UNCONFIGURED
 NAV_REDIS_SOURCE=UNCONFIGURED
-NAV_ALLOW_INSECURE_DATABASE_SETUP=true
+NAV_ALLOW_INSECURE_DATABASE_SETUP=false
+NAV_TRUST_FORWARDED_HTTPS=true
+NAV_TRUSTED_PROXY_PEERS=frontend
 OPENAPI_ENABLED=false
 CORS_ALLOWED_ORIGINS=http://localhost:${APP_PORT},http://127.0.0.1:${APP_PORT}
 EOF
@@ -741,15 +775,58 @@ EOF
 wait_for_http() {
   local base_url="$1"
   local attempts="${2:-90}"
+  local require_completed="${3:-false}"
   local index
+  local health_json install_json
   for ((index = 1; index <= attempts; index++)); do
-    if curl --fail --silent --show-error --max-time 5 "${base_url}/healthz" >/dev/null 2>&1 &&
-       curl --fail --silent --show-error --max-time 5 "${base_url}/api/health" >/dev/null 2>&1; then
-      return 0
+    if curl --fail --silent --show-error --connect-timeout 2 --max-time 5 \
+         "${base_url}/healthz" >/dev/null 2>&1; then
+      if [[ "${require_completed}" != "true" ]]; then
+        if curl --fail --silent --show-error --connect-timeout 2 --max-time 5 \
+             "${base_url}/api/health" >/dev/null 2>&1; then
+          return 0
+        fi
+      elif health_json="$(curl --fail --silent --show-error --connect-timeout 2 --max-time 5 \
+               "${base_url}/api/health" 2>/dev/null)" &&
+           install_json="$(curl --fail --silent --show-error --connect-timeout 2 --max-time 5 \
+               "${base_url}/api/install/status" 2>/dev/null)" &&
+           HEALTH_JSON="${health_json}" INSTALL_JSON="${install_json}" python3 <<'PY'
+import json
+import os
+
+health = json.loads(os.environ["HEALTH_JSON"])
+install = json.loads(os.environ["INSTALL_JSON"])
+if health.get("data", {}).get("status") != "UP":
+    raise SystemExit(1)
+if install.get("data", {}).get("state") != "COMPLETED":
+    raise SystemExit(1)
+PY
+      then
+        return 0
+      fi
     fi
     sleep 2
   done
   return 1
+}
+
+docker_probe_base_url() {
+  local probe_host="${1:-0.0.0.0}"
+  local probe_port="$2"
+  case "${probe_host}" in
+    0.0.0.0) probe_host="127.0.0.1" ;;
+    ::|'[::]') probe_host="[::1]" ;;
+    *:*) [[ "${probe_host}" == \[*\] ]] || probe_host="[${probe_host}]" ;;
+  esac
+  printf 'http://%s:%s\n' "${probe_host}" "${probe_port}"
+}
+
+inherit_existing_port() {
+  local existing_port="$1"
+  if [[ "${APP_PORT_EXPLICIT}" != "true" && "${existing_port}" =~ ^[0-9]+$ ]] &&
+     (( existing_port >= 1 && existing_port <= 65535 )); then
+    APP_PORT="${existing_port}"
+  fi
 }
 
 wait_for_url() {
@@ -809,7 +886,7 @@ rollback_docker() {
     )
     if ! "${compose_command[@]}" up -d --no-build --force-recreate backend frontend; then
       rollback_failed="true"
-    elif ! wait_for_http "http://127.0.0.1:${DOCKER_ROLLBACK_PORT}" 20; then
+    elif ! wait_for_http "$(docker_probe_base_url "${DOCKER_BIND_ADDRESS}" "${DOCKER_ROLLBACK_PORT}")" 20 true; then
       rollback_failed="true"
     fi
   elif [[ "${DOCKER_SERVICES_MUTATED}" == "true" &&
@@ -834,7 +911,6 @@ docker_transaction_failed() {
 install_docker() {
   local compose_asset compose_sha backend_image frontend_image
   local compose_download env_file compose_file version_file manifest_target epoch_file
-  local had_existing="false"
   local install_failed="false"
   local backup_env="${WORK_DIR}/previous.env"
   local backup_compose="${WORK_DIR}/previous.compose.yml"
@@ -882,11 +958,12 @@ install_docker() {
   DOCKER_HAD_COMPATIBILITY_EPOCH="false"
   DOCKER_SERVICES_MUTATED="false"
   DOCKER_ROLLBACK_PORT="${DEFAULT_PORT}"
+  DOCKER_BIND_ADDRESS="0.0.0.0"
   [[ ! -L "${env_file}" && ! -L "${compose_file}" &&
      ! -L "${version_file}" && ! -L "${manifest_target}" && ! -L "${epoch_file}" ]] ||
     die "Docker 安装器管理的文件不能是符号链接"
+  validate_managed_runtime_config docker "${env_file}" "${compose_file}"
   if [[ -f "${env_file}" && -f "${compose_file}" ]]; then
-    had_existing="true"
     DOCKER_HAD_ENV="true"
     DOCKER_HAD_COMPOSE="true"
     cp -p -- "${env_file}" "${backup_env}"
@@ -895,6 +972,10 @@ install_docker() {
     [[ "${DOCKER_ROLLBACK_PORT}" =~ ^[0-9]+$ &&
        "${DOCKER_ROLLBACK_PORT}" -ge 1 && "${DOCKER_ROLLBACK_PORT}" -le 65535 ]] ||
       DOCKER_ROLLBACK_PORT="${DEFAULT_PORT}"
+    inherit_existing_port "${DOCKER_ROLLBACK_PORT}"
+    DOCKER_BIND_ADDRESS="$(awk -F= '$1 == "APP_BIND_ADDRESS" { print $2; exit }' "${backup_env}")"
+    [[ -n "${DOCKER_BIND_ADDRESS}" && "${DOCKER_BIND_ADDRESS}" != *[[:space:]]* ]] ||
+      DOCKER_BIND_ADDRESS="0.0.0.0"
   elif [[ -e "${env_file}" || -e "${compose_file}" ]]; then
     die "Docker 安装目录不完整，请同时恢复 .env 与 compose.yml"
   fi
@@ -913,14 +994,16 @@ install_docker() {
 
   DOCKER_TRANSACTION_ACTIVE="true"
   trap 'docker_transaction_failed $?' ERR
-  if [[ "${had_existing}" != "true" ]]; then
+  if [[ "${EXISTING_MANAGED_DEPLOYMENT}" != "true" ]]; then
     write_docker_env "${env_file}" "${backend_image}" "${frontend_image}"
   fi
-  if [[ "${had_existing}" == "true" ]]; then
+  if [[ "${EXISTING_MANAGED_DEPLOYMENT}" == "true" ]]; then
     upsert_env "${env_file}" BACKEND_IMAGE "${backend_image}"
     upsert_env "${env_file}" FRONTEND_IMAGE "${frontend_image}"
     upsert_env "${env_file}" APP_PORT "${APP_PORT}"
-    upsert_env "${env_file}" NAV_ALLOW_INSECURE_DATABASE_SETUP true
+    upsert_env "${env_file}" NAV_ALLOW_INSECURE_DATABASE_SETUP false
+    upsert_env "${env_file}" NAV_TRUST_FORWARDED_HTTPS true
+    upsert_env "${env_file}" NAV_TRUSTED_PROXY_PEERS frontend
     configure_local_cors_origins "${env_file}"
   fi
   install -m 0644 "${compose_download}" "${compose_file}.tmp"
@@ -944,7 +1027,7 @@ install_docker() {
   else
     DOCKER_SERVICES_MUTATED="true"
     if ! "${compose_command[@]}" up -d --no-build ||
-       ! wait_for_http "http://127.0.0.1:${APP_PORT}" 90; then
+       ! wait_for_http "$(docker_probe_base_url "${DOCKER_BIND_ADDRESS}" "${APP_PORT}")" 90 "${EXISTING_MANAGED_DEPLOYMENT}"; then
       install_failed="true"
     fi
   fi
@@ -1094,7 +1177,7 @@ rollback_host() {
   fi
   if [[ "${HOST_SERVICE_WAS_ACTIVE}" == "true" ]]; then
     if [[ "${HOST_NGINX_WAS_ACTIVE}" == "true" ]]; then
-      wait_for_http "http://127.0.0.1:${HOST_ROLLBACK_PORT}" 20 || rollback_failed="true"
+      wait_for_http "http://127.0.0.1:${HOST_ROLLBACK_PORT}" 20 true || rollback_failed="true"
     else
       wait_for_url "http://127.0.0.1:18081/api/health" 20 || rollback_failed="true"
     fi
@@ -1155,14 +1238,18 @@ install_host() {
   [[ -f "${staging_root}/deploy/app.env.template" ]] || die "宿主机包缺少环境模板"
   [[ -f "${staging_root}/deploy/yunlume-backend.service" ]] || die "宿主机包缺少 systemd 模板"
   [[ -f "${staging_root}/deploy/yunlume.nginx.conf" ]] || die "宿主机包缺少 Nginx 模板"
+  [[ -f "${staging_root}/database/migrations/20260904_0004_portable_import_operations.sql" ]] ||
+    die "宿主机包缺少 PostgreSQL 迁移"
   [[ -f "${staging_root}/SHA256SUMS" ]] || die "宿主机包缺少内部校验文件"
   (cd "${staging_root}" && sha256sum --check --quiet --strict SHA256SUMS) ||
     die "宿主机包内部文件校验失败"
   package_version="$(tr -d '\r\n' <"${staging_root}/VERSION")"
   [[ "${package_version}" == "${VERSION}" ]] || die "宿主机包版本与发行清单不一致"
 
+  env_file="/etc/yunlume/app.env"
   ensure_install_mode
   check_version_transition
+  validate_managed_runtime_config host "${env_file}"
   ensure_service_user
   [[ ! -L "${INSTALL_DIR}/releases" ]] || die "releases 目录不能是符号链接"
   [[ ! -L /etc/yunlume ]] || die "/etc/yunlume 不能是符号链接"
@@ -1194,13 +1281,17 @@ install_host() {
       die "现有版本目录的后端文件与发行包不一致: ${release_dir}"
     diff --brief --recursive "${staging_root}/frontend" "${release_dir}/frontend" >/dev/null ||
       die "现有版本目录的前端文件与发行包不一致: ${release_dir}"
+    diff --brief --recursive "${staging_root}/database" "${release_dir}/database" >/dev/null ||
+      die "现有版本目录的数据库迁移与发行包不一致: ${release_dir}"
   else
     temporary_release="${release_dir}.tmp.$$"
     HOST_TEMPORARY_RELEASE="${temporary_release}"
-    install -d -m 0755 "${temporary_release}/backend" "${temporary_release}/frontend"
+    install -d -m 0755 "${temporary_release}/backend" "${temporary_release}/frontend" \
+      "${temporary_release}/database"
     install -m 0644 "${staging_root}/backend/yunlume-backend.jar" \
       "${temporary_release}/backend/yunlume-backend.jar"
     cp -a -- "${staging_root}/frontend/." "${temporary_release}/frontend/"
+    cp -a -- "${staging_root}/database/." "${temporary_release}/database/"
     printf '%s\n' "${VERSION}" >"${temporary_release}/VERSION"
     printf '%s\n' "${archive_sha,,}" >"${temporary_release}/.archive-sha256"
     chown -R root:root "${temporary_release}"
@@ -1208,7 +1299,6 @@ install_host() {
     HOST_TEMPORARY_RELEASE=""
   fi
 
-  env_file="/etc/yunlume/app.env"
   current_link="${INSTALL_DIR}/current"
   nginx_config="/etc/yunlume/nginx.conf"
   nginx_link="/etc/nginx/conf.d/yunlume.conf"
@@ -1267,6 +1357,7 @@ install_host() {
     [[ "${HOST_ROLLBACK_PORT}" =~ ^[0-9]+$ &&
        "${HOST_ROLLBACK_PORT}" -ge 1 && "${HOST_ROLLBACK_PORT}" -le 65535 ]] ||
       HOST_ROLLBACK_PORT="${DEFAULT_PORT}"
+    inherit_existing_port "${HOST_ROLLBACK_PORT}"
   fi
   if [[ -f "${service_file}" ]]; then
     HOST_HAD_SERVICE_FILE="true"
@@ -1306,8 +1397,10 @@ install_host() {
 
   HOST_TRANSACTION_ACTIVE="true"
   trap 'host_transaction_failed $?' ERR
-  if [[ "${HOST_HAD_APP_ENV}" == "true" ]]; then
-    upsert_env "${env_file}" NAV_ALLOW_INSECURE_DATABASE_SETUP true
+  if [[ "${EXISTING_MANAGED_DEPLOYMENT}" == "true" ]]; then
+    upsert_env "${env_file}" NAV_ALLOW_INSECURE_DATABASE_SETUP false
+    upsert_env "${env_file}" NAV_TRUST_FORWARDED_HTTPS true
+    upsert_env "${env_file}" NAV_TRUSTED_PROXY_PEERS '127.0.0.1,::1'
     configure_local_cors_origins "${env_file}"
   else
     jwt_secret="$(openssl rand -hex 32)"
@@ -1333,7 +1426,7 @@ install_host() {
   HOST_NGINX_MUTATED="true"
   systemctl enable --now nginx.service >/dev/null
   systemctl reload nginx.service
-  wait_for_http "http://127.0.0.1:${APP_PORT}" 90
+  wait_for_http "http://127.0.0.1:${APP_PORT}" 90 "${EXISTING_MANAGED_DEPLOYMENT}"
 
   printf '%s\n' "${VERSION}" >"${INSTALL_DIR}/VERSION.tmp"
   chmod 0644 "${INSTALL_DIR}/VERSION.tmp"

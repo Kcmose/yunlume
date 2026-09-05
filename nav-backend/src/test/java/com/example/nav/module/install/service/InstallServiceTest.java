@@ -73,6 +73,8 @@ class InstallServiceTest {
         when(resultSet.getLong("user_count")).thenReturn(0L);
         when(resultSet.getLong("site_config_count")).thenReturn(1L);
         when(resultSet.getLong("completed_count")).thenReturn(0L);
+        when(resultSet.getLong("portable_import_guard_count")).thenReturn(1L);
+        when(resultSet.getLong("portable_import_guard_id_one_count")).thenReturn(1L);
         when(jdbcTemplate.queryForObject(anyString(), any(RowMapper.class)))
                 .thenAnswer(invocation -> ((RowMapper) invocation.getArgument(1)).mapRow(resultSet, 0));
 
@@ -86,10 +88,47 @@ class InstallServiceTest {
 
     @Test
     @SuppressWarnings({"rawtypes", "unchecked"})
+    void missingPortableImportGuardFailsRuntimeIntegrityClosed() throws Exception {
+        assertRuntimeGuardRejected(0L, 0L);
+    }
+
+    @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void extraPortableImportGuardFailsRuntimeIntegrityClosed() throws Exception {
+        assertRuntimeGuardRejected(2L, 1L);
+    }
+
+    @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void corruptPortableImportGuardFailsRuntimeIntegrityClosed() throws Exception {
+        assertRuntimeGuardRejected(1L, 0L);
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private void assertRuntimeGuardRejected(long guardCount, long idOneCount) throws Exception {
+        when(resultSet.getLong("user_count")).thenReturn(0L);
+        when(resultSet.getLong("site_config_count")).thenReturn(1L);
+        when(resultSet.getLong("completed_count")).thenReturn(0L);
+        when(resultSet.getLong("portable_import_guard_count")).thenReturn(guardCount);
+        when(resultSet.getLong("portable_import_guard_id_one_count")).thenReturn(idOneCount);
+        when(jdbcTemplate.queryForObject(anyString(), any(RowMapper.class)))
+                .thenAnswer(invocation -> ((RowMapper) invocation.getArgument(1)).mapRow(resultSet, 0));
+
+        InstallStatusVO status = service("", "simple").status();
+
+        assertEquals("UNKNOWN", status.state());
+        assertFalse(status.installationRequired());
+        assertFalse(status.ready());
+    }
+
+    @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
     void configuredDatabaseWithoutManagedRedisReportsRedisRequired() throws Exception {
         when(resultSet.getLong("user_count")).thenReturn(0L);
         when(resultSet.getLong("site_config_count")).thenReturn(1L);
         when(resultSet.getLong("completed_count")).thenReturn(0L);
+        when(resultSet.getLong("portable_import_guard_count")).thenReturn(1L);
+        when(resultSet.getLong("portable_import_guard_id_one_count")).thenReturn(1L);
         when(jdbcTemplate.queryForObject(anyString(), any(RowMapper.class)))
                 .thenAnswer(invocation -> ((RowMapper) invocation.getArgument(1)).mapRow(resultSet, 0));
         when(redisConfigurationStore.isUnconfiguredSource()).thenReturn(true);
@@ -108,6 +147,8 @@ class InstallServiceTest {
         when(resultSet.getLong("user_count")).thenReturn(0L);
         when(resultSet.getLong("site_config_count")).thenReturn(1L);
         when(resultSet.getLong("completed_count")).thenReturn(0L);
+        when(resultSet.getLong("portable_import_guard_count")).thenReturn(1L);
+        when(resultSet.getLong("portable_import_guard_id_one_count")).thenReturn(1L);
         when(jdbcTemplate.queryForObject(anyString(), any(RowMapper.class)))
                 .thenAnswer(invocation -> ((RowMapper) invocation.getArgument(1)).mapRow(resultSet, 0));
         when(jdbcTemplate.queryForObject("SELECT 1", Integer.class)).thenReturn(1);

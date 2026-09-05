@@ -1,5 +1,6 @@
 package com.example.nav.module.customlink.vo;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 
 public record CustomLinkVO(
@@ -11,5 +12,5 @@ public record CustomLinkVO(
         Boolean visible,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
-) {
+) implements Serializable {
 }

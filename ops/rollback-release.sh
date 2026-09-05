@@ -16,6 +16,10 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/lib/common.sh"
   die "请先在数据库服务商完成并验证备份，再设置 CONFIRM_EXTERNAL_DATABASE_BACKUP=EXTERNAL-DATABASE-BACKUP-VERIFIED"
 backend_target="$1"
 frontend_target="$2"
+[[ "$backend_target" =~ ^ghcr\.io/[a-z0-9][a-z0-9-]{0,38}/yunlume-backend@sha256:[0-9a-f]{64}$ ]] ||
+  die "后端回滚目标必须是 ghcr.io/.../yunlume-backend@sha256:<64位小写十六进制>"
+[[ "$frontend_target" =~ ^ghcr\.io/[a-z0-9][a-z0-9-]{0,38}/yunlume-frontend@sha256:[0-9a-f]{64}$ ]] ||
+  die "前端回滚目标必须是 ghcr.io/.../yunlume-frontend@sha256:<64位小写十六进制>"
 
 assert_project_directory
 require_command docker
@@ -59,53 +63,38 @@ os.replace(temp, path)
 PY
 }
 
-recover_previous_release() {
-  local status=$?
-  info "目标镜像未通过健康检查，正在恢复原镜像..."
-  cp --preserve=mode,timestamps -- "${rollback_env}" "${ENV_FILE}"
-  chmod 0600 "${ENV_FILE}"
-  export BACKEND_IMAGE="${old_backend}"
-  export FRONTEND_IMAGE="${old_frontend}"
-  compose up -d --no-build --force-recreate backend frontend || true
-  rm -f -- "${rollback_env}"
-  exit "${status}"
+wait_for_release_containers() {
+  local attempts="$1"
+  backend_id=""
+  frontend_id=""
+  for _ in $(seq 1 "${attempts}"); do
+    backend_id="$(compose ps -q backend)"
+    frontend_id="$(compose ps -q frontend)"
+    if [[ -n "${backend_id}" && -n "${frontend_id}" ]] &&
+       [[ "$(docker inspect --format '{{.State.Health.Status}}' "${backend_id}")" == "healthy" ]] &&
+       [[ "$(docker inspect --format '{{.State.Health.Status}}' "${frontend_id}")" == "healthy" ]]; then
+      return 0
+    fi
+    sleep 2
+  done
+  return 1
 }
-trap recover_previous_release ERR
 
-update_image_refs "${backend_target}" "${frontend_target}"
-export BACKEND_IMAGE="${backend_target}"
-export FRONTEND_IMAGE="${frontend_target}"
-compose up -d --no-build --force-recreate backend frontend
-
-for _ in $(seq 1 45); do
-  backend_id="$(compose ps -q backend)"
-  frontend_id="$(compose ps -q frontend)"
-  if [[ -n "${backend_id}" && -n "${frontend_id}" ]] &&
-     [[ "$(docker inspect --format '{{.State.Health.Status}}' "${backend_id}")" == "healthy" ]] &&
-     [[ "$(docker inspect --format '{{.State.Health.Status}}' "${frontend_id}")" == "healthy" ]]; then
-    break
-  fi
-  sleep 2
-done
-[[ -n "${backend_id:-}" && -n "${frontend_id:-}" ]] ||
-  die "回滚后的服务容器不完整"
-[[ "$(docker inspect --format '{{.State.Health.Status}}' "${backend_id}")" == "healthy" ]] ||
-  die "回滚后的后端未通过健康检查"
-[[ "$(docker inspect --format '{{.State.Health.Status}}' "${frontend_id}")" == "healthy" ]] ||
-  die "回滚后的前端未通过健康检查"
-
-probe_host="${APP_BIND_ADDRESS:-127.0.0.1}"
-case "${probe_host}" in
-  0.0.0.0) probe_host="127.0.0.1" ;;
-  ::|'[::]') probe_host="[::1]" ;;
-  *:*) [[ "${probe_host}" == \[*\] ]] || probe_host="[${probe_host}]" ;;
-esac
-curl --fail --silent --show-error "http://${probe_host}:${APP_PORT:-8080}/healthz" >/dev/null
-health_json="$(curl --fail --silent --show-error \
-  "http://${probe_host}:${APP_PORT:-8080}/api/health")"
-install_json="$(curl --fail --silent --show-error \
-  "http://${probe_host}:${APP_PORT:-8080}/api/install/status")"
-HEALTH_JSON="${health_json}" INSTALL_JSON="${install_json}" python3 <<'PY'
+verify_release_endpoints() {
+  local probe_host="${APP_BIND_ADDRESS:-127.0.0.1}"
+  local health_json install_json
+  local -a curl_options=(--fail --silent --show-error --connect-timeout 3 --max-time 8)
+  case "${probe_host}" in
+    0.0.0.0) probe_host="127.0.0.1" ;;
+    ::|'[::]') probe_host="[::1]" ;;
+    *:*) [[ "${probe_host}" == \[*\] ]] || probe_host="[${probe_host}]" ;;
+  esac
+  curl "${curl_options[@]}" "http://${probe_host}:${APP_PORT:-8080}/healthz" >/dev/null
+  health_json="$(curl "${curl_options[@]}" \
+    "http://${probe_host}:${APP_PORT:-8080}/api/health")"
+  install_json="$(curl "${curl_options[@]}" \
+    "http://${probe_host}:${APP_PORT:-8080}/api/install/status")"
+  HEALTH_JSON="${health_json}" INSTALL_JSON="${install_json}" python3 <<'PY'
 import json
 import os
 
@@ -116,7 +105,54 @@ if health.get("data", {}).get("status") != "UP":
 if install.get("data", {}).get("state") != "COMPLETED":
     raise SystemExit("回滚后的站点未保持 COMPLETED，拒绝把安装页当作成功回滚")
 PY
+}
 
-trap - ERR
+recover_previous_release() {
+  local status="$1"
+  local recovery_failed="false"
+  trap - ERR EXIT
+  set +e
+  info "目标镜像未通过健康检查，正在恢复原镜像..."
+  cp --preserve=mode,timestamps -- "${rollback_env}" "${ENV_FILE}" || recovery_failed="true"
+  chmod 0600 "${ENV_FILE}" || recovery_failed="true"
+  export BACKEND_IMAGE="${old_backend}"
+  export FRONTEND_IMAGE="${old_frontend}"
+  if [[ "${recovery_failed}" != "true" ]] &&
+     ! compose up -d --no-build --force-recreate backend frontend; then
+    recovery_failed="true"
+  fi
+  if [[ "${recovery_failed}" != "true" ]] && ! wait_for_release_containers 45; then
+    recovery_failed="true"
+  fi
+  if [[ "${recovery_failed}" != "true" ]] && ! verify_release_endpoints; then
+    recovery_failed="true"
+  fi
+  if [[ "${recovery_failed}" == "true" ]]; then
+    printf 'ERROR: 目标镜像失败，且原镜像恢复未通过健康检查；备份保留在 %s\n' \
+      "${rollback_env}" >&2
+    exit 2
+  fi
+  rm -f -- "${rollback_env}"
+  info "原镜像已恢复并通过健康检查"
+  exit "${status}"
+}
+trap 'recover_previous_release $?' EXIT
+
+update_image_refs "${backend_target}" "${frontend_target}"
+export BACKEND_IMAGE="${backend_target}"
+export FRONTEND_IMAGE="${frontend_target}"
+compose up -d --no-build --force-recreate backend frontend
+
+wait_for_release_containers 45 || true
+[[ -n "${backend_id:-}" && -n "${frontend_id:-}" ]] ||
+  die "回滚后的服务容器不完整"
+[[ "$(docker inspect --format '{{.State.Health.Status}}' "${backend_id}")" == "healthy" ]] ||
+  die "回滚后的后端未通过健康检查"
+[[ "$(docker inspect --format '{{.State.Health.Status}}' "${frontend_id}")" == "healthy" ]] ||
+  die "回滚后的前端未通过健康检查"
+
+verify_release_endpoints
+
+trap - EXIT
 rm -f -- "${rollback_env}"
 info "代码回滚完成；外部数据库、外部 Redis、database_config 与上传卷均未更换"

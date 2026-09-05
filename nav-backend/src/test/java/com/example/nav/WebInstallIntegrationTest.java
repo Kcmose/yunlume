@@ -67,10 +67,10 @@ class WebInstallIntegrationTest {
         jdbcTemplate.update("DELETE FROM site_config");
         jdbcTemplate.update("""
                 INSERT INTO site_config (
-                    site_name, site_description, background_type, background_color,
+                    id, site_name, site_description, background_type, background_color,
                     font_color, background_effect, music_enabled, subscribe_enabled,
                     top_content_enabled, version
-                ) VALUES (?, ?, 'color', '#050505', '#ffffff', FALSE, FALSE, FALSE, TRUE, 0)
+                ) VALUES (1, ?, ?, 'color', '#050505', '#ffffff', FALSE, FALSE, FALSE, TRUE, 0)
                 """, "Uninstalled", "Waiting for installation");
     }
 

@@ -7,8 +7,8 @@
 - 全项目只使用 `yunlume` 品牌和资源命名。
 - Docker 前后端使用两个独立镜像。
 - 同时支持 Docker 安装和宿主机安装。
-- 首次安装直接通过公网 HTTP 访问。
-- 不使用安装口令、SSH 通道、IP 白名单或强制 HTTPS。
+- 公网 HTTP 仅用于无凭据连通性诊断。
+- 首次安装提交凭据前必须配置受信任域名和 HTTPS 反向代理。
 - PostgreSQL、Redis 均由用户提前准备，安装程序只负责连接和初始化。
 - 不依赖中央授权、激活服务或远程控制服务。
 
@@ -42,7 +42,7 @@
 ### Docker 模式
 
 ```text
-公网 HTTP 请求
+受信任域名的 HTTPS 请求
        │
        ▼
 yunlume-frontend
@@ -61,7 +61,7 @@ Spring Boot
 ### 宿主机模式
 
 ```text
-公网 HTTP 请求
+受信任域名的 HTTPS 请求
        │
        ▼
 Nginx：0.0.0.0:<端口>
@@ -103,22 +103,22 @@ curl -fsSL <发布地址>/install.sh | sudo bash -s -- --mode host
 4. 检查对应模式所需依赖。
 5. 创建配置、版本和数据目录。
 6. 启动服务并等待健康检查。
-7. 优先输出自动识别到的公网安装地址；无法可靠识别时明确提示替换服务器公网 IP 占位符。
+7. 输出仅用于连通性诊断的 HTTP `/healthz` 地址，并提示先配置受信任 HTTPS 域名再提交凭据。
 8. 相同版本重复执行保持幂等。
 
 首版不自动修改云厂商安全组，不自动安装 Java、Nginx 或 Docker；缺少依赖时明确提示。
 
 ## 五、安装页面和公开访问
 
-首次部署完成后直接访问：
+首次部署后先用以下地址诊断连通性：
 
 ```text
-http://服务器公网IP:端口/install
+http://服务器公网IP:端口/healthz
 ```
 
-服务直接监听 `0.0.0.0:<端口>`。不增加安装口令、请求头认证、SSH 隧道、IP 白名单、强制 HTTPS、域名验证或中央授权。
+服务可监听 `0.0.0.0:<端口>`，但该 HTTP 入口不用于提交凭据。必须先配置受信任域名与 HTTPS 反向代理，并限制应用端口不能被公网绕过代理直连。
 
-安装未完成时安装页面和安装 API 直接公开；安装信息通过 HTTP 提交，第一个完成安装的人创建管理员。安装完成标记和事务锁保证安装不能重复完成。
+安装未完成时只通过受信任 HTTPS 域名访问安装页面和安装 API；安装完成标记和事务锁保证安装不能重复完成。
 
 ## 六、六步安装向导
 
@@ -171,16 +171,16 @@ COMPLETED         → 登录页
 - `GET /api/install/status` 返回当前安装状态。
 - 安装状态不再依赖口令。
 
-## 八、HTTP 安装配置
+## 八、HTTPS 安装配置
 
 首次运行启用：
 
 ```text
 NAV_WEB_INSTALL_ENABLED=true
-NAV_ALLOW_INSECURE_DATABASE_SETUP=true
+NAV_ALLOW_INSECURE_DATABASE_SETUP=false
 ```
 
-允许通过 HTTP 提交 PostgreSQL、Redis、管理员和站点配置。安装完成后由永久完成标记锁定流程，不引入安装脚本后台轮询，也不依赖自动重写环境变量。
+只允许在后端验证为受信任 HTTPS 的请求中提交 PostgreSQL、Redis、管理员和站点配置。安装完成后由永久完成标记锁定流程，不引入安装脚本后台轮询，也不依赖自动重写环境变量。
 
 ## 九、Docker 安装实现
 
@@ -209,7 +209,7 @@ yunlume_backend_logs
 yunlume_database_config
 ```
 
-安装步骤：检查 Docker 与 Compose、下载配置、固定前后端版本、创建卷、启动后端和前端、检查 `/api/health` 与 `/healthz`，最后输出公网安装地址。PostgreSQL 和 Redis 不加入 Compose。
+安装步骤：检查 Docker 与 Compose、下载配置、固定前后端版本、创建卷、启动后端和前端、检查 `/api/health` 与 `/healthz`，最后输出 HTTP 连通性诊断地址和 HTTPS 配置提示。PostgreSQL 和 Redis 不加入 Compose。
 
 ## 十、宿主机安装实现
 
@@ -303,7 +303,7 @@ Docker 模式保存当前镜像引用，拉取指定新版本并重建容器；�
 
 1. 从 GitHub Release 下载并执行 `install.sh`。
 2. 分别验证 Docker 全新安装和宿主机全新安装。
-3. 直接访问公网 HTTP 安装页面，不使用 SSH 转发。
+3. 先验证 HTTP `/healthz` 连通性，再配置受信任域名和 HTTPS 代理后访问安装页面。
 4. 完成 PostgreSQL、Redis、管理员和登录流程。
 5. 验证完成后不能重新安装。
 6. 验证服务重启和重复运行安装脚本。
