@@ -47,6 +47,26 @@ class PostgresqlCatalogCompatibilityTest {
             connection.setAutoCommit(true);
             assertDoesNotThrow(migration::afterPropertiesSet);
 
+            // 同名但不兼容的列不能被首次安装接管；每次回滚漂移，保留权威基线。
+            for (String drift : new String[]{
+                    "ALTER TABLE public.nav_bookmark ALTER COLUMN url TYPE varchar(1) USING left(url, 1)",
+                    "ALTER TABLE public.nav_category ALTER COLUMN sort_order TYPE bigint",
+                    "ALTER TABLE public.nav_category ALTER COLUMN visible SET DEFAULT false",
+                    "ALTER TABLE public.sys_user ALTER COLUMN id SET GENERATED ALWAYS",
+                    "ALTER TABLE public.nav_bookmark ALTER COLUMN url TYPE varchar(500) COLLATE \"C\"",
+                    "ALTER TABLE public.nav_bookmark ALTER COLUMN created_at TYPE timestamp(0)"
+            }) {
+                connection.setAutoCommit(false);
+                try {
+                    execute(connection, drift);
+                    assertThrows(InvocationTargetException.class, () -> inspect(installer, connection), drift);
+                } finally {
+                    connection.rollback();
+                    connection.setAutoCommit(true);
+                }
+                assertReady(installer, connection);
+            }
+
             // 从 0003 升级而来：执行真实固定迁移，再验证幂等启动。
             execute(connection, """
                     DROP TABLE public.portable_import_operation;

@@ -222,6 +222,21 @@ class CustomLinkIntegrationTest {
     }
 
     @Test
+    void nullSortItemsAreBadRequestsWithoutChangingAnyLink() throws Exception {
+        long id = createdId(createLink("空值排序回归", "/null-sort", "header", 100, true));
+        JsonNode before = adminLinks();
+        for (String body : List.of("[null]", "[{\"id\":" + id + ",\"sortOrder\":900},null]")) {
+            mockMvc.perform(put(ADMIN_URL + "/sort")
+                            .header("Authorization", bearerToken("admin"))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(400));
+            assertThat(adminLinks()).isEqualTo(before);
+        }
+    }
+
+    @Test
     void unknownLinksReturnNotFoundForEveryMutation() throws Exception {
         mockMvc.perform(put(ADMIN_URL + "/" + UNKNOWN_ID)
                         .header("Authorization", bearerToken("admin"))

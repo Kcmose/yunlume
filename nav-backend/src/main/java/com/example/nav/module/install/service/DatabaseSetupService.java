@@ -547,6 +547,7 @@ public class DatabaseSetupService {
                 || !relations.equals(expectedRelations)
                 || !constraints.equals(CORE_CONSTRAINTS)
                 || !PostgresqlNotNullConstraints.matches(connection, CORE_TABLES)
+                || !DatabaseSchemaColumnContract.matches(connection)
                 || !triggers.equals(CORE_TRIGGERS)) {
             throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE,
                     "目标数据库结构、索引、约束或触发器与当前版本不完全一致");

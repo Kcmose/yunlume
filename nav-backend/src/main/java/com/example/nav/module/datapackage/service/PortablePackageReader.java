@@ -51,7 +51,9 @@ public class PortablePackageReader {
         this.objectMapper = objectMapper.copy()
                 .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
                 .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-                .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
+                .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                // 必须在绑定 Integer 前拒绝小数，避免截断后绕过非负整数校验。
+                .disable(DeserializationFeature.ACCEPT_FLOAT_AS_INT);
         this.validator = validator;
     }
 

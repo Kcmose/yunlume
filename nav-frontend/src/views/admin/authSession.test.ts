@@ -329,4 +329,60 @@ describe('认证操作与跨标签页会话归属', () => {
     expect(mocks.success).toHaveBeenCalledOnce()
     expect(mocks.error).not.toHaveBeenCalled()
   })
+
+  it.each(['profile', 'validation', 'request'])('改密在 %s 等待期间重复按 Enter 只提交一次', async (phase) => {
+    const auth = startSession()
+    const profile = deferred<AdminUser>()
+    const validation = deferred<boolean>()
+    const response = deferred<void>()
+    const view = mountAccount()
+    if (phase === 'profile') {
+      auth.user = null
+      auth.profileLastAttemptAt = 0
+      mocks.profileApi.mockReturnValue(profile.promise)
+    }
+    const validate = vi.fn(() => phase === 'validation' ? validation.promise : Promise.resolve(true))
+    view.formRef = { validate } as unknown as FormInstance
+    mocks.changePasswordApi.mockReturnValue(response.promise)
+
+    const first = view.submitPasswordChange()
+    expect(view.changingPassword).toBe(true)
+    if (phase === 'profile') await vi.waitFor(() => expect(mocks.profileApi).toHaveBeenCalledOnce())
+    if (phase === 'validation') await vi.waitFor(() => expect(validate).toHaveBeenCalledOnce())
+    if (phase === 'request') await vi.waitFor(() => expect(mocks.changePasswordApi).toHaveBeenCalledOnce())
+    await view.submitPasswordChange()
+
+    if (phase === 'profile') profile.resolve(originalUser)
+    if (phase === 'validation') validation.resolve(true)
+    await vi.waitFor(() => expect(mocks.changePasswordApi).toHaveBeenCalledOnce())
+    expect(validate).toHaveBeenCalledOnce()
+    expect(mocks.changePasswordApi).toHaveBeenCalledWith(passwords)
+    response.resolve(undefined)
+    await first
+
+    expect(view.changingPassword).toBe(false)
+    expect(mocks.success).toHaveBeenCalledExactlyOnceWith('密码修改成功，请使用新密码重新登录')
+    expect(mocks.replace).toHaveBeenCalledExactlyOnceWith('/admin/login')
+    expect(mocks.error).not.toHaveBeenCalled()
+  })
+
+  it.each(['validation', 'request'])('改密 %s 失败后释放互斥，允许修正后重试', async (phase) => {
+    startSession()
+    const view = mountAccount()
+    const validate = vi.fn().mockResolvedValue(true)
+    view.formRef = { validate } as unknown as FormInstance
+    if (phase === 'validation') validate.mockRejectedValueOnce(new Error('表单无效'))
+    else mocks.changePasswordApi.mockRejectedValueOnce(new Error('服务暂不可用'))
+
+    await view.submitPasswordChange()
+    expect(view.changingPassword).toBe(false)
+    expect(mocks.changePasswordApi).toHaveBeenCalledTimes(phase === 'validation' ? 0 : 1)
+    expect(mocks.success).not.toHaveBeenCalled()
+
+    mocks.changePasswordApi.mockResolvedValueOnce(undefined)
+    await view.submitPasswordChange()
+    expect(view.changingPassword).toBe(false)
+    expect(mocks.changePasswordApi).toHaveBeenCalledTimes(phase === 'validation' ? 1 : 2)
+    expect(mocks.success).toHaveBeenCalledExactlyOnceWith('密码修改成功，请使用新密码重新登录')
+  })
 })

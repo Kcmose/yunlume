@@ -26,7 +26,7 @@ import {
   reconcileSelectedKeys,
   selectionAfterBatchRequest,
 } from '@/utils/adminNavigationManage'
-import { commitVisibleChange } from '@/utils/visibilityMutation'
+import { createVisibilityTracker } from '@/utils/visibilityMutation'
 
 interface BookmarkTableInstance {
   clearSelection: () => void
@@ -48,6 +48,7 @@ const moving = ref(false)
 const sortVisible = ref(false)
 const savingSort = ref(false)
 const visibilityUpdatingIds = ref(new Set<string>())
+const visibility = createVisibilityTracker(() => bookmarks.value, visibilityUpdatingIds.value)
 let restoringTableSelection = false
 let dialogGeneration = 0
 
@@ -96,10 +97,11 @@ const canMove = computed(() => selectedCount.value > 0
   && !moving.value)
 
 async function load() {
+  const snapshotRevision = visibility.captureSnapshot()
   loading.value = true
   try {
     const [bookmarkData, categoryData] = await Promise.all([getBookmarks(), getCategories()])
-    bookmarks.value = bookmarkData
+    bookmarks.value = visibility.mergeSnapshot(bookmarkData, snapshotRevision)
     categories.value = categoryData
     selectedKeys.value = reconcileSelectedKeys(selectedKeys.value, bookmarkData.map((item) => item.id))
     if (
@@ -169,9 +171,8 @@ async function remove(row: Bookmark) {
 
 async function toggleVisible(row: Bookmark) {
   try {
-    await commitVisibleChange(
+    await visibility.commit(
       row,
-      visibilityUpdatingIds.value,
       setBookmarkVisible,
     )
   } catch (error) {
@@ -292,9 +293,10 @@ async function saveBookmarkSort(items: SortOrderItem[]) {
     return
   }
 
+  const snapshotRevision = visibility.captureSnapshot()
   savingSort.value = true
   try {
-    bookmarks.value = await sortBookmarks(items)
+    bookmarks.value = visibility.mergeSnapshot(await sortBookmarks(items), snapshotRevision)
     sortVisible.value = false
     ElMessage.success(`“${selectedCategoryName.value}”内的书签排序已保存`)
     await nextTick()

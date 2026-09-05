@@ -266,7 +266,7 @@ HOST_TRUSTED_PROXY_CIDR=127.0.0.1/32
 
 新部署把 `NAV_DATABASE_SOURCE` 与 `NAV_REDIS_SOURCE` 都设为 `UNCONFIGURED` 后，访问首页、后台或 `/install` 会进入首次部署向导。本发行编排和安装页只支持外部 PostgreSQL 与外部 Redis：请分别填写两个服务的结构化连接信息。Compose 不创建数据库或缓存服务。
 
-部署者必须先准备一个非 superuser 业务用户，并为其提供空白、专用的 PostgreSQL 14+ 数据库以及在 `public` schema 创建表、索引、序列、函数、触发器和迁移登记所需的 DDL 权限。数据库既可在 1Panel 中创建，也可按下方两段 SQL 建立。安装页中的“管理员账号”是网站最高权限账号，不是 PostgreSQL 超级用户；页面不会索取数据库超级用户密码，也不会创建 PostgreSQL 服务器或角色。向导会先只读测试连接；目标含未知对象、残缺项目结构、旧版未迁移结构或已安装管理员时均零写入拒绝。空库只有在用户明确确认后才执行权威 PostgreSQL schema 初始化。
+部署者必须先准备一个非 superuser 业务用户，并为其提供空白、专用的 PostgreSQL 14+ 数据库以及在 `public` schema 创建表、索引、序列、函数、触发器和迁移登记所需的 DDL 权限。数据库既可在 1Panel 中创建，也可按下方两段 SQL 建立。安装页中的“管理员账号”是网站最高权限账号，不是 PostgreSQL 超级用户；页面不会索取数据库超级用户密码，也不会创建 PostgreSQL 服务器或角色。向导会先只读测试连接；目标含未知对象、残缺项目结构、旧版未迁移结构或已安装管理员时均零写入拒绝。接管现有未安装结构时，还会比对列类型、长度、默认值、identity/generated 属性和排序规则；列名相同但定义不符也会拒绝。空库只有在用户明确确认后才执行权威 PostgreSQL schema 初始化。
 
 在 1Panel 的 PostgreSQL 管理界面中，先创建一个普通登录用户并生成独立高强度密码，确认未授予 superuser、createdb、createrole 等全局权限。随后可在 SQL 控制台按实际名称替换下面的标识符；先连接 `postgres` 维护库执行第一段，再切换到新数据库执行第二段。脚本不包含密码，安装页也提供相同的转义后 SQL 和复制按钮：
 

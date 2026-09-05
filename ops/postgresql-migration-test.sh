@@ -453,39 +453,83 @@ common_env=(
   -e SERVER_PORT=0
 )
 
-log_contains() {
-  local output container
+match_container_log() {
+  local output container status
   container="$(container_name "$1")"
-  output="$(docker logs "${container}" 2>&1)"
-  grep -Fq "$2" <<<"${output}"
+  # 0=匹配、1=不匹配、2=无法确认；条件调用不能把 CLI/grep 故障当作日志不存在。
+  output="$(docker logs "${container}" 2>&1)" || {
+    printf 'ERROR: could not read migration container logs: %s\n' "${container}" >&2
+    return 2
+  }
+  if grep "$3" -- "$2" <<<"${output}" >/dev/null; then
+    return 0
+  else
+    status=$?
+    [[ "${status}" == 1 ]] && return 1
+    printf 'ERROR: could not match migration container logs: %s\n' "${container}" >&2
+    return 2
+  fi
+}
+log_contains() {
+  match_container_log "$1" "$2" -F
 }
 log_matches() {
-  local output container
+  match_container_log "$1" "$2" -E
+}
+
+container_is_running() {
+  local running container
   container="$(container_name "$1")"
-  output="$(docker logs "${container}" 2>&1)"
-  grep -Eq "$2" <<<"${output}"
+  running="$(docker inspect -f '{{.State.Running}}' "${container}")" || {
+    printf 'ERROR: could not inspect migration container state: %s\n' "${container}" >&2
+    return 2
+  }
+  case "${running}" in
+    true) return 0 ;;
+    false) return 1 ;;
+    *) printf 'ERROR: invalid migration container state: %s\n' "${container}" >&2; return 2 ;;
+  esac
 }
 
 wait_for_log() {
-  local logical="$1" marker="$2" container
+  local logical="$1" marker="$2" container status
   container="$(container_name "${logical}")"
   for _ in $(seq 1 90); do
     if log_contains "${logical}" "${marker}"; then
-      [[ "$(docker inspect -f '{{.State.Running}}' "${container}" 2>/dev/null || true)" == true ]]
-      return
+      if container_is_running "${logical}"; then return 0; else return $?; fi
+    else
+      status=$?
+      [[ "${status}" == 1 ]] || return "${status}"
     fi
-    [[ "$(docker inspect -f '{{.State.Running}}' "${container}" 2>/dev/null || true)" == true ]] || break
+    if container_is_running "${logical}"; then
+      :
+    else
+      status=$?
+      [[ "${status}" == 1 ]] || return "${status}"
+      break
+    fi
     sleep 1
   done
   docker logs "${container}" >&2 || true
   return 1
 }
 wait_failed() {
-  local logical="$1" container
+  local logical="$1" container status
   container="$(container_name "${logical}")"
   for _ in $(seq 1 90); do
-    [[ "$(docker inspect -f '{{.State.Running}}' "${container}" 2>/dev/null || true)" != true ]] && return 0
-    log_contains "${logical}" 'Demo data bootstrap is disabled' && return 1
+    if container_is_running "${logical}"; then
+      :
+    else
+      status=$?
+      [[ "${status}" == 1 ]] && return 0
+      return "${status}"
+    fi
+    if log_contains "${logical}" 'Demo data bootstrap is disabled'; then
+      return 1
+    else
+      status=$?
+      [[ "${status}" == 1 ]] || return "${status}"
+    fi
     sleep 1
   done
   docker logs "${container}" >&2 || true
@@ -499,24 +543,36 @@ run_image_started() {
     mounts=(-v "${jar_mount}:/app/app.jar:ro")
     command=(java -jar /app/app.jar)
   fi
-  register_container "${container}"; ((++invocations))
+  register_container "${container}" || fail "could not register ${name} for cleanup"
+  ((++invocations))
   docker run -d --name "${container}" --network "${NETWORK}" \
     --label "com.docker.compose.project=${PROJECT}" "${mounts[@]}" \
     "${common_env[@]}" -e DB_URL="jdbc:postgresql://${PG}:5432/${database}" \
-    "${image}" "${command[@]}" >/dev/null
+    "${image}" "${command[@]}" >/dev/null || fail "could not launch ${name}"
   wait_for_log "${name}" 'Demo data bootstrap is disabled' || fail "${name} did not reach business startup"
 }
 run_image_failed() {
-  local name="$1" database="$2" jar="$3" container
+  local name="$1" database="$2" jar="$3" container status
   container="$(container_name "${name}")"
-  register_container "${container}"; ((++invocations))
+  register_container "${container}" || fail "could not register ${name} for cleanup"
+  ((++invocations))
   docker run -d --name "${container}" --network "${NETWORK}" \
     --label "com.docker.compose.project=${PROJECT}" -v "${jar}:/app/app.jar:ro" \
     "${common_env[@]}" -e DB_URL="jdbc:postgresql://${PG}:5432/${database}" \
-    eclipse-temurin:17-jre-jammy java -jar /app/app.jar >/dev/null
-  wait_failed "${name}" || fail "${name} unexpectedly remained running"
-  ! log_contains "${name}" 'Demo data bootstrap is disabled' ||
+    eclipse-temurin:17-jre-jammy java -jar /app/app.jar >/dev/null || fail "could not launch ${name}"
+  if wait_failed "${name}"; then
+    :
+  else
+    status=$?
+    [[ "${status}" == 1 ]] || fail "could not determine whether ${name} stopped"
+    fail "${name} unexpectedly remained running"
+  fi
+  if log_contains "${name}" 'Demo data bootstrap is disabled'; then
     fail "${name} reached business initialization"
+  else
+    status=$?
+    [[ "${status}" == 1 ]] || fail "could not verify ${name} stopped before business initialization"
+  fi
 }
 assert_http_refused() {
   local port="$1"
@@ -583,7 +639,8 @@ wait_for_log concurrent-b 'Demo data bootstrap is disabled' || fail 'second conc
 assert_applied concurrent_v3
 [[ "$(psql_exec concurrent_v3 -Atc "SELECT count(*) FROM schema_migration WHERE filename='${MIGRATION}'")" == 1 ]] ||
   fail "concurrent startup did not produce exactly one migration registration"
-concurrent_logs="$(docker logs "$(container_name concurrent-a)" 2>&1; docker logs "$(container_name concurrent-b)" 2>&1)"
+concurrent_logs="$(docker logs "$(container_name concurrent-a)" 2>&1 &&
+  docker logs "$(container_name concurrent-b)" 2>&1)" || fail 'could not read concurrent migration logs'
 [[ "$(grep -Fc "PostgreSQL migration ${MIGRATION} applied" <<<"${concurrent_logs}")" == 1 ]] ||
   fail "concurrent startup did not apply the migration exactly once"
 [[ "$(grep -Fc "PostgreSQL migration ${MIGRATION} already applied" <<<"${concurrent_logs}")" == 1 ]] ||

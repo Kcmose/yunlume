@@ -164,10 +164,21 @@ public class SearchEngineServiceImpl implements SearchEngineService {
     @Override
     @Transactional
     public List<SearchEngineVO> sort(List<SortItemDTO> items) {
-        lockAll();
+        if (items == null || items.isEmpty()) {
+            throw BusinessException.badRequest("排序列表不能为空");
+        }
         Set<Long> ids = new HashSet<>();
         for (SortItemDTO item : items) {
+            if (item == null || item.id() == null || item.id() <= 0) {
+                throw BusinessException.badRequest("排序项 ID 必须大于 0");
+            }
+            if (item.sortOrder() == null || item.sortOrder() < 0) {
+                throw BusinessException.badRequest("排序值不能小于 0");
+            }
             if (!ids.add(item.id())) throw BusinessException.badRequest("排序列表包含重复 ID");
+        }
+        lockAll();
+        for (SortItemDTO item : items) {
             requireEngine(item.id());
         }
 

@@ -16,7 +16,7 @@ import {
 import type { Category, CategoryPayload } from '@/types/category'
 import type { SortOrderItem } from '@/types/common'
 import { navigationIconLabel, navigationIconUrl } from '@/utils/adminNavigationManage'
-import { commitVisibleChange } from '@/utils/visibilityMutation'
+import { createVisibilityTracker } from '@/utils/visibilityMutation'
 
 const categories = ref<Category[]>([])
 const loading = ref(true)
@@ -27,6 +27,7 @@ const keyword = ref('')
 const sortVisible = ref(false)
 const savingSort = ref(false)
 const visibilityUpdatingIds = ref(new Set<string>())
+const visibility = createVisibilityTracker(() => categories.value, visibilityUpdatingIds.value)
 let dialogGeneration = 0
 
 function visibilityUpdating(row: Category) {
@@ -46,9 +47,10 @@ const sortItems = computed(() => categories.value.map((item) => ({
 })))
 
 async function load() {
+  const snapshotRevision = visibility.captureSnapshot()
   loading.value = true
   try {
-    categories.value = await getCategories()
+    categories.value = visibility.mergeSnapshot(await getCategories(), snapshotRevision)
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '分类加载失败')
   } finally {
@@ -118,9 +120,8 @@ async function remove(row: Category) {
 
 async function toggleVisible(row: Category) {
   try {
-    const updated = await commitVisibleChange(
+    const updated = await visibility.commit(
       row,
-      visibilityUpdatingIds.value,
       setCategoryVisible,
     )
     if (updated) ElMessage.success(row.visible ? '分类已展示' : '分类已隐藏')
@@ -131,9 +132,10 @@ async function toggleVisible(row: Category) {
 
 async function saveSort(items: SortOrderItem[]) {
   if (savingSort.value) return
+  const snapshotRevision = visibility.captureSnapshot()
   savingSort.value = true
   try {
-    categories.value = await sortCategories(items)
+    categories.value = visibility.mergeSnapshot(await sortCategories(items), snapshotRevision)
     sortVisible.value = false
     ElMessage.success('分类排序已保存')
   } catch (error) {

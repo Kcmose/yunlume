@@ -81,16 +81,18 @@ const rules: FormRules<ChangePasswordPayload> = {
 }
 
 async function submitPasswordChange() {
-  if (!username.value) {
-    await authStore.fetchProfile()
-    if (!username.value) {
-      ElMessage.error('未能读取当前管理员资料，请重新登录后再试')
-      return
-    }
-  }
-  if (!(await formRef.value?.validate().catch(() => false))) return
+  if (changingPassword.value) return
+  // Enter 与按钮走同一入口，资料读取和表单校验期间也必须保持互斥。
   changingPassword.value = true
   try {
+    if (!username.value) {
+      await authStore.fetchProfile()
+      if (!username.value) {
+        ElMessage.error('未能读取当前管理员资料，请重新登录后再试')
+        return
+      }
+    }
+    if (!(await formRef.value?.validate().catch(() => false))) return
     if (!(await authStore.changePassword({ ...form }))) return
     await router.replace('/admin/login')
     ElMessage.success('密码修改成功，请使用新密码重新登录')
@@ -170,6 +172,7 @@ onMounted(() => {
           ref="formRef"
           :model="form"
           :rules="rules"
+          :disabled="changingPassword"
           label-position="top"
           class="account-password__form"
           @keyup.enter="submitPasswordChange"

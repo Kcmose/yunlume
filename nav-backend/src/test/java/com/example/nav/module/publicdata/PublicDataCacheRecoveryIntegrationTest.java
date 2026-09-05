@@ -1,6 +1,7 @@
 package com.example.nav.module.publicdata;
 
 import com.example.nav.module.install.service.RealRedisTestGuard;
+import com.example.nav.module.install.service.OwnedRedisTestKeys;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
 import org.junit.jupiter.api.AfterEach;
@@ -18,7 +19,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 
-import java.util.List;
 import java.security.SecureRandom;
 import java.util.HexFormat;
 
@@ -29,6 +29,7 @@ import static org.mockito.Mockito.mock;
 @ResourceLock("isolated-redis-acl")
 class PublicDataCacheRecoveryIntegrationTest {
     private static final SecureRandom RANDOM = new SecureRandom();
+    private final OwnedRedisTestKeys ownedKeys = new OwnedRedisTestKeys();
 
     @BeforeAll
     static void requireRealRedis() {
@@ -37,16 +38,15 @@ class PublicDataCacheRecoveryIntegrationTest {
 
     @BeforeEach
     void isolatedRedisStartsEmpty() {
-        assertEquals(0L, adminDbSize(), "cache recovery Redis must be dedicated and empty");
+        ownedKeys.verifyEmpty(adminDbSize());
     }
 
     @AfterEach
     void adminCleansExactDedicatedServiceAndVerifiesNoResidue() {
+        if (!ownedKeys.isVerified()) return;
         RedisClient client = RedisClient.create(adminUri());
         try (var connection = client.connect()) {
-            List<String> keys = connection.sync().keys("*");
-            if (!keys.isEmpty()) connection.sync().del(keys.toArray(String[]::new));
-            assertEquals(0L, connection.sync().dbsize());
+            ownedKeys.cleanup(connection.sync());
         } finally {
             client.shutdown();
         }
@@ -83,6 +83,7 @@ class PublicDataCacheRecoveryIntegrationTest {
             PublicDataCacheVersion version = version(new StringRedisTemplate(factory), jdbc);
 
             assertEquals("20", version.current(cacheName));
+            ownedKeys.expectValue(versionKey, "20");
             assertEquals(20L, store.current());
             assertEquals("20", adminGet(versionKey));
         } finally {
@@ -119,6 +120,7 @@ class PublicDataCacheRecoveryIntegrationTest {
             PublicDataCacheVersion reconstructed = version(new StringRedisTemplate(recovered), jdbc);
 
             assertEquals("1", reconstructed.current(cacheName));
+            ownedKeys.expectValue(versionKey, "1");
             assertEquals("1", adminGet(versionKey));
         } finally {
             recovered.destroy();
@@ -159,7 +161,7 @@ class PublicDataCacheRecoveryIntegrationTest {
     private void adminSet(String key, String value) {
         RedisClient client = RedisClient.create(adminUri());
         try (var connection = client.connect()) {
-            connection.sync().set(key, value);
+            ownedKeys.create(connection.sync(), key, value);
         } finally {
             client.shutdown();
         }

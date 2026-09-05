@@ -214,6 +214,32 @@ class PortableDataPackageIntegrationTest {
     }
 
     @Test
+    void fractionalSortOrdersAreRejectedBeforePreviewAndIntegersRemainValid() throws Exception {
+        String token = adminToken();
+        Map<String, byte[]> entries = unzip(export(token));
+        int siteVersion = singleSite().getVersion();
+        long bookmarkCount = bookmarkMapper.selectCount(null);
+
+        for (double order : new double[]{-0.5, 0.5, 1.5}) {
+            JsonNode data = objectMapper.readTree(entries.get("data.json"));
+            ((com.fasterxml.jackson.databind.node.ObjectNode) data.path("searchEngines").get(0))
+                    .put("sortOrder", order);
+            // 同步校验和，确保拒绝的是数值格式，而不是 manifest 不匹配。
+            assertPreviewBad(replaceData(entries, data), 400);
+        }
+        for (int order : new int[]{0, 42}) {
+            JsonNode data = objectMapper.readTree(entries.get("data.json"));
+            ((com.fasterxml.jackson.databind.node.ObjectNode) data.path("searchEngines").get(0))
+                    .put("sortOrder", order);
+            JsonNode result = preview(replaceData(entries, data), token, status().isOk());
+            assertTrue(result.path("errors").isEmpty());
+            assertTrue(result.path("previewToken").isTextual());
+        }
+        assertEquals(siteVersion, singleSite().getVersion());
+        assertEquals(bookmarkCount, bookmarkMapper.selectCount(null));
+    }
+
+    @Test
     void invalidReferencesAndMultipleDefaultsReturnSemanticErrorsWithoutTokenOrWrites() throws Exception {
         byte[] archive = export(adminToken());
         Map<String, byte[]> entries = unzip(archive);

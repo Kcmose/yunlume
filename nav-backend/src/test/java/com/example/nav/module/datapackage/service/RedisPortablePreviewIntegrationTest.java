@@ -3,6 +3,7 @@ package com.example.nav.module.datapackage.service;
 import com.example.nav.common.exception.BusinessException;
 import com.example.nav.module.datapackage.model.PortablePackageModels;
 import com.example.nav.module.install.service.RealRedisTestGuard;
+import com.example.nav.module.install.service.OwnedRedisTestKeys;
 import com.example.nav.module.user.mapper.UserMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.lettuce.core.RedisClient;
@@ -46,11 +47,12 @@ class RedisPortablePreviewIntegrationTest {
     @TempDir Path temporary;
     LettuceConnectionFactory factory;
     StringRedisTemplate redis;
+    private final OwnedRedisTestKeys ownedKeys = new OwnedRedisTestKeys();
 
     @BeforeAll static void requireRedis() { RealRedisTestGuard.require("REDIS_ACL_HOST"); }
 
     @BeforeEach void connectToDedicatedRedis() {
-        withAdmin(commands -> assertEquals(0L, commands.dbsize(), "preview tests require dedicated empty Redis"));
+        withAdmin(commands -> ownedKeys.verifyEmpty(commands.dbsize()));
         RedisStandaloneConfiguration config = new RedisStandaloneConfiguration(
                 env("REDIS_ACL_HOST"), Integer.parseInt(System.getenv().getOrDefault("REDIS_ACL_PORT", "6379")));
         config.setUsername("nav_test");
@@ -62,11 +64,9 @@ class RedisPortablePreviewIntegrationTest {
 
     @AfterEach void cleanupDedicatedRedis() {
         if (factory != null) factory.destroy();
-        withAdmin(commands -> {
-            List<String> keys = commands.keys("nav:portable-import:*");
-            if (!keys.isEmpty()) commands.del(keys.toArray(String[]::new));
-            assertEquals(0L, commands.dbsize());
-        });
+        if (!ownedKeys.isVerified()) return;
+        // 正常用例自行释放返回的预检 Entry；异常中尚未确认归属的分块保留并报错。
+        withAdmin(ownedKeys::cleanup);
     }
 
     @Test void actualZipPreviewOnNodeACanBeConfirmedOnNodeBAndQueriedAfterBothRestart() throws Exception {
@@ -117,6 +117,7 @@ class RedisPortablePreviewIntegrationTest {
         assertThrows(BusinessException.class, () -> first.publish(initial, "old", "old", source));
         assertThrows(BusinessException.class, () -> first.renew(active));
         assertThrows(BusinessException.class, () -> first.copyArchive(active, temporary.resolve("stale.zip")));
+        second.release(replacement);
     }
 
     @Test void concurrentServersCannotOverbookAndProcessingReservationOutlivesPreviewDeadline() throws Exception {
@@ -146,13 +147,47 @@ class RedisPortablePreviewIntegrationTest {
         assertEquals(429, assertThrows(BusinessException.class, () -> second.reserve(
                 token(), 1, PortablePackageModels.MAX_ARCHIVE_BYTES, clock.instant().plusSeconds(900))).getStatus().value());
         accepted.forEach(first::release);
-        assertNotNull(second.reserve(token(), 1, PortablePackageModels.MAX_ARCHIVE_BYTES, clock.instant().plusSeconds(900)));
+        var finalReservation = second.reserve(token(), 1, PortablePackageModels.MAX_ARCHIVE_BYTES, clock.instant().plusSeconds(900));
+        assertNotNull(finalReservation);
+        second.release(finalReservation);
     }
 
     private PortableDataPackageService service(Path root) {
         return new PortableDataPackageService(writer, reader, snapshots, transaction, users, mapper,
-                new SyncTaskExecutor(), new RedisPortableImportJobStore(redis, mapper), commits,
+                new SyncTaskExecutor(), new TrackedJobStore(), commits,
                 Clock.systemUTC(), root, new RedisPortablePreviewStore(redis, mapper));
+    }
+
+    /** 保留真实 Redis 脚本，只登记成功 claim/save 明确写入的值；绝不扫描键空间。 */
+    private final class TrackedJobStore extends RedisPortableImportJobStore {
+        TrackedJobStore() {
+            super(RedisPortablePreviewIntegrationTest.this.redis, RedisPortablePreviewIntegrationTest.this.mapper);
+        }
+
+        @Override public ClaimResult claim(StoredJob job) {
+            ClaimResult result = super.claim(job);
+            if (result.outcome() == ClaimOutcome.CREATED) {
+                track(job);
+                ownedKeys.recordWritten(lockKey(), result.lease().lockValue());
+                ownedKeys.recordWritten(fenceSequenceKey(), Long.toString(result.lease().fencingToken()));
+            }
+            return result;
+        }
+
+        @Override public void save(Lease lease, StoredJob job) {
+            super.save(lease, job);
+            track(job);
+        }
+
+        private void track(StoredJob job) {
+            try {
+                ownedKeys.recordWritten(jobKey(job.jobId()), mapper.writeValueAsString(job));
+                ownedKeys.recordWritten(previewKey(job.previewToken()), job.jobId());
+                ownedKeys.recordWritten(currentKey(job.userId()), job.jobId());
+            } catch (com.fasterxml.jackson.core.JsonProcessingException error) {
+                throw new AssertionError("Cannot record the successful test job write", error);
+            }
+        }
     }
     private void withAdmin(java.util.function.Consumer<io.lettuce.core.api.sync.RedisCommands<String, String>> action) {
         RedisURI uri = RedisURI.Builder.redis(env("REDIS_ACL_HOST"),

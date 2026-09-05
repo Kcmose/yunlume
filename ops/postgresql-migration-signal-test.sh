@@ -128,9 +128,24 @@ harness = lab / "harness.sh"
 harness.write_text(prefix + r'''
 register_container "${PROJECT}-app"
 docker __fixture "${PROJECT}" "${PG}" "${NETWORK}" "${IMAGE}" "${TMP_DIR}"
-sleep 60 &
+# 等待子进程完成启动；fork 后立刻退出可能把 TERM 发到尚在初始化信号的子 Bash。
+python3 - "${MIGRATION_TEST_STATE}.child-ready" <<'CHILD' &
+from pathlib import Path
+import signal
+import sys
+import time
+signal.signal(signal.SIGTERM, signal.SIG_DFL)
+Path(sys.argv[1]).touch()
+time.sleep(60)
+CHILD
 child_pids+=("$!")
 printf '%s\n' "$!" >"${MIGRATION_TEST_STATE}.child"
+for _ in {1..1000}; do
+  [[ -e "${MIGRATION_TEST_STATE}.child-ready" ]] && break
+  kill -0 "${child_pids[0]}" 2>/dev/null || exit 1
+  sleep 0.01
+done
+[[ -e "${MIGRATION_TEST_STATE}.child-ready" ]] || { printf 'child startup timed out\n' >&2; exit 1; }
 printf 'ready\n'
 if [[ "${MIGRATION_TEST_EXIT}" == signal ]]; then
   while :; do IFS= read -r -t 3600 unused || :; done
@@ -199,6 +214,7 @@ def run(kind, mode, incoming):
             raise AssertionError(case + " child remains alive")
         checks += 1
     except Exception:
+        print("migration signal case: " + case, file=sys.stderr)
         print(output.read_text() if output.exists() else case, file=sys.stderr)
         raise
     finally:

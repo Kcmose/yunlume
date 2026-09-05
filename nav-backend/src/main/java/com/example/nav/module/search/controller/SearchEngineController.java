@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -77,7 +78,7 @@ public class SearchEngineController {
     @PutMapping("/sort")
     @Operation(summary = "批量调整搜索引擎排序")
     public Result<List<SearchEngineVO>> sort(
-            @NotEmpty(message = "排序列表不能为空") @RequestBody List<@Valid SortItemDTO> items
+            @NotEmpty(message = "排序列表不能为空") @RequestBody List<@NotNull(message = "排序项不能为空") @Valid SortItemDTO> items
     ) {
         return Result.success(searchEngineService.sort(items));
     }

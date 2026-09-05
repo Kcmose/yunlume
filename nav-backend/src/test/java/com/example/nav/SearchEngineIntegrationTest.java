@@ -229,6 +229,21 @@ class SearchEngineIntegrationTest {
                 .isEqualTo(committedSortOrder);
     }
 
+    @Test
+    void nullSortItemsAreBadRequestsWithoutChangingAnyEngine() throws Exception {
+        JsonNode before = adminEngines();
+        long id = before.get(0).path("id").asLong();
+        for (String body : List.of("[null]", "[{\"id\":" + id + ",\"sortOrder\":900},null]")) {
+            mockMvc.perform(put(ADMIN_URL + "/sort")
+                            .header("Authorization", bearerToken())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(400));
+            assertThat(adminEngines()).isEqualTo(before);
+        }
+    }
+
     private org.springframework.test.web.servlet.ResultActions setVisible(long id, boolean visible) throws Exception {
         return mockMvc.perform(put(ADMIN_URL + "/" + id + "/visible")
                 .header("Authorization", bearerToken())
