@@ -83,21 +83,29 @@ public class SearchEngineServiceImpl implements SearchEngineService {
                 && Boolean.FALSE.equals(dto.visible());
         SearchEngine replacement = hidesCurrentDefault ? requireVisibleReplacement(id) : null;
 
-        apply(engine, dto);
+        // 只应用请求提供的字段，避免旧表单覆盖刚完成的排序、启用或其他编辑。
+        if (dto.name() != null) engine.setName(dto.name().trim());
+        if (dto.icon() != null) engine.setIcon(normalizeNullable(dto.icon()));
+        if (dto.searchUrl() != null) {
+            String searchUrl = dto.searchUrl().trim();
+            validateSearchTemplate(searchUrl);
+            engine.setSearchUrl(searchUrl);
+        }
+        if (dto.placeholder() != null) engine.setPlaceholder(normalizeNullable(dto.placeholder()));
         if (dto.sortOrder() != null) engine.setSortOrder(dto.sortOrder());
         if (dto.visible() != null) engine.setVisible(dto.visible());
         if (hidesCurrentDefault) engine.setDefaultEngine(false);
         engine.setUpdatedAt(LocalDateTime.now());
-        // 可选字段允许主动清空，显式 SET 避免实体更新策略跳过 null。
+        // null 表示保持；空串清空可选文本时仍需显式 SET null。
         if (searchEngineMapper.update(null, Wrappers.<SearchEngine>lambdaUpdate()
                 .eq(SearchEngine::getId, id)
-                .set(SearchEngine::getName, engine.getName())
-                .set(SearchEngine::getIcon, engine.getIcon())
-                .set(SearchEngine::getSearchUrl, engine.getSearchUrl())
-                .set(SearchEngine::getPlaceholder, engine.getPlaceholder())
-                .set(SearchEngine::getSortOrder, engine.getSortOrder())
-                .set(SearchEngine::getVisible, engine.getVisible())
-                .set(SearchEngine::getDefaultEngine, engine.getDefaultEngine())
+                .set(dto.name() != null, SearchEngine::getName, engine.getName())
+                .set(dto.icon() != null, SearchEngine::getIcon, engine.getIcon())
+                .set(dto.searchUrl() != null, SearchEngine::getSearchUrl, engine.getSearchUrl())
+                .set(dto.placeholder() != null, SearchEngine::getPlaceholder, engine.getPlaceholder())
+                .set(dto.sortOrder() != null, SearchEngine::getSortOrder, engine.getSortOrder())
+                .set(dto.visible() != null, SearchEngine::getVisible, engine.getVisible())
+                .set(hidesCurrentDefault, SearchEngine::getDefaultEngine, false)
                 .set(SearchEngine::getUpdatedAt, engine.getUpdatedAt())) != 1) {
             throw BusinessException.conflict("搜索引擎状态已变化，请刷新后重试");
         }

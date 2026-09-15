@@ -19,7 +19,7 @@ import com.example.nav.module.search.dto.SearchEngineDTO;
 import com.example.nav.module.search.service.SearchEngineService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.EmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -55,7 +55,7 @@ class BusinessMutationRegressionTest {
     @Autowired PlatformTransactionManager transactionManager;
 
     @ParameterizedTest
-    @NullAndEmptySource
+    @EmptySource
     @ValueSource(strings = "  ")
     @Transactional
     void clearingSearchOptionalFieldsPersistsNullAndReturnsEmptyText(String cleared) {

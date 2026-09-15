@@ -5,6 +5,9 @@ spring:
     active: ${SPRING_PROFILES_ACTIVE:local}
   jackson:
     default-property-inclusion: non_null
+    deserialization:
+      # 整数输入在绑定前拒绝小数/指数，避免截断后绕过 ID、排序及版本校验。
+      accept-float-as-int: false
     serialization:
       write-dates-as-timestamps: false
   servlet:

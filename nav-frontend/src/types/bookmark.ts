@@ -16,3 +16,5 @@ export interface Bookmark {
 }
 
 export type BookmarkPayload = Omit<Bookmark, 'id' | 'createdAt' | 'updatedAt'>
+
+export type BookmarkUpdatePayload = Partial<BookmarkPayload>

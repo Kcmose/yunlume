@@ -18,6 +18,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
@@ -118,13 +119,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private long integralClaim(Object value, String name) {
-        if (!(value instanceof Number number)) {
-            throw new IllegalArgumentException("Token claim " + name + " is not numeric");
+        // 浮点值可能在解析时已经舍入，转 long 后再比较 double 无法证明原值是整数。
+        if (value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long) {
+            return ((Number) value).longValue();
         }
-        long integralValue = number.longValue();
-        if (!Double.isFinite(number.doubleValue()) || number.doubleValue() != (double) integralValue) {
-            throw new IllegalArgumentException("Token claim " + name + " is not an integer");
+        if (value instanceof BigInteger integer) {
+            try {
+                return integer.longValueExact();
+            } catch (ArithmeticException overflow) {
+                throw new IllegalArgumentException("Token claim " + name + " is outside the integer range", overflow);
+            }
         }
-        return integralValue;
+        throw new IllegalArgumentException("Token claim " + name + " is not an integer");
     }
 }

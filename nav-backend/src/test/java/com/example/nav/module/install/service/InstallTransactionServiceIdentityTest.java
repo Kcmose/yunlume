@@ -8,6 +8,7 @@ import com.example.nav.module.user.entity.User;
 import com.example.nav.module.user.mapper.UserMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.List;
 import java.util.UUID;
@@ -42,7 +43,7 @@ class InstallTransactionServiceIdentityTest {
                 "e38440cb-07d9-4fdf-9800-5a4ef185ee61");
 
         BusinessException exception = assertThrows(BusinessException.class,
-                () -> new InstallTransactionService(userMapper, siteConfigMapper)
+                () -> new InstallTransactionService(userMapper, siteConfigMapper, mock(JdbcTemplate.class))
                         .complete(command));
 
         assertEquals(HttpStatus.CONFLICT, exception.getStatus());
@@ -70,7 +71,7 @@ class InstallTransactionServiceIdentityTest {
                 "Navigation", "Description", "admin", "Admin",
                 "$2a$10$redacted", expected.toString());
 
-        var result = new InstallTransactionService(userMapper, siteConfigMapper)
+        var result = new InstallTransactionService(userMapper, siteConfigMapper, mock(JdbcTemplate.class))
                 .complete(command);
 
         assertTrue(result.installed());

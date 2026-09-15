@@ -1,5 +1,6 @@
 package com.example.nav.module.datapackage.service;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,7 +23,7 @@ import java.util.concurrent.locks.ReentrantLock;
 /** 每份工作目录持有内核文件锁；重启后的清理只接管已到期且无人持锁的目录。 */
 final class PortablePreviewWorkspace implements AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(PortablePreviewWorkspace.class);
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = new ObjectMapper().disable(DeserializationFeature.ACCEPT_FLOAT_AS_INT);
     private static final String MANIFEST = "workspace.json";
     private static final ConcurrentHashMap<Path, ReentrantLock> ROOT_LOCKS = new ConcurrentHashMap<>();
     private final Path directory;

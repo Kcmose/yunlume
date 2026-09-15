@@ -78,15 +78,17 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     @Transactional
     public CategoryVO update(Long id, CategoryUpdateDTO dto) {
-        Category category = requireCategory(id);
-        category.setName(dto.name().trim());
-        category.setIcon(dto.icon());
-        if (dto.sortOrder() != null) category.setSortOrder(dto.sortOrder());
-        if (dto.visible() != null) category.setVisible(dto.visible());
-        category.setUpdatedAt(LocalDateTime.now());
-        categoryMapper.updateById(category);
+        // 省略的字段不参与 SET，避免把旧快照中的显隐、排序等写回。
+        int updated = categoryMapper.update(null, Wrappers.<Category>lambdaUpdate()
+                .eq(Category::getId, id)
+                .set(dto.name() != null, Category::getName, dto.name() == null ? null : dto.name().trim())
+                .set(dto.icon() != null, Category::getIcon, dto.icon())
+                .set(dto.sortOrder() != null, Category::getSortOrder, dto.sortOrder())
+                .set(dto.visible() != null, Category::getVisible, dto.visible())
+                .set(Category::getUpdatedAt, LocalDateTime.now()));
+        if (updated != 1) throw BusinessException.notFound("分类不存在");
         invalidateNavigation();
-        return toVO(category);
+        return toVO(requireCategory(id));
     }
 
     @Override

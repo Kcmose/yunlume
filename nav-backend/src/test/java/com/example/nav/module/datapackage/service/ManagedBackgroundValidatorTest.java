@@ -28,6 +28,14 @@ class ManagedBackgroundValidatorTest {
                 Arguments.of("/uploads", "/uploads/backgrounds/" + FILENAME + "?v=1#desktop"),
                 Arguments.of("/uploads", "/uploads/%62ackgrounds/" + FILENAME + "?v=1"),
                 Arguments.of("/uploads", "/%75ploads/backgrounds/" + FILENAME + "#desktop"),
+                Arguments.of("/uploads", "/uploads/backgrounds/./" + FILENAME),
+                Arguments.of("/uploads", "/uploads/%2e/backgrounds/" + FILENAME + "?v=1#desktop"),
+                Arguments.of("/uploads", "/uploads/unused/%2e%2e/backgrounds/" + FILENAME),
+                Arguments.of("/uploads", "/uploads//backgrounds///" + FILENAME),
+                Arguments.of("/uploads", "/uploads%2fbackgrounds%2f" + FILENAME),
+                Arguments.of("/uploads", "/../uploads/backgrounds/" + FILENAME),
+                Arguments.of("https://cdn.example.test/uploads/%2e",
+                        "https://cdn.example.test/uploads/child/../backgrounds/" + FILENAME),
                 Arguments.of("https://cdn.example.test/uploads",
                         "HTTPS://CDN.EXAMPLE.TEST/uploads/backgrounds/" + FILENAME + "?v=1#desktop")
         );

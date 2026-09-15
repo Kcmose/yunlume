@@ -4,6 +4,7 @@ import type { FormInstance, FormRules } from 'element-plus'
 import type { AdminSearchEngine, SearchEnginePayload } from '@/types/searchEngine'
 import { ensureHttpProtocol, isSafeHttpUrl } from '@/utils/url'
 import { isSearchEngineTextIcon } from '@/utils/searchEnginePicker'
+import { isValidSortOrder, SORT_ORDER_ERROR, sortOrderInputProps } from '@/utils/sortOrder'
 
 const props = defineProps<{
   modelValue: boolean
@@ -31,6 +32,10 @@ const form = reactive<SearchEnginePayload>(emptyForm())
 let formVersion = 0
 
 const rules: FormRules<SearchEnginePayload> = {
+  sortOrder: [{
+    validator: (_rule, value, callback) => isValidSortOrder(value) ? callback() : callback(new Error(SORT_ORDER_ERROR)),
+    trigger: ['blur', 'change'],
+  }],
   name: [
     { required: true, message: '请输入搜索引擎名称', trigger: 'blur' },
     { max: 50, message: '名称不能超过 50 个字符', trigger: 'blur' },
@@ -145,11 +150,10 @@ async function submit() {
       </el-form-item>
 
       <div class="admin-form-grid admin-form-grid--2">
-        <el-form-item label="排序值">
+        <el-form-item label="排序值" prop="sortOrder">
           <el-input-number
             v-model="form.sortOrder"
-            :min="0"
-            :max="9999"
+            v-bind="sortOrderInputProps"
             controls-position="right"
           />
         </el-form-item>

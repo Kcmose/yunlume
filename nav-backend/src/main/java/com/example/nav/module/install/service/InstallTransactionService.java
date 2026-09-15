@@ -8,6 +8,8 @@ import com.example.nav.module.site.mapper.SiteConfigMapper;
 import com.example.nav.module.user.entity.User;
 import com.example.nav.module.user.mapper.UserMapper;
 import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.ConnectionCallback;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,10 +22,13 @@ public class InstallTransactionService {
 
     private final UserMapper userMapper;
     private final SiteConfigMapper siteConfigMapper;
+    private final JdbcTemplate jdbcTemplate;
 
-    public InstallTransactionService(UserMapper userMapper, SiteConfigMapper siteConfigMapper) {
+    public InstallTransactionService(UserMapper userMapper, SiteConfigMapper siteConfigMapper,
+                                     JdbcTemplate jdbcTemplate) {
         this.userMapper = userMapper;
         this.siteConfigMapper = siteConfigMapper;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @Transactional
@@ -63,6 +68,14 @@ public class InstallTransactionService {
         if (config.getInstallCompletedAt() != null || userMapper.selectCount(null) > 0) {
             throw BusinessException.conflict("站点已经完成安装，不能再次初始化");
         }
+
+        // 环境预检和密码编码在事务之前；提交前再次验证同一连接上的真实定义。
+        jdbcTemplate.execute((ConnectionCallback<Void>) connection -> {
+            if ("PostgreSQL".equalsIgnoreCase(connection.getMetaData().getDatabaseProductName())) {
+                DatabaseSchemaContract.requireCompatible(connection);
+            }
+            return null;
+        });
 
         LocalDateTime now = LocalDateTime.now();
         User user = new User();

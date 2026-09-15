@@ -92,21 +92,23 @@ public class BookmarkServiceImpl implements BookmarkService {
     @Override
     @Transactional
     public BookmarkVO update(Long id, BookmarkUpdateDTO dto) {
-        Bookmark bookmark = requireBookmark(id);
-        requireCategory(dto.categoryId());
-        bookmark.setCategoryId(dto.categoryId());
-        bookmark.setName(dto.name().trim());
-        bookmark.setUrl(dto.url().trim());
-        bookmark.setIcon(dto.icon());
-        bookmark.setDescription(dto.description());
-        if (dto.sortOrder() != null) bookmark.setSortOrder(dto.sortOrder());
-        if (dto.isRecommend() != null) bookmark.setRecommend(dto.isRecommend());
-        if (dto.isExternal() != null) bookmark.setExternal(dto.isExternal());
-        if (dto.visible() != null) bookmark.setVisible(dto.visible());
-        bookmark.setUpdatedAt(LocalDateTime.now());
-        bookmarkMapper.updateById(bookmark);
+        // 只有明确移动分类才锁目标分类，并沿用批量移动的“分类 → 书签”锁顺序。
+        if (dto.categoryId() != null) requireAppendCategory(dto.categoryId());
+        int updated = bookmarkMapper.update(null, Wrappers.<Bookmark>lambdaUpdate()
+                .eq(Bookmark::getId, id)
+                .set(dto.categoryId() != null, Bookmark::getCategoryId, dto.categoryId())
+                .set(dto.name() != null, Bookmark::getName, dto.name() == null ? null : dto.name().trim())
+                .set(dto.url() != null, Bookmark::getUrl, dto.url() == null ? null : dto.url().trim())
+                .set(dto.icon() != null, Bookmark::getIcon, dto.icon())
+                .set(dto.description() != null, Bookmark::getDescription, dto.description())
+                .set(dto.sortOrder() != null, Bookmark::getSortOrder, dto.sortOrder())
+                .set(dto.isRecommend() != null, Bookmark::getRecommend, dto.isRecommend())
+                .set(dto.isExternal() != null, Bookmark::getExternal, dto.isExternal())
+                .set(dto.visible() != null, Bookmark::getVisible, dto.visible())
+                .set(Bookmark::getUpdatedAt, LocalDateTime.now()));
+        if (updated != 1) throw BusinessException.notFound("书签不存在");
         invalidateNavigation();
-        return toVO(bookmark);
+        return toVO(requireBookmark(id));
     }
 
     @Override
@@ -281,12 +283,6 @@ public class BookmarkServiceImpl implements BookmarkService {
             throw BusinessException.conflict("目标分类排序值已达到上限，请先调整排序");
         }
         return (int) first;
-    }
-
-    private void requireCategory(Long id) {
-        if (categoryMapper.selectById(id) == null) {
-            throw BusinessException.badRequest("所属分类不存在");
-        }
     }
 
     private void requireTargetCategory(Long id) {

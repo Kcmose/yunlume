@@ -17,3 +17,5 @@ export interface NavigationCategory extends Category {
 }
 
 export type CategoryPayload = Omit<Category, 'id' | 'bookmarkCount' | 'createdAt' | 'updatedAt'>
+
+export type CategoryUpdatePayload = Partial<CategoryPayload>

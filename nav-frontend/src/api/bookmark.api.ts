@@ -1,5 +1,5 @@
 import request, { unwrapApiData } from './request'
-import type { Bookmark, BookmarkPayload } from '@/types/bookmark'
+import type { Bookmark, BookmarkPayload, BookmarkUpdatePayload } from '@/types/bookmark'
 import type { EntityId, SortOrderItem } from '@/types/common'
 
 export async function getBookmarks(categoryId?: EntityId): Promise<Bookmark[]> {
@@ -14,7 +14,7 @@ export async function createBookmark(payload: BookmarkPayload): Promise<Bookmark
   return unwrapApiData(await request.post('/admin/bookmarks', payload))
 }
 
-export async function updateBookmark(id: EntityId, payload: BookmarkPayload): Promise<Bookmark> {
+export async function updateBookmark(id: EntityId, payload: BookmarkUpdatePayload): Promise<Bookmark> {
   return unwrapApiData(await request.put(`/admin/bookmarks/${id}`, payload))
 }
 

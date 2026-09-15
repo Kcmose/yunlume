@@ -8,15 +8,17 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
-/** 受管背景只按 URI path 映射文件；query/fragment 留在配置中，不参与文件名。 */
+/** 受管背景按规范化的 URI path 映射文件；query/fragment 留在配置中，不参与文件名。 */
 public final class ManagedBackgroundReferences {
 
     public static final Pattern FILENAME = Pattern.compile("^[a-f0-9]{32}\\.(?:jpg|png)$");
     private final Path uploadRoot;
     private final URI prefix;
+    private final String prefixPath;
     private final String urlPrefix;
 
     public ManagedBackgroundReferences(UploadStorageProperties properties) {
@@ -30,6 +32,7 @@ public final class ManagedBackgroundReferences {
         }
         urlPrefix = ("/".equals(base) ? "" : base) + "/backgrounds/";
         prefix = URI.create(urlPrefix);
+        prefixPath = normalizedPath(prefix);
     }
 
     public String urlPrefix() {
@@ -37,13 +40,13 @@ public final class ManagedBackgroundReferences {
     }
 
     public boolean isManagedUrl(String value) {
-        return managedUri(value) != null;
+        return managedPath(value) != null;
     }
 
     public String filename(String value) {
-        URI uri = managedUri(value);
-        if (uri == null) return null;
-        String filename = uri.getPath().substring(prefix.getPath().length());
+        String path = managedPath(value);
+        if (path == null) return null;
+        String filename = path.substring(prefixPath.length());
         return FILENAME.matcher(filename).matches() ? filename : null;
     }
 
@@ -66,13 +69,30 @@ public final class ManagedBackgroundReferences {
         return file;
     }
 
-    private URI managedUri(String value) {
+    private String managedPath(String value) {
         if (!SafeUrlRules.isSafeHttpOrInternal(value)) return null;
         URI uri = URI.create(value);
         if (!Objects.equals(lower(uri.getScheme()), lower(prefix.getScheme()))
-                || !Objects.equals(lower(uri.getRawAuthority()), lower(prefix.getRawAuthority()))
-                || uri.getPath() == null || !uri.getPath().startsWith(prefix.getPath())) return null;
-        return uri;
+                || !Objects.equals(lower(uri.getRawAuthority()), lower(prefix.getRawAuthority()))) return null;
+        String path = normalizedPath(uri);
+        return path.startsWith(prefixPath) ? path : null;
+    }
+
+    private static String normalizedPath(URI uri) {
+        // getPath 只解码一次，之后仅处理路径段；不能重新解析 URL 或二次解码。
+        // 同时处理前缀和文件路径，使保存、GC、快照与导入识别相同的文件。
+        String path = uri.getPath();
+        var segments = new ArrayDeque<String>();
+        for (String segment : path.split("/", -1)) {
+            if ("..".equals(segment)) {
+                // 绝对 URL 的父路径在根部停止；不允许形成磁盘越界路径。
+                if (!segments.isEmpty()) segments.removeLast();
+            } else if (!segment.isEmpty() && !".".equals(segment)) {
+                segments.addLast(segment);
+            }
+        }
+        boolean directory = path.endsWith("/") || path.endsWith("/.") || path.endsWith("/..");
+        return "/" + String.join("/", segments) + (directory && !segments.isEmpty() ? "/" : "");
     }
 
     private static String lower(String value) {

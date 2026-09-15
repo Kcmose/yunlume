@@ -17,6 +17,7 @@ import type { Category, CategoryPayload } from '@/types/category'
 import type { SortOrderItem } from '@/types/common'
 import { navigationIconLabel, navigationIconUrl } from '@/utils/adminNavigationManage'
 import { createVisibilityTracker } from '@/utils/visibilityMutation'
+import { changedFormFields } from '@/utils/changedFormFields'
 
 const categories = ref<Category[]>([])
 const loading = ref(true)
@@ -66,7 +67,7 @@ function openCreate() {
 
 function openEdit(row: Category) {
   dialogGeneration += 1
-  editing.value = row
+  editing.value = { ...row }
   dialogVisible.value = true
 }
 
@@ -76,8 +77,15 @@ async function save(payload: CategoryPayload) {
   const target = editing.value
   submitting.value = true
   try {
-    if (target) await updateCategory(target.id, payload)
-    else await createCategory(payload)
+    if (target) {
+      const changes = changedFormFields(target, payload)
+      if (Object.keys(changes).length === 0) {
+        if (generation === dialogGeneration) dialogVisible.value = false
+        await load()
+        return
+      }
+      await updateCategory(target.id, changes)
+    } else await createCategory(payload)
     ElMessage.success(target ? '分类已更新' : '分类已创建')
     // 关闭仅属于本次保存的弹窗，取消后重新打开的草稿由新代数持有。
     if (generation === dialogGeneration) dialogVisible.value = false

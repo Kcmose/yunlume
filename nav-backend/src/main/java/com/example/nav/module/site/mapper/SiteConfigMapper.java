@@ -26,6 +26,7 @@ public interface SiteConfigMapper extends BaseMapper<SiteConfig> {
     @Select("SELECT install_instance_id::text FROM site_config WHERE id = #{id}")
     String selectInstallInstanceIdText(@Param("id") Long id);
 
+    // 同名参数会生成两个独立占位符；空值判断需要显式 UUID 类型，不能借用后一个比较的类型。
     @Update("""
             UPDATE site_config
             SET site_name = #{siteName},
@@ -37,8 +38,8 @@ public interface SiteConfigMapper extends BaseMapper<SiteConfig> {
               AND install_completed_at IS NULL
               AND version >= 0
               AND version < 2147483647
-              AND (#{expectedInstanceId} IS NULL
-                   OR install_instance_id = #{expectedInstanceId})
+              AND (CAST(#{expectedInstanceId} AS UUID) IS NULL
+                   OR install_instance_id = CAST(#{expectedInstanceId} AS UUID))
             """)
     int completeInstallation(
             @Param("id") Long id,

@@ -85,21 +85,27 @@ public class CustomLinkServiceImpl implements CustomLinkService {
     @Override
     @Transactional
     public CustomLinkVO update(Long id, CustomLinkDTO dto) {
-        CustomLink link = requireLink(id);
-        NormalizedLink normalized = normalize(dto);
-        boolean movesToAnotherPosition = !normalized.position().equals(link.getPosition());
-
-        apply(link, normalized);
-        if (dto.sortOrder() != null) {
-            link.setSortOrder(dto.sortOrder());
-        } else if (movesToAnotherPosition) {
-            link.setSortOrder(nextSortOrder(normalized.position()));
+        String position = dto.position() == null ? null : normalizePosition(dto.position());
+        String url = dto.url() == null ? null : validateUrl(dto.url());
+        Integer sortOrder = dto.sortOrder();
+        if (position != null && sortOrder == null) {
+            // 自动排序依赖当前所在位置，必须在同一行锁内比较并更新。
+            CustomLink current = customLinkMapper.selectOne(Wrappers.<CustomLink>lambdaQuery()
+                    .eq(CustomLink::getId, id).last("FOR UPDATE"));
+            if (current == null) throw BusinessException.notFound("自定义链接不存在");
+            if (!position.equals(current.getPosition())) sortOrder = nextSortOrder(position);
         }
-        if (dto.visible() != null) link.setVisible(dto.visible());
-        link.setUpdatedAt(LocalDateTime.now());
-        customLinkMapper.updateById(link);
+        int updated = customLinkMapper.update(null, Wrappers.<CustomLink>lambdaUpdate()
+                .eq(CustomLink::getId, id)
+                .set(dto.title() != null, CustomLink::getTitle, dto.title() == null ? null : dto.title().trim())
+                .set(url != null, CustomLink::getUrl, url)
+                .set(position != null, CustomLink::getPosition, position)
+                .set(sortOrder != null, CustomLink::getSortOrder, sortOrder)
+                .set(dto.visible() != null, CustomLink::getVisible, dto.visible())
+                .set(CustomLink::getUpdatedAt, LocalDateTime.now()));
+        if (updated != 1) throw BusinessException.notFound("自定义链接不存在");
         invalidatePublicCustomLinks();
-        return toVO(link);
+        return toVO(requireLink(id));
     }
 
     @Override
@@ -163,11 +169,15 @@ public class CustomLinkServiceImpl implements CustomLinkService {
     }
 
     private NormalizedLink normalize(CustomLinkDTO dto) {
-        String position = dto.position().trim();
+        return new NormalizedLink(dto.title().trim(), validateUrl(dto.url()), normalizePosition(dto.position()));
+    }
+
+    private String normalizePosition(String value) {
+        String position = value.trim();
         if (!ALLOWED_POSITIONS.contains(position)) {
             throw BusinessException.badRequest("显示位置只能是 header 或 footer");
         }
-        return new NormalizedLink(dto.title().trim(), validateUrl(dto.url()), position);
+        return position;
     }
 
     private String validateUrl(String value) {

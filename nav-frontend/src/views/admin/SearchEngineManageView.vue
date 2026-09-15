@@ -18,6 +18,9 @@ import type {
   SearchEnginePayload,
 } from '@/types/searchEngine'
 import { commitVisibleChange } from '@/utils/visibilityMutation'
+import { changedFormFields } from '@/utils/changedFormFields'
+import type { SortOrderItem } from '@/types/common'
+import { isValidSortOrder, SORT_ORDER_ERROR, sortOrderInputProps } from '@/utils/sortOrder'
 import {
   searchEngineIconUrl as iconUrl,
   searchEngineMark as iconMark,
@@ -27,11 +30,11 @@ const engines = ref<AdminSearchEngine[]>([])
 const loading = ref(true)
 const submitting = ref(false)
 const dialogVisible = ref(false)
-const editing = ref<AdminSearchEngine | null>(null)
+const editing = ref<(AdminSearchEngine & Pick<SearchEnginePayload, 'icon' | 'placeholder'>) | null>(null)
 const keyword = ref('')
 const settingDefaultId = ref<AdminSearchEngine['id'] | null>(null)
 const savingSort = ref(false)
-const sortDraft = ref<Record<string, number>>({})
+const sortDraft = ref<Record<string, number | null | undefined>>({})
 const visibilityUpdatingIds = ref(new Set<string>())
 const sortDraftVersions: Record<string, number> = {}
 let nextDraftVersion = 0
@@ -64,19 +67,20 @@ const sortChanged = computed(() =>
   engines.value.some((engine) => sortDraft.value[String(engine.id)] !== engine.sortOrder),
 )
 
-function draftOrder(engine: AdminSearchEngine): number {
-  return sortDraft.value[String(engine.id)] ?? engine.sortOrder
+function draftOrder(engine: AdminSearchEngine): number | null | undefined {
+  const key = String(engine.id)
+  return Object.prototype.hasOwnProperty.call(sortDraft.value, key) ? sortDraft.value[key] : engine.sortOrder
 }
 
-function updateDraft(engine: AdminSearchEngine, value: number | undefined) {
+function updateDraft(engine: AdminSearchEngine, value: number | null | undefined) {
   const key = String(engine.id)
-  sortDraft.value[key] = Math.max(0, value ?? 0)
+  sortDraft.value[key] = value
   sortDraftVersions[key] = ++nextDraftVersion
 }
 
 function applySnapshot(next: AdminSearchEngine[]) {
   const previousOrders = new Map(engines.value.map((engine) => [String(engine.id), engine.sortOrder]))
-  const nextDraft: Record<string, number> = {}
+  const nextDraft: Record<string, number | null | undefined> = {}
   for (const engine of next) {
     const key = String(engine.id)
     const hasDraft = Object.prototype.hasOwnProperty.call(sortDraft.value, key)
@@ -113,14 +117,21 @@ async function load() {
 
 async function saveSort() {
   if (!sortChanged.value || savingSort.value) return
+  const items: SortOrderItem[] = []
+  for (const engine of engines.value) {
+    const sortOrder = draftOrder(engine)
+    if (!isValidSortOrder(sortOrder)) {
+      ElMessage.error(SORT_ORDER_ERROR)
+      return
+    }
+    items.push({ id: engine.id, sortOrder })
+  }
   savingSort.value = true
   pendingSortVersions = Object.fromEntries(
     engines.value.map((engine) => [String(engine.id), sortDraftVersions[String(engine.id)] ?? 0]),
   )
   try {
-    const persisted = await sortSearchEngines(
-      engines.value.map((engine) => ({ id: engine.id, sortOrder: draftOrder(engine) })),
-    )
+    const persisted = await sortSearchEngines(items)
     // 即使随后的GET失败，也以已确认的排序判断草稿是否仍有未提交输入。
     // 只原位更新排序，保留并发CRUD/显隐的字段与列表成员。
     const persistedOrders = new Map(persisted.map((engine) => [String(engine.id), engine.sortOrder]))
@@ -148,7 +159,7 @@ function openCreate() {
 
 function openEdit(row: AdminSearchEngine) {
   dialogGeneration += 1
-  editing.value = row
+  editing.value = { ...row, icon: row.icon ?? '', placeholder: row.placeholder ?? '' }
   dialogVisible.value = true
 }
 
@@ -158,8 +169,15 @@ async function save(payload: SearchEnginePayload) {
   const target = editing.value
   submitting.value = true
   try {
-    if (target) await updateSearchEngine(target.id, payload)
-    else await createSearchEngine(payload)
+    if (target) {
+      const changes = changedFormFields(target, payload)
+      if (Object.keys(changes).length === 0) {
+        if (generation === dialogGeneration) dialogVisible.value = false
+        await load()
+        return
+      }
+      await updateSearchEngine(target.id, changes)
+    } else await createSearchEngine(payload)
     ElMessage.success(target ? '搜索引擎已更新' : '搜索引擎已创建')
     if (generation === dialogGeneration) dialogVisible.value = false
     await load()
@@ -291,8 +309,7 @@ onMounted(() => void load())
               <el-input-number
                 class="search-engine-sort-input"
                 :model-value="draftOrder(row)"
-                :min="0"
-                :max="9999"
+                v-bind="sortOrderInputProps"
                 :controls="false"
                 size="small"
                 :aria-label="`${row.name}排序值`"
@@ -372,8 +389,7 @@ onMounted(() => void load())
               <span>排序</span>
               <el-input-number
                 :model-value="draftOrder(row)"
-                :min="0"
-                :max="9999"
+                v-bind="sortOrderInputProps"
                 :controls="false"
                 size="small"
                 :aria-label="`${row.name}排序值`"

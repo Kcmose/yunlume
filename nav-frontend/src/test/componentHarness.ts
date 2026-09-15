@@ -6,10 +6,29 @@ export interface TestNode {
   props: Record<string, unknown>
   children: TestNode[]
   parent: TestNode | null
+  value: string
+  setAttribute(name: string, value: string): void
+  getAttribute(name: string): unknown
+  removeAttribute(name: string): void
+  addEventListener(name: string, handler: unknown): void
+  removeEventListener(name: string, handler: unknown): void
+  setSelectionRange(start: number, end: number): void
 }
 
 function node(type: string, text = ''): TestNode {
-  return { type, text, props: {}, children: [], parent: null }
+  const listeners = new Map<string, Set<unknown>>()
+  return {
+    type, text, props: {}, children: [], parent: null, value: '',
+    setAttribute(name, value) { this.props[name] = value },
+    getAttribute(name) { return this.props[name] },
+    removeAttribute(name) { delete this.props[name] },
+    addEventListener(name, handler) {
+      if (!listeners.has(name)) listeners.set(name, new Set())
+      listeners.get(name)!.add(handler)
+    },
+    removeEventListener(name, handler) { listeners.get(name)?.delete(handler) },
+    setSelectionRange(start, end) { this.props.selectionStart = start; this.props.selectionEnd = end },
+  }
 }
 
 // 使用真实 Vue 调度和生命周期；宿主节点只保留测试需要的树结构，不模拟浏览器 DOM。

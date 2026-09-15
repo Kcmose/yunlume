@@ -1,5 +1,5 @@
 import request, { unwrapApiData } from './request'
-import type { Category, CategoryPayload } from '@/types/category'
+import type { Category, CategoryPayload, CategoryUpdatePayload } from '@/types/category'
 import type { EntityId, SortOrderItem } from '@/types/common'
 
 export async function getCategories(): Promise<Category[]> {
@@ -10,7 +10,7 @@ export async function createCategory(payload: CategoryPayload): Promise<Category
   return unwrapApiData(await request.post('/admin/categories', payload))
 }
 
-export async function updateCategory(id: EntityId, payload: CategoryPayload): Promise<Category> {
+export async function updateCategory(id: EntityId, payload: CategoryUpdatePayload): Promise<Category> {
   return unwrapApiData(await request.put(`/admin/categories/${id}`, payload))
 }
 

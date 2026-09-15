@@ -96,6 +96,10 @@ rm() {
 }
 systemctl() {
   printf 'systemctl %s\n' "$*" >>"${TEST_CASE_DIR}/calls"
+  if [[ "$1" == show ]]; then
+    printf 'LoadState=not-found\nActiveState=inactive\nUnitFileState=\n'
+    return 0
+  fi
   case "$1" in is-enabled|is-active) return 1 ;; esac
 }
 journalctl() { :; }

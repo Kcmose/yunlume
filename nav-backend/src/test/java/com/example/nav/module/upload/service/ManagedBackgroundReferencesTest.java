@@ -33,6 +33,51 @@ class ManagedBackgroundReferencesTest {
 
     @ParameterizedTest
     @ValueSource(strings = {
+            "/uploads/backgrounds/./", "/uploads/backgrounds/%2e/", "/uploads/./backgrounds/",
+            "/uploads/%2E/backgrounds/", "/uploads/unused/../backgrounds/",
+            "/uploads/unused/%2e%2E/backgrounds/", "/uploads/backgrounds/child/../",
+            "/uploads//backgrounds///", "/uploads%2fbackgrounds%2f",
+            "/uploads/backgrounds/%2e%2e%2fbackgrounds/", "/../uploads/backgrounds/",
+            "/%2e%2e/%2e%2e/uploads/backgrounds/", "/%2fuploads/backgrounds/",
+            "/uploads/unused/.%2E/backgrounds/"
+    })
+    void equivalentPathsShareOneManagedFilename(String path) {
+        ManagedBackgroundReferences references = references("/uploads");
+        String url = path + FILENAME + "?version=1#mobile";
+        assertTrue(references.isManagedUrl(url));
+        assertEquals(FILENAME, references.filename(url));
+    }
+
+    @Test
+    void normalizesConfiguredPathWithoutChangingTheReturnedUrlPrefix() {
+        ManagedBackgroundReferences references = references("https://cdn.example.test/uploads/%2e/");
+        assertEquals("https://cdn.example.test/uploads/%2e/backgrounds/", references.urlPrefix());
+        assertEquals(FILENAME, references.filename("https://CDN.example.test/uploads/child/../backgrounds/" + FILENAME));
+        assertEquals(FILENAME, references.filename(references.urlPrefix() + FILENAME));
+        assertNull(references.filename("https://other.example.test/uploads/backgrounds/" + FILENAME));
+        assertNull(references.filename("http://cdn.example.test/uploads/backgrounds/" + FILENAME));
+        assertNull(references.filename("https://cdn.example.test:8443/uploads/backgrounds/" + FILENAME));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "/uploads/backgrounds/%252e/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png",
+            "/uploads/backgrounds/%252faaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png",
+            "/uploads/backgrounds/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png%3Fv=1",
+            "/uploads/backgrounds/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png%23mobile",
+            "/uploads/backgrounds/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png%5c",
+            "/uploads/backgrounds/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png/",
+            "/uploads/backgrounds/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png/.",
+            "/uploads/backgrounds/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png/child/..",
+            "/uploads/backgrounds/../aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png",
+            "/uploads/backgrounds-other/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png"
+    })
+    void normalizationDoesNotInventAFileReference(String url) {
+        assertNull(references("/uploads").filename(url));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
             "/uploads/backgrounds/../../outside.png",
             "/uploads/backgrounds/%2e%2e%2foutside.png",
             "/uploads/backgrounds/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png/extra",

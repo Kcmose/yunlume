@@ -1,11 +1,11 @@
 package com.example.nav.module.category.dto;
 
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public record CategoryUpdateDTO(
-        @NotBlank(message = "分类名称不能为空")
+        @Pattern(regexp = "(?s).*[^\\p{javaWhitespace}].*", message = "分类名称不能为空")
         @Size(max = 50, message = "分类名称不能超过 50 个字符")
         String name,
 

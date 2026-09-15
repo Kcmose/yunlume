@@ -3,6 +3,7 @@ import { nextTick, reactive, ref, watch } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { Category, CategoryPayload } from '@/types/category'
 import { isValidNavigationIcon } from '@/utils/adminNavigationManage'
+import { isValidSortOrder, SORT_ORDER_ERROR, sortOrderInputProps } from '@/utils/sortOrder'
 
 const props = defineProps<{
   modelValue: boolean
@@ -20,6 +21,10 @@ const form = reactive<CategoryPayload>({ name: '', icon: '✦', sortOrder: 0, vi
 let formVersion = 0
 const rules: FormRules<CategoryPayload> = {
   name: [{ required: true, message: '请输入分类名称', trigger: 'blur' }],
+  sortOrder: [{
+    validator: (_rule, value, callback) => isValidSortOrder(value) ? callback() : callback(new Error(SORT_ORDER_ERROR)),
+    trigger: ['blur', 'change'],
+  }],
   icon: [{
     validator: (_rule, value, callback) => isValidNavigationIcon(String(value ?? ''))
       ? callback()
@@ -67,8 +72,8 @@ async function submit() {
           <el-input v-model="form.icon" maxlength="100" placeholder="例如：✦、DEV 或 https://.../icon.png" />
           <p class="admin-form-tip">建议使用 1–3 字短标记 / Emoji，或填写完整 HTTP(S) 图片 URL。</p>
         </el-form-item>
-        <el-form-item label="排序值">
-          <el-input-number v-model="form.sortOrder" :min="0" :max="9999" controls-position="right" />
+        <el-form-item label="排序值" prop="sortOrder">
+          <el-input-number v-model="form.sortOrder" v-bind="sortOrderInputProps" controls-position="right" />
         </el-form-item>
       </div>
       <el-form-item label="前台展示">

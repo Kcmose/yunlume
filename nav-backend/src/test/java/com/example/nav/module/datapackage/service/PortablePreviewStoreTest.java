@@ -131,6 +131,26 @@ class PortablePreviewStoreTest {
         }
     }
 
+    @Test
+    void fractionalWorkspaceManifestUsesAgeFallbackInsteadOfTruncatedFormat() throws Exception {
+        Path root = Files.createDirectories(temporary.resolve("fractional-work"));
+        Path directory = Files.createDirectory(root.resolve("work-" + UUID.randomUUID()));
+        Files.createFile(directory.resolve("owner.lock"));
+        Path sentinel = Files.writeString(directory.resolve("keep"), "fresh workspace");
+        Files.writeString(directory.resolve("workspace.json"), """
+                {"format":1.5,"directory":"%s","expiresAtMillis":0}
+                """.formatted(directory.getFileName()));
+        Files.setLastModifiedTime(directory, FileTime.from(clock.instant()));
+
+        PortablePreviewWorkspace.reap(root, clock);
+        assertTrue(Files.isDirectory(directory));
+        assertEquals("fresh workspace", Files.readString(sentinel));
+
+        clock.advance(Duration.ofMinutes(16));
+        PortablePreviewWorkspace.reap(root, clock);
+        assertFalse(Files.exists(directory));
+    }
+
     private FilePortablePreviewStore store(Path root, int slots, long bytes) {
         return new FilePortablePreviewStore(mapper, clock, root, slots, bytes);
     }

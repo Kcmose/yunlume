@@ -186,9 +186,14 @@ assert_source_ready() {
 }
 
 assert_destination_absent() {
-  if docker volume inspect "$1" >/dev/null 2>&1; then
-    die "目标卷已存在，拒绝合并或覆盖: $1"
-  fi
+  local destination="$1" volumes volume
+  # inspect 的非零退出无法区分不存在与查询失败，必须先取得成功的卷名列表。
+  volumes="$(docker volume ls --format '{{.Name}}')" || die "无法检查目标卷是否存在: ${destination}"
+  [[ -n "${volumes}" ]] || return 0
+  while IFS= read -r volume; do
+    validate_volume_name "${volume}"
+    [[ "${volume}" != "${destination}" ]] || die "目标卷已存在，拒绝合并或覆盖: ${destination}"
+  done <<<"${volumes}"
 }
 
 create_destination() {

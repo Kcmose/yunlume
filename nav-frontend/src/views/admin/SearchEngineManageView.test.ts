@@ -123,7 +123,8 @@ describe('搜索排序草稿归属', () => {
       if (operation === 'default') await state.makeDefault(other)
       if (operation === 'edit') {
         state.openEdit(other)
-        await state.save({ ...other, icon: '', placeholder: '' })
+        await state.save({ ...other, name: `${other.name}-edited`, icon: other.icon ?? '', placeholder: '' })
+        expect(api.updateSearchEngine).toHaveBeenCalledWith(other.id, { name: `${other.name}-edited` })
       }
       if (operation === 'delete') await state.remove(other)
       if (operation === 'visibility') {

@@ -76,6 +76,15 @@ exact committed bytes.
 
 ## Release mutation boundary
 
+候选标签与正式版本标签使用同一 `registry_manifest_digest` 读取契约：成功必须返回完整的
+`sha256:<64 位十六进制>`；退出码 44 仅表示明确缺失，其他非零状态均终止当前流程。
+只有完整的目标 `image:tag: not found` 消息（可带 `ERROR: ` 前缀）视为缺失；没有目标身份的
+`manifest unknown`、凭据错误、子 manifest 错误、多行混合错误、空摘要和畸形摘要都不能作为写入许可。
+正式发布必须先核对两个组件，再开始写入：任一查询失败或已有摘要不同，两个组件均不得写入。
+部分写入后失败的重试仅补齐缺失标签，已存在且摘要相同的标签保持不变；写后读取失败仍返回失败。
+真实 workflow step 的故障、部分提交及重试矩阵由 `ops/publish-workflow-behavior-test.py` 执行，
+候选事务在不同 Bash 调用上下文的失败传播由 `ops/release-failure-propagation-test.sh` 验证。
+
 All mutable operations use immutable numeric IDs:
 
 - exact Release state is reread by release ID immediately before each asset DELETE, asset upload,

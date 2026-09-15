@@ -186,6 +186,9 @@ jobs:
           sudo bash ops/host-proxy-config-test.sh
           sudo bash ops/host-proxy-apply-test.sh
           sudo bash ops/install-first-retry-test.sh
+          bash ops/installer-rollback-state-test.sh
+          bash ops/install-e2e-health-test.sh
+          bash ops/migrate-docker-volumes-presence-test.sh
           sudo bash ops/rollback-release-test.sh
           ops/compatibility-epoch-rollback-test.sh
           sudo ops/operations-lock-test.sh
@@ -340,7 +343,7 @@ jobs:
           REDIS_CACHE_RECOVERY_PORT: "6379"
         run: mvn --batch-mode --no-transfer-progress clean verify
 
-      - name: Verify PostgreSQL 14 and 18 catalog compatibility
+      - name: Verify PostgreSQL 14 and 18 catalog compatibility and concurrent edits
         working-directory: nav-backend
         shell: bash
         env:
@@ -373,6 +376,8 @@ jobs:
             rm -f -- "$report"
             POSTGRESQL_CATALOG_TEST_URL="jdbc:postgresql://127.0.0.1:${port}/${database}" \
               POSTGRESQL_CATALOG_TEST_USERNAME="$role" POSTGRESQL_CATALOG_TEST_PASSWORD="$test_password" \
+              POSTGRESQL_CATALOG_TEST_ADMIN_USERNAME=postgres \
+              POSTGRESQL_CATALOG_TEST_ADMIN_PASSWORD=catalog-ci-service-only \
               mvn --batch-mode --no-transfer-progress -Dtest=PostgresqlCatalogCompatibilityTest test
             # 缺环境变量会安全 skip；CI 必须证明实际运行，不能把 skip 算作通过。
             python3 - "$report" <<'PY'
@@ -383,6 +388,32 @@ jobs:
           assert all(int(suite.attrib[name]) == 0 for name in ("failures", "errors", "skipped")), suite.attrib
           PY
             install -D -m 0644 "$report" "target/catalog-compatibility/pg${major}.xml"
+            # 安装完成时序测试独占另一个空库；不复用前面已制造漂移并恢复的 catalog 库。
+            flow_database="yunlume_platform_test_installflow_pg${major}"
+            flow_report=target/surefire-reports/TEST-com.example.nav.module.install.service.DatabaseDefinitionInstallFlowTest.xml
+            docker exec -i "$container" psql -X -U postgres -d postgres --set ON_ERROR_STOP=1 \
+              --set role="$role" --set database="$flow_database" <<'SQL'
+          CREATE DATABASE :"database" OWNER :"role";
+          SQL
+            docker exec -i "$container" psql -X -U postgres -d "$flow_database" --set ON_ERROR_STOP=1 \
+              --set role="$role" <<'SQL'
+          REVOKE ALL ON SCHEMA public FROM PUBLIC;
+          GRANT ALL ON SCHEMA public TO :"role";
+          SQL
+            rm -f -- "$flow_report"
+            POSTGRESQL_INSTALL_FLOW_TEST_URL="jdbc:postgresql://127.0.0.1:${port}/${flow_database}" \
+              POSTGRESQL_INSTALL_FLOW_TEST_USERNAME="$role" POSTGRESQL_INSTALL_FLOW_TEST_PASSWORD="$test_password" \
+              mvn --batch-mode --no-transfer-progress -Dtest=DatabaseDefinitionInstallFlowTest test
+            python3 - "$flow_report" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+          suite = ET.parse(sys.argv[1]).getroot()
+          assert int(suite.attrib["tests"]) > 0, "database definition install flow test did not run"
+          assert all(int(suite.attrib[name]) == 0 for name in ("failures", "errors", "skipped")), suite.attrib
+          PY
+            install -D -m 0644 "$flow_report" "target/catalog-compatibility/installflow-pg${major}.xml"
+            # 并发回归另建专用空库，不复用前面主动制造结构漂移的 catalog 测试库。
+            bash ../ops/postgresql-concurrency-test.sh "$container" "$port" "$major"
           done
 
       - name: Verify PostgreSQL migrations with this revision's packaged JAR
@@ -1402,16 +1433,8 @@ jobs:
             local component="$1"
             local candidate_digest="$2"
             local image="ghcr.io/${OWNER}/yunlume-${component}"
-            local manifest_result
-            local current_digest
-            if manifest_result="$(docker buildx imagetools inspect \
-              --format '{{.Manifest.Digest}}' "${image}:${VERSION}" 2>&1)"; then
-              current_digest="$manifest_result"
-              [[ "$current_digest" =~ ^sha256:[0-9a-f]{64}$ ]] || {
-                printf 'Invalid digest returned for immutable release tag %s:%s.\n' \
-                  "$image" "$VERSION" >&2
-                exit 1
-              }
+            local current_digest status
+            if current_digest="$(registry_manifest_digest "$image" "$VERSION")"; then
               if [[ "$current_digest" != "$candidate_digest" ]]; then
                 printf 'Existing digest %s differs from candidate %s; refusing to overwrite immutable release tag %s:%s.\n' \
                   "$current_digest" "$candidate_digest" "$image" "$VERSION" >&2
@@ -1420,15 +1443,12 @@ jobs:
               printf '%s:%s already has candidate digest; continuing recovery.\n' "$image" "$VERSION"
               destination_exists["$component"]=true
               return
+            else
+              status=$?
             fi
-            case "$manifest_result" in
-              *'manifest unknown'*|*'not found'*) destination_exists["$component"]=false ;;
-              *)
-                printf 'Unable to inspect immutable release tag %s:%s: %s\n' \
-                  "$image" "$VERSION" "$manifest_result" >&2
-                exit 1
-                ;;
-            esac
+            # 查询失败必须在任一正式标签写入前终止，只有明确缺失允许新建。
+            (( status == 44 )) || exit "$status"
+            destination_exists["$component"]=false
           }
 
           # GHCR and GitHub Releases cannot be updated atomically. Check every
@@ -1449,8 +1469,7 @@ jobs:
                 --tag "${image}:${VERSION}" \
                 "${image}@${candidate_digest}"
             fi
-            published_digest="$(docker buildx imagetools inspect \
-              --format '{{.Manifest.Digest}}' "${image}:${VERSION}")"
+            published_digest="$(registry_manifest_digest "$image" "$VERSION")"
             [[ "$published_digest" == "$candidate_digest" ]] || {
               printf 'Immutable release tag %s:%s did not converge to %s.\n' \
                 "$image" "$VERSION" "$candidate_digest" >&2

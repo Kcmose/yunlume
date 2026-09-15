@@ -62,8 +62,46 @@ def query(value):
     sys.stdout.write(r.stdout); sys.stderr.write(r.stderr)
     sys.exit(42 if state.get('fail_after_output') and state['fail_after_output'] in endpoint else r.returncode)
 if tool=='docker':
+    if 'registry' in state and args[:2]==['buildx','imagetools']:
+        def save(): (p/'state.json').write_text(json.dumps(state))
+        operation=args[2]
+        ref=args[args.index('--tag')+1] if operation=='create' else args[-1]
+        component=next((c for c in ('backend','frontend') if ref=='ghcr.io/example/yunlume-'+c+':1.2.3'),None)
+        if component is None:
+            print('Unexpected registry reference: '+ref,file=sys.stderr); fail()
+        faults=state.setdefault('registry_faults',{}).setdefault(operation,{}).setdefault(component,[])
+        fault=faults.pop(0) if faults else {}
+        event={'operation':operation,'component':component,'ref':ref}
+        state.setdefault('registry_events',[]).append(event)
+        if operation=='inspect':
+            if fault:
+                save()
+                print(fault['message'],file=sys.stdout if fault.get('success') else sys.stderr)
+                sys.exit(0 if fault.get('success') else 42)
+            value=state['registry'].get(ref)
+            event['digest']=value
+            save()
+            if value is None:
+                print('ERROR: '+ref+': not found',file=sys.stderr); fail()
+            print(value); sys.exit()
+        if operation=='create':
+            expected=ref.rsplit(':',1)[0]+'@'+state['digests'][component]
+            if args!=['buildx','imagetools','create','--tag',ref,expected]:
+                print('Unexpected registry create: '+repr(args),file=sys.stderr); fail()
+            event['before']=state['registry'].get(ref)
+            event['applied']=not fault or fault.get('after_apply',False)
+            if event['applied']: state['registry'][ref]=state['digests'][component]
+            save()
+            if fault:
+                print(fault['message'],file=sys.stderr); fail()
+            sys.exit()
+        print('Unexpected registry operation: '+operation,file=sys.stderr); fail()
     if args[:3]==['buildx','imagetools','inspect']:
         ref=args[-1]; component='backend' if 'backend' in ref else 'frontend'
+        if 'candidate_inspect_response' in state and ref.endswith(':release-candidate-'+os.environ['GITHUB_SHA']):
+            response=state['candidate_inspect_response']
+            print(response['message'],file=sys.stdout if response.get('success') else sys.stderr)
+            sys.exit(0 if response.get('success') else 42)
         if ref.endswith(':1.2'):
             mode=state.get('alias','good')
             if mode in ('missing','network') and component=='backend': fail()
@@ -147,6 +185,9 @@ class Fixture:
         env = dict(self.environment, GITHUB_OUTPUT=str(output))
         env.update(environment or {})
         result = subprocess.run(["bash", "-c", script], cwd=cwd or REPO, env=env, text=True, capture_output=True)
+        if "registry" in self.state:
+            # 保留外部进程模拟的持久状态，让恢复用例从第一次尝试实际留下的标签继续。
+            self.state = json.loads((self.path / "state.json").read_text())
         assert (result.returncode == 0) == success, f"{label}: exit={result.returncode}\n{result.stdout}\n{result.stderr}"
         if contains is not None:
             assert contains in result.stdout + output.read_text(), f"{label}: missing {contains!r}\n{result.stdout}\n{output.read_text()}"
@@ -375,6 +416,156 @@ def tests(f):
         f.run("postpublish " + label + " refuses under conditional", setup + "if verify_published_release; then exit 9; fi")
 
 
+def candidate_recovery_tests(f):
+    """候选恢复入口不能把成功但空白的查询结果误判为可重建状态。"""
+    script = step_script("Resolve recoverable candidate state")
+    base = copy.deepcopy(f.state)
+    base.pop("signature_failure", None)
+    base.pop("fail_after_output", None)
+    sandbox = f.path / "candidate-recovery-checkout"
+    sandbox.mkdir()
+    (sandbox / "ops").symlink_to(REPO / "ops", target_is_directory=True)
+    for component in ("backend", "frontend"):
+        image = "ghcr.io/example/yunlume-" + component
+        tag = "release-candidate-" + SHA
+        environment = {"IMAGE": image, "CANDIDATE_TAG": tag, "COMPONENT": component}
+        for value in ("", "not-a-digest", "sha256:" + "a" * 63):
+            f.state = copy.deepcopy(base)
+            f.state["asset_ids"] = {}
+            f.state["candidate_inspect_response"] = {"message": value, "success": True}
+            result, outputs = f.run("candidate recovery rejects successful invalid digest " + component + repr(value),
+                                    script, success=False, environment=environment, cwd=sandbox)
+            assert "Invalid digest returned for registry tag" in result.stderr
+            assert not outputs, "Invalid candidate lookup emitted rebuild or reuse outputs"
+
+        f.state = copy.deepcopy(base)
+        f.state["asset_ids"] = {}
+        f.state["candidate_inspect_response"] = {"message": "ERROR: " + image + ":" + tag + ": not found"}
+        _, outputs = f.run("candidate recovery builds only for confirmed missing target " + component,
+                           script, environment=environment, cwd=sandbox)
+        assert outputs == "exists=false\narchive_ready=false\n"
+
+        f.state = copy.deepcopy(base)
+        f.state["candidate_inspect_response"] = {"message": base["digests"][component], "success": True}
+        _, outputs = f.run("candidate recovery reuses verified existing locator " + component,
+                           script, environment=environment, cwd=sandbox)
+        assert outputs == "exists=true\ndigest=" + base["digests"][component] + "\narchive_ready=false\n"
+    f.state = base
+
+
+def formal_tag_tests(f):
+    """执行完整正式标签工作流；注册表是唯一可写模拟边界，真实 helper 和写后校验保持启用。"""
+    script = step_script("Revalidate tag and converge immutable image tags")
+    base = copy.deepcopy(f.state)
+    base.pop("signature_failure", None)
+    base.pop("fail_after_output", None)
+    refs = {c: f"ghcr.io/example/yunlume-{c}:1.2.3" for c in ("backend", "frontend")}
+    expected = {refs[c]: base["digests"][c] for c in refs}
+    other_digest = "sha256:" + "e" * 64
+    environment = {"OWNER": "example", "VERSION": "1.2.3", "BACKEND_JAR_SHA": JAR_SHA,
+                   **{c.upper() + "_DIGEST": base["digests"][c] for c in refs}}
+
+    def reset(registry, faults=None):
+        f.state = copy.deepcopy(base)
+        f.state.update(registry=copy.deepcopy(registry), registry_faults=faults or {}, registry_events=[])
+
+    def creates():
+        return [event for event in f.state["registry_events"] if event["operation"] == "create"]
+
+    def run(label, success):
+        return f.run("formal tags " + label, script, success=success, environment=environment)
+
+    # 两个组件都要检查：前端读取失败不能留下已经写入的后端标签。
+    failures = [
+        ("credential helper", {"message": "credential helper not found"}),
+        ("credential token", {"message": "403 Forbidden: credential token not found"}),
+        ("forbidden", {"message": "403 Forbidden"}),
+        ("timeout", {"message": "request timed out"}),
+        ("missing text with forbidden", {"message": "403 Forbidden: TARGET: not found"}),
+        ("missing manifest with timeout", {"message": "manifest unknown: request timed out"}),
+        ("unscoped missing manifest", {"message": "manifest unknown"}),
+        ("unscoped repeated missing manifest", {"message": "manifest unknown: manifest unknown"}),
+        ("unscoped missing manifest with prefix", {"message": "ERROR: manifest unknown"}),
+        ("unscoped repeated missing manifest with prefix", {"message": "ERROR: manifest unknown: manifest unknown"}),
+        ("different target missing", {"message": "ghcr.io/example/unrelated:1.2.3: not found"}),
+        ("missing helper suffix", {"message": "TARGET: not found in credential helper"}),
+        ("misleading manifest unknown", {"message": "credential helper failed: manifest unknown"}),
+        ("failed child manifest", {"message": "manifest unknown: failed child manifest"}),
+        ("multiline missing with network error", {"message": "ERROR: TARGET: not found\nconnection reset"}),
+        ("multiline missing manifest", {"message": "manifest unknown\nregistry unavailable"}),
+        ("unclassified 404", {"message": "404 Not Found"}),
+        ("invalid digest", {"message": "not-a-digest", "success": True}),
+        ("empty digest", {"message": "", "success": True}),
+    ]
+    for component in refs:
+        for label, fault in failures:
+            initial = {refs[component]: other_digest}
+            fault = dict(fault, message=fault["message"].replace("TARGET", refs[component]))
+            reset(initial, {"inspect": {component: [fault]}})
+            run(component + " rejects " + label + " before any write", False)
+            assert not f.state["registry_faults"]["inspect"][component], f"{component} {label}: injected failure was not reached"
+            assert not creates(), f"{component} {label}: preflight failure wrote a formal tag"
+            assert f.state["registry"] == initial, f"{component} {label}: existing digest changed"
+            # 故障只发生一次；下一次查询成功仍须拒绝既有的不同摘要，不能借恢复覆盖。
+            run(component + " retries " + label + " without overwriting conflicting digest", False)
+            assert not creates() and f.state["registry"] == initial
+
+    reset({})
+    run("create both genuinely missing destinations", True)
+    assert f.state["registry"] == expected
+    assert [event["component"] for event in creates()] == ["backend", "frontend"]
+    assert [event["operation"] for event in f.state["registry_events"][:2]] == ["inspect", "inspect"]
+    assert {event["component"] for event in f.state["registry_events"][:2]} == set(refs)
+    run("repeat successful publication without rewriting either tag", True)
+    assert len(creates()) == 2 and f.state["registry"] == expected
+
+    for message in ("TARGET: not found", "ERROR: TARGET: not found"):
+        reset({}, {"inspect": {c: [{"message": message.replace("TARGET", refs[c])}] for c in refs}})
+        run("explicit missing response permits creation: " + message, True)
+        assert f.state["registry"] == expected and len(creates()) == 2
+
+    reset(expected)
+    run("both existing digests match without writes", True)
+    assert not creates() and f.state["registry"] == expected
+
+    for component in refs:
+        initial = {refs[component]: other_digest}
+        reset(initial)
+        run(component + " existing digest differs before any write", False)
+        assert not creates() and f.state["registry"] == initial
+
+    # 外部 PUT 的提交状态可能与 CLI 退出码不同；重试只能补缺失标签。
+    for component, after_apply in (("frontend", False), ("backend", True), ("frontend", True)):
+        fault = {"message": "registry connection reset", "after_apply": after_apply}
+        reset({}, {"create": {component: [fault]}})
+        label = component + (" write applied but CLI failed" if after_apply else " write failed before commit")
+        run(label, False)
+        before_retry = copy.deepcopy(f.state["registry"])
+        first_creates = copy.deepcopy(creates())
+        expected_partial = {refs["backend"]: base["digests"]["backend"]}
+        if component == "frontend" and after_apply:
+            expected_partial = expected
+        assert before_retry == expected_partial, f"{label}: wrong partial commit state"
+        run(label + " retry converges", True)
+        new_creates = creates()[len(first_creates):]
+        assert [event["component"] for event in new_creates] == [c for c in refs if refs[c] not in before_retry]
+        assert all(event["before"] is None for event in creates() if event["applied"])
+        assert f.state["registry"] == expected
+
+    reset({}, {"inspect": {"backend": [{}, {"message": "request timed out"}]}})
+    run("postwrite inspection failure does not claim success", False)
+    assert f.state["registry"] == {refs["backend"]: base["digests"]["backend"]}
+    assert [event["component"] for event in creates()] == ["backend"]
+    run("postwrite inspection recovery only creates missing frontend", True)
+    assert f.state["registry"] == expected
+    assert [event["component"] for event in creates()] == ["backend", "frontend"]
+
+    f.state = base
+
+
 with tempfile.TemporaryDirectory(prefix="yunlume-publish-behavior-") as directory:
-    tests(Fixture(Path(directory)))
+    fixture = Fixture(Path(directory))
+    tests(fixture)
+    formal_tag_tests(fixture)
+    candidate_recovery_tests(fixture)
 print(f"Publish workflow behavior: {checks} real shell scenarios passed; external writes: 0")

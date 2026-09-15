@@ -3,12 +3,14 @@ package com.example.nav.module.customlink.controller;
 import com.example.nav.common.dto.SortItemDTO;
 import com.example.nav.common.dto.VisibilityDTO;
 import com.example.nav.common.result.Result;
+import com.example.nav.common.validation.CreateValidation;
 import com.example.nav.module.customlink.dto.CustomLinkDTO;
 import com.example.nav.module.customlink.service.CustomLinkService;
 import com.example.nav.module.customlink.vo.CustomLinkVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
+import jakarta.validation.groups.Default;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.validation.annotation.Validated;
@@ -43,7 +45,7 @@ public class CustomLinkController {
 
     @PostMapping
     @Operation(summary = "新增自定义链接")
-    public Result<CustomLinkVO> create(@Valid @RequestBody CustomLinkDTO dto) {
+    public Result<CustomLinkVO> create(@Validated({Default.class, CreateValidation.class}) @RequestBody CustomLinkDTO dto) {
         return Result.success(customLinkService.create(dto));
     }
 

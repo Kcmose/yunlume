@@ -25,6 +25,13 @@ case "$FAULT" in
   registry-forbidden) printf '403 Forbidden: credential token not found\n' >&2; exit 23 ;;
   registry-network) printf 'dial tcp: connection timed out\n' >&2; exit 24 ;;
   registry-helper-missing) printf 'credential helper not found\n' >&2; exit 25 ;;
+  registry-empty) exit 0 ;;
+  registry-malformed) printf 'sha256:invalid\n'; exit 0 ;;
+  registry-multiple-digests) printf '%s\n%s\n' "$EXPECTED" "$EXPECTED"; exit 0 ;;
+  registry-other-target) printf 'ERROR: other:candidate: not found\n' >&2; exit 25 ;;
+  registry-child-manifest) printf 'failed to fetch child: manifest unknown\n' >&2; exit 25 ;;
+  registry-manifest-unknown) printf 'manifest unknown\n' >&2; exit 25 ;;
+  registry-mixed-error) printf 'image:candidate: not found\nconnection reset by peer\n' >&2; exit 25 ;;
 esac
 if [[ -s "$REGISTRY" ]]; then
   if [[ -e "$COPIED" ]]; then
@@ -35,7 +42,7 @@ if [[ -s "$REGISTRY" ]]; then
   fi
   cat "$REGISTRY"
 else
-  printf 'manifest unknown\n' >&2
+  printf 'ERROR: image:candidate: not found\n' >&2
   exit 1
 fi
 MOCK
@@ -150,7 +157,10 @@ for OPTIONS in on off; do
         checks=$((checks + 1))
       done
     done
-    for FAULT in registry-forbidden registry-network registry-helper-missing copy-network readback-forbidden readback-network; do
+    for FAULT in registry-forbidden registry-network registry-helper-missing \
+      registry-empty registry-malformed registry-multiple-digests registry-other-target \
+      registry-child-manifest registry-manifest-unknown registry-mixed-error \
+      copy-network readback-forbidden readback-network; do
       export FAULT
       reset_case absent
       if output="$(bash "$work/driver.sh" 2> "$work/error")"; then status=0; else status=$?; fi

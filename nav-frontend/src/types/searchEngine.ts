@@ -24,3 +24,5 @@ export interface SearchEnginePayload {
   sortOrder: number
   visible: boolean
 }
+
+export type SearchEngineUpdatePayload = Partial<SearchEnginePayload>

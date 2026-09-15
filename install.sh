@@ -957,8 +957,11 @@ rollback_docker() {
   else
     rm -f -- "${DOCKER_COMPATIBILITY_EPOCH_FILE}" || rollback_failed="true"
   fi
-  if [[ "${DOCKER_SERVICES_MUTATED}" == "true" &&
-        -f "${DOCKER_ENV_FILE}" && -f "${DOCKER_COMPOSE_FILE}" ]]; then
+  if [[ "${DOCKER_SERVICES_MUTATED}" == "true" && "${rollback_failed}" == "true" ]]; then
+    info "运行文件尚未恢复完整，拒绝使用混合配置重建 Docker 服务" >&2
+  elif [[ "${DOCKER_SERVICES_MUTATED}" == "true" &&
+          "${DOCKER_HAD_ENV}" == "true" && "${DOCKER_HAD_COMPOSE}" == "true" &&
+          -f "${DOCKER_ENV_FILE}" && -f "${DOCKER_COMPOSE_FILE}" ]]; then
     compose_command=(
       docker compose
       --project-name yunlume
@@ -972,6 +975,7 @@ rollback_docker() {
       rollback_failed="true"
     fi
   elif [[ "${DOCKER_SERVICES_MUTATED}" == "true" &&
+          "${DOCKER_HAD_ENV}" != "true" && "${DOCKER_HAD_COMPOSE}" != "true" &&
           -f "${WORK_DIR}/failed.compose.yml" && -f "${WORK_DIR}/failed.env" ]]; then
     if ! docker compose --project-name yunlume \
       --project-directory "${INSTALL_DIR}" \
@@ -979,6 +983,9 @@ rollback_docker() {
       --file "${WORK_DIR}/failed.compose.yml" down --remove-orphans; then
       rollback_failed="true"
     fi
+  elif [[ "${DOCKER_SERVICES_MUTATED}" == "true" ]]; then
+    info "缺少完整 Docker 恢复配置，无法确认已恢复上一运行状态" >&2
+    rollback_failed="true"
   fi
   set -e
   [[ "${rollback_failed}" != "true" ]]
@@ -1345,6 +1352,42 @@ ensure_service_user() {
   fi
 }
 
+read_systemd_rollback_state() {
+  local unit="$1" snapshot line key value active=false enabled=false
+  local -A properties=()
+  # show 的命令成功与状态值分开判断；is-active/is-enabled 的非零同时可能表示正常停用或查询失败。
+  snapshot="$(systemctl show --all --property=LoadState --property=ActiveState --property=UnitFileState -- "${unit}")" || {
+    info "无法读取 ${unit} 的原始 systemd 状态，拒绝开始替换" >&2
+    return 1
+  }
+  while IFS= read -r line; do
+    [[ "${line}" == *=* ]] || return 1
+    key="${line%%=*}" value="${line#*=}"
+    case "${key}" in LoadState|ActiveState|UnitFileState) ;; *) return 1 ;; esac
+    [[ "${properties[${key}]+present}" != present ]] || return 1
+    properties["${key}"]="${value}"
+  done <<<"${snapshot}"
+  [[ "${#properties[@]}" == 3 ]] || return 1
+  if [[ "${properties[LoadState]}" == not-found ]]; then
+    [[ "${properties[ActiveState]}" == inactive && -z "${properties[UnitFileState]}" ]] || return 1
+    printf 'false false\n'
+    return 0
+  fi
+  case "${properties[LoadState]}" in loaded|masked|bad-setting|error) ;; *) return 1 ;; esac
+  case "${properties[ActiveState]}" in
+    active|reloading|refreshing) active=true ;;
+    inactive|failed|activating|deactivating|maintenance) ;;
+    *) return 1 ;;
+  esac
+  # 保持原 is-enabled 的成功状态集合，包括 static/alias/indirect/generated。
+  case "${properties[UnitFileState]}" in
+    enabled|enabled-runtime|static|alias|indirect|generated) enabled=true ;;
+    disabled|masked|masked-runtime|linked|linked-runtime|transient|bad) ;;
+    *) return 1 ;;
+  esac
+  printf '%s %s\n' "${active}" "${enabled}"
+}
+
 rollback_host() {
   local rollback_failed="false"
   set +e
@@ -1360,18 +1403,23 @@ rollback_host() {
   if [[ "${HOST_NGINX_MUTATED}" == "true" && "${HOST_NGINX_WAS_ACTIVE}" != "true" ]]; then
     systemctl stop nginx.service || rollback_failed="true"
   fi
-  if [[ "${HOST_HAD_CURRENT}" == "true" && -d "${HOST_PREVIOUS_CURRENT}" ]]; then
-    ln -sfn -- "${HOST_PREVIOUS_CURRENT}" "${HOST_CURRENT_LINK}.rollback" || rollback_failed="true"
-    mv -Tf -- "${HOST_CURRENT_LINK}.rollback" "${HOST_CURRENT_LINK}" || rollback_failed="true"
+  if [[ "${HOST_HAD_CURRENT}" == "true" ]]; then
+    if [[ ! -d "${HOST_PREVIOUS_CURRENT}" ]]; then
+      info "上一宿主机版本目录缺失，保留当前链接与恢复材料" >&2
+      rollback_failed="true"
+    elif ! ln -sfn -- "${HOST_PREVIOUS_CURRENT}" "${HOST_CURRENT_LINK}.rollback" ||
+         ! mv -Tf -- "${HOST_CURRENT_LINK}.rollback" "${HOST_CURRENT_LINK}"; then
+      rollback_failed="true"
+    fi
   else
     rm -f -- "${HOST_CURRENT_LINK}" "${HOST_CURRENT_LINK}.rollback" || rollback_failed="true"
   fi
-  if [[ "${HOST_HAD_NGINX_CONFIG}" == "true" && -f "${HOST_NGINX_BACKUP}" ]]; then
+  if [[ "${HOST_HAD_NGINX_CONFIG}" == "true" ]]; then
     cp -p -- "${HOST_NGINX_BACKUP}" "${HOST_NGINX_CONFIG}" || rollback_failed="true"
   else
     rm -f -- "${HOST_NGINX_CONFIG}" || rollback_failed="true"
   fi
-  if [[ "${HOST_HAD_SERVICE_FILE}" == "true" && -f "${HOST_SERVICE_BACKUP}" ]]; then
+  if [[ "${HOST_HAD_SERVICE_FILE}" == "true" ]]; then
     cp -p -- "${HOST_SERVICE_BACKUP}" "${HOST_SERVICE_FILE}" || rollback_failed="true"
   else
     rm -f -- "${HOST_SERVICE_FILE}" || rollback_failed="true"
@@ -1381,29 +1429,37 @@ rollback_host() {
   else
     rm -f -- "${HOST_NGINX_LINK}" || rollback_failed="true"
   fi
-  if [[ "${HOST_HAD_VERSION}" == "true" && -f "${HOST_VERSION_BACKUP}" ]]; then
+  if [[ "${HOST_HAD_VERSION}" == "true" ]]; then
     cp -p -- "${HOST_VERSION_BACKUP}" "${HOST_VERSION_FILE}" || rollback_failed="true"
   else
     rm -f -- "${HOST_VERSION_FILE}" || rollback_failed="true"
   fi
-  if [[ "${HOST_HAD_MANIFEST}" == "true" && -f "${HOST_MANIFEST_BACKUP}" ]]; then
+  if [[ "${HOST_HAD_MANIFEST}" == "true" ]]; then
     cp -p -- "${HOST_MANIFEST_BACKUP}" "${HOST_MANIFEST_FILE}" || rollback_failed="true"
   else
     rm -f -- "${HOST_MANIFEST_FILE}" || rollback_failed="true"
   fi
-  if [[ "${HOST_HAD_COMPATIBILITY_EPOCH}" == "true" &&
-        -f "${HOST_COMPATIBILITY_EPOCH_BACKUP}" ]]; then
+  if [[ "${HOST_HAD_COMPATIBILITY_EPOCH}" == "true" ]]; then
     cp -p -- "${HOST_COMPATIBILITY_EPOCH_BACKUP}" \
       "${HOST_COMPATIBILITY_EPOCH_FILE}" || rollback_failed="true"
   else
     rm -f -- "${HOST_COMPATIBILITY_EPOCH_FILE}" || rollback_failed="true"
   fi
-  if [[ "${HOST_HAD_APP_ENV}" == "true" && -f "${HOST_APP_ENV_BACKUP}" ]]; then
+  if [[ "${HOST_HAD_APP_ENV}" == "true" ]]; then
     cp -p -- "${HOST_APP_ENV_BACKUP}" "${HOST_APP_ENV_FILE}" || rollback_failed="true"
   else
     rm -f -- "${HOST_APP_ENV_FILE}" || rollback_failed="true"
   fi
-  systemctl daemon-reload || rollback_failed="true"
+  if [[ "${rollback_failed}" == "true" ]]; then
+    info "宿主机恢复材料或文件恢复不完整，拒绝启动混合配置，保留恢复材料" >&2
+    set -e
+    return 1
+  fi
+  if ! systemctl daemon-reload; then
+    info "systemd 未能重新加载恢复后的配置，拒绝启动服务，保留恢复材料" >&2
+    set -e
+    return 1
+  fi
   if [[ "${HOST_HAD_SERVICE_FILE}" == "true" ]]; then
     if [[ "${HOST_SERVICE_WAS_ENABLED}" == "true" ]]; then
       systemctl enable yunlume-backend.service >/dev/null 2>&1 || rollback_failed="true"
@@ -1465,7 +1521,7 @@ install_host() {
   local archive_name archive_sha archive_file staging_root package_version
   local release_root release_dir temporary_release current_link
   local env_file jwt_secret nginx_config nginx_link service_file
-  local major existing_nginx_target listener previous_install_state=""
+  local major existing_nginx_target listener previous_install_state="" backend_state nginx_state
   local -a previous_listener=()
 
   require_command java
@@ -1606,7 +1662,7 @@ install_host() {
   HOST_ROLLBACK_BIND_ADDRESS="0.0.0.0"
   HOST_ROLLBACK_INSTALL_STATE=""
   if [[ -L "${current_link}" ]]; then
-    HOST_PREVIOUS_CURRENT="$(readlink -f "${current_link}" || true)"
+    HOST_PREVIOUS_CURRENT="$(readlink -f "${current_link}")" || die "无法读取 current 的原版本目标"
     [[ -n "${HOST_PREVIOUS_CURRENT}" && -d "${HOST_PREVIOUS_CURRENT}" ]] ||
       die "current 指向无效版本目录"
     [[ "${HOST_PREVIOUS_CURRENT}" == "${release_root}/"* ]] ||
@@ -1635,7 +1691,7 @@ install_host() {
     cp -p -- "${service_file}" "${HOST_SERVICE_BACKUP}"
   fi
   if [[ -L "${nginx_link}" ]]; then
-    existing_nginx_target="$(readlink -f "${nginx_link}" || true)"
+    existing_nginx_target="$(readlink -f "${nginx_link}")" || die "无法读取原 Nginx 配置链接目标"
     [[ "${existing_nginx_target}" == "${nginx_config}" ]] ||
       die "${nginx_link} 未指向 yunlume 管理的配置"
     HOST_HAD_NGINX_LINK="true"
@@ -1659,12 +1715,12 @@ install_host() {
     HOST_HAD_APP_ENV="true"
     cp -p -- "${env_file}" "${HOST_APP_ENV_BACKUP}"
   fi
-  systemctl is-enabled yunlume-backend.service >/dev/null 2>&1 &&
-    HOST_SERVICE_WAS_ENABLED="true"
-  systemctl is-active yunlume-backend.service >/dev/null 2>&1 &&
-    HOST_SERVICE_WAS_ACTIVE="true"
-  systemctl is-active nginx.service >/dev/null 2>&1 && HOST_NGINX_WAS_ACTIVE="true"
-  systemctl is-enabled nginx.service >/dev/null 2>&1 && HOST_NGINX_WAS_ENABLED="true"
+  backend_state="$(read_systemd_rollback_state yunlume-backend.service)" ||
+    die "无法确认旧 Host 后端状态，未替换运行配置"
+  nginx_state="$(read_systemd_rollback_state nginx.service)" ||
+    die "无法确认旧 Nginx 状态，未替换运行配置"
+  read -r HOST_SERVICE_WAS_ACTIVE HOST_SERVICE_WAS_ENABLED <<<"${backend_state}"
+  read -r HOST_NGINX_WAS_ACTIVE HOST_NGINX_WAS_ENABLED <<<"${nginx_state}"
 
   if [[ "${EXISTING_MANAGED_DEPLOYMENT}" == "true" &&
         "$(tr -d '\r\n' <"${HOST_VERSION_BACKUP}")" == "${VERSION}" ]]; then

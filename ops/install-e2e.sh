@@ -845,10 +845,11 @@ wait_container_health() {
   local container="$1" expected="$2" timeout="${3:-120}" deadline health
   deadline=$((SECONDS + timeout))
   while (( SECONDS < deadline )); do
-    health="$(docker container inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
-      "${container}" 2>/dev/null || true)"
-    [[ "${health}" == "${expected}" ]] && return 0
-    sleep 2
+    if health="$(docker container inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
+      "${container}" 2>/dev/null)"; then
+      if [[ "${health}" == "${expected}" ]]; then return 0; fi
+    fi
+    sleep 2 || die "等待容器 ${container} 健康状态时失败"
   done
   die "容器 ${container} 未达到 ${expected}"
 }

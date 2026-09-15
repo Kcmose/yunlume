@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -280,6 +281,12 @@ public class InstallService {
 
     private InstallCheckVO checkSchema() {
         try {
+            jdbcTemplate.execute((ConnectionCallback<Void>) connection -> {
+                if ("PostgreSQL".equalsIgnoreCase(connection.getMetaData().getDatabaseProductName())) {
+                    DatabaseSchemaContract.requireCompatible(connection);
+                }
+                return null;
+            });
             jdbcTemplate.queryForList("""
                     SELECT filename, checksum, applied_at
                     FROM schema_migration WHERE 1 = 0

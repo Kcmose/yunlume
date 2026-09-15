@@ -3,6 +3,7 @@ package com.example.nav.module.search.controller;
 import com.example.nav.common.dto.SortItemDTO;
 import com.example.nav.common.dto.VisibilityDTO;
 import com.example.nav.common.result.Result;
+import com.example.nav.common.validation.CreateValidation;
 import com.example.nav.module.search.dto.SearchEngineDTO;
 import com.example.nav.module.search.service.SearchEngineService;
 import com.example.nav.module.search.vo.SearchEngineVO;
@@ -11,6 +12,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.groups.Default;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -43,7 +45,9 @@ public class SearchEngineController {
 
     @PostMapping
     @Operation(summary = "新增搜索引擎")
-    public Result<SearchEngineVO> create(@Valid @RequestBody SearchEngineDTO dto) {
+    public Result<SearchEngineVO> create(
+            @Validated({Default.class, CreateValidation.class}) @RequestBody SearchEngineDTO dto
+    ) {
         return Result.success(searchEngineService.create(dto));
     }
 

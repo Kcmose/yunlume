@@ -104,13 +104,15 @@ class BackgroundReferenceTransactionTest {
         Files.deleteIfExists(ROOT);
     }
 
-    @Test
-    void savingReferenceHoldsGcUntilCommitAcrossStorageInstances() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {"/uploads/backgrounds/", "/uploads/%2e/backgrounds/"})
+    void savingReferenceHoldsGcUntilCommitAcrossStorageInstances(String prefix) throws Exception {
         Path image = image();
+        String url = prefix + FILENAME;
         CountDownLatch updated = new CountDownLatch(1);
         CountDownLatch commit = new CountDownLatch(1);
         Future<?> saving = executor.submit(() -> transactions.execute(status -> {
-            siteService.update(request(URL));
+            siteService.update(request(url));
             updated.countDown();
             await(commit);
             return null;
@@ -128,12 +130,14 @@ class BackgroundReferenceTransactionTest {
         saving.get(10, TimeUnit.SECONDS);
         assertEquals(1, gc.get(10, TimeUnit.SECONDS).referenced());
         assertTrue(Files.exists(image));
-        assertEquals(URL, mapper.selectById(1L).getBackgroundImage());
+        assertEquals(url, mapper.selectById(1L).getBackgroundImage());
     }
 
-    @Test
-    void gcWinningFirstMakesLateSaveRejectTheDeletedManagedFile() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {"/uploads/backgrounds/", "/uploads/backgrounds/%2e%2e/backgrounds/"})
+    void gcWinningFirstMakesLateSaveRejectTheDeletedManagedFile(String prefix) throws Exception {
         Path image = image();
+        String url = prefix + FILENAME;
         CountDownLatch deleted = new CountDownLatch(1);
         CountDownLatch releaseGc = new CountDownLatch(1);
         Future<?> gc = executor.submit(() -> transactions.execute(status -> {
@@ -146,7 +150,7 @@ class BackgroundReferenceTransactionTest {
         CountDownLatch saveAttempted = new CountDownLatch(1);
         Future<BusinessException> saving = executor.submit(() -> {
             saveAttempted.countDown();
-            return assertThrows(BusinessException.class, () -> siteService.update(request(URL)));
+            return assertThrows(BusinessException.class, () -> siteService.update(request(url)));
         });
         try {
             await(saveAttempted);
@@ -216,7 +220,8 @@ class BackgroundReferenceTransactionTest {
     @Test
     void failedImportCleansCopiedAssetsAfterRollbackWithoutWaitingOnItsOwnSiteLock() throws Exception {
         Path original = image();
-        siteService.update(request(URL));
+        String originalUrl = "/uploads/%2e/backgrounds/" + FILENAME;
+        siteService.update(request(originalUrl));
         ParsedPackage parsed = exportedPackage();
         String revision = snapshots.capture().revision();
         AtomicReference<Path> importedImage = new AtomicReference<>();
@@ -229,13 +234,13 @@ class BackgroundReferenceTransactionTest {
         assertNotNull(importedImage.get());
         assertFalse(Files.exists(importedImage.get()));
         assertTrue(Files.exists(original));
-        assertEquals(URL, mapper.selectById(1L).getBackgroundImage());
+        assertEquals(originalUrl, mapper.selectById(1L).getBackgroundImage());
     }
 
     @Test
     void rollbackCleanupDoesNotDeleteAnAssetNowReferencedByCommittedConfiguration() throws Exception {
         Path image = image();
-        siteService.update(request(URL + "?keep=1"));
+        siteService.update(request("/uploads/backgrounds/%2e%2e/backgrounds/" + FILENAME + "?keep=1"));
         storage.deleteImportedAssets(List.of(new BackgroundImageStorageService.ImportedAsset(
                 "old-import", FILENAME, URL, Files.size(image))));
         assertTrue(Files.exists(image));

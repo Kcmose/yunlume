@@ -81,6 +81,22 @@ install() {
 }
 systemctl() {
   printf 'systemctl %s\n' "$*" >>"${calls}"
+  if [[ "$1" == show ]]; then
+    if [[ "${*: -1}" == yunlume-backend.service && -f "${case_dir}/systemd-backend-unknown" ]]; then
+      printf 'LoadState=loaded\nActiveState=unknown\nUnitFileState=enabled\n'
+      return 0
+    fi
+    if [[ "${*: -1}" == yunlume-backend.service && -f "${case_dir}/inactive" ]]; then
+      printf 'LoadState=loaded\nActiveState=inactive\nUnitFileState=enabled\n'
+    else
+      printf 'LoadState=loaded\nActiveState=active\nUnitFileState=enabled\n'
+    fi
+    if [[ "${*: -1}" == yunlume-backend.service && -f "${case_dir}/systemd-backend-failure" ]] ||
+       [[ "${*: -1}" == nginx.service && -f "${case_dir}/systemd-nginx-failure" ]]; then
+      return 71
+    fi
+    return 0
+  fi
   if [[ "$1" == is-active && "$2" == yunlume-backend.service && -f "${case_dir}/inactive" ]]; then
     return 3
   fi
@@ -92,6 +108,13 @@ systemctl() {
     fi
   fi
   return 0
+}
+readlink() {
+  command readlink "$@" || return $?
+  if [[ "$1" == -f && "${*: -1}" == "${INSTALL_DIR}/current" && -f "${case_dir}/current-readlink-failure" ]] ||
+     [[ "$1" == -f && "${*: -1}" == "${case_dir}/system/etc/nginx/conf.d/yunlume.conf" && -f "${case_dir}/nginx-readlink-failure" ]]; then
+    return 72
+  fi
 }
 nginx() { printf 'nginx %s\n' "$*" >>"${calls}"; }
 journalctl() { :; }
@@ -299,4 +322,40 @@ for specification in \
   fi
 done
 
-printf 'Host proxy apply: 11 state transitions, 10 pre-mutation rejections and 6 three-phase recovery cases passed through the real installer.\n'
+# 状态快照必须在修改运行配置前完整成功；非零退出不能被有效 stdout 覆盖。
+for name in systemd-backend-failure systemd-nginx-failure systemd-backend-unknown current-readlink-failure nginx-readlink-failure; do
+  prepare_case "${name}"
+  case_dir="${TEST_ROOT}/${name}"
+  cat >"${case_dir}/snapshot.py" <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+case = Path(sys.argv[1])
+paths = list((case / "system/etc").rglob("*"))
+paths += [case / "deployment" / name for name in ("current", "VERSION", "release-manifest.json", "COMPATIBILITY_EPOCH")]
+snapshot = {}
+for path in sorted(paths):
+    if path.is_symlink():
+        snapshot[str(path)] = ["symlink", os.readlink(path), path.lstat().st_ino]
+    elif path.is_file():
+        stat = path.stat()
+        snapshot[str(path)] = ["file", path.read_bytes().hex(), stat.st_uid, stat.st_gid, stat.st_mode, stat.st_ino]
+print(json.dumps(snapshot, sort_keys=True))
+PY
+  python3 "${case_dir}/snapshot.py" "${case_dir}" >"${case_dir}/before.snapshot"
+  touch "${case_dir}/${name}"
+  run_attempt "${name}" 1.2.3 rejected 1
+  python3 "${case_dir}/snapshot.py" "${case_dir}" >"${case_dir}/after.snapshot"
+  cmp --silent "${case_dir}/before.snapshot" "${case_dir}/after.snapshot"
+  ! grep -Eq '^systemctl (daemon-reload|enable|disable|stop|restart|reload)( |$)' "${case_dir}/rejected.calls"
+  ! grep -Fq '正在恢复上一版本' "${case_dir}/rejected.out"
+  [[ ! -e "${case_dir}/deployment/recovery" ]]
+  rm -- "${case_dir}/${name}"
+  run_attempt "${name}" 1.2.3 retry 0
+  grep -Fxq INSTALL_SUCCESS "${case_dir}/retry.out"
+  grep -Fq 'set_real_ip_from 127.0.0.2/32;' "${case_dir}/system/etc/yunlume/nginx.conf"
+done
+
+printf 'Host proxy apply: 11 state transitions, 15 pre-mutation rejections and 6 three-phase recovery cases passed through the real installer.\n'

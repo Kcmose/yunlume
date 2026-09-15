@@ -141,22 +141,27 @@ PY
   }
 }
 
-candidate_registry_digest() {
+# 候选和正式标签共用三态读取：0=有效摘要，44=明确缺失，其他=查询失败。
+registry_manifest_digest() {
   local image="$1" tag="$2" result
   if result="$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "${image}:${tag}" 2>&1)"; then
+    [[ "$result" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+      printf 'Invalid digest returned for registry tag %s:%s.\n' "$image" "$tag" >&2
+      return 1
+    }
     printf '%s\n' "$result"
     return 0
   fi
-  case "${result,,}" in
-    *'403'*|*'401'*|*'denied'*|*'unauthorized'*|*'timeout'*|*'timed out'*) ;;
-    *'manifest unknown'*) return 44 ;;
-    *)
-      # 只把目标manifest的明确不存在视为可新建；凭据helper/网络组件的not found不是缺少候选。
-      [[ "$result" != *"${image}:${tag}: not found" ]] || return 44
-      ;;
+  # inspect 也会读取子 manifest；只有根标签的完整缺失消息才允许新建。
+  case "$result" in
+    "${image}:${tag}: not found"|"ERROR: ${image}:${tag}: not found") return 44 ;;
   esac
-  printf 'Unable to inspect candidate %s:%s: %s\n' "$image" "$tag" "$result" >&2
+  printf 'Unable to inspect registry tag %s:%s: %s\n' "$image" "$tag" "$result" >&2
   return 1
+}
+
+candidate_registry_digest() {
+  registry_manifest_digest "$@"
 }
 
 candidate_copy_to_registry() {

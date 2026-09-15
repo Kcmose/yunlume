@@ -63,19 +63,24 @@ os.replace(temp, path)
 PY
 }
 
+probe_release_containers() {
+  local backend_id frontend_id backend_health frontend_health
+  # 条件调用会禁用函数内的 errexit；退出码与输出必须分别验证，失败输出不能充当健康证明。
+  backend_id="$(compose ps -q backend)" || return 1
+  frontend_id="$(compose ps -q frontend)" || return 1
+  [[ "${backend_id}" =~ ^[0-9a-f]{12,64}$ &&
+     "${frontend_id}" =~ ^[0-9a-f]{12,64}$ &&
+     "${backend_id}" != "${frontend_id}" ]] || return 1
+  backend_health="$(docker inspect --format '{{.State.Health.Status}}' "${backend_id}")" || return 1
+  frontend_health="$(docker inspect --format '{{.State.Health.Status}}' "${frontend_id}")" || return 1
+  [[ "${backend_health}" == "healthy" && "${frontend_health}" == "healthy" ]]
+}
+
 wait_for_release_containers() {
-  local attempts="$1"
-  backend_id=""
-  frontend_id=""
-  for _ in $(seq 1 "${attempts}"); do
-    backend_id="$(compose ps -q backend)"
-    frontend_id="$(compose ps -q frontend)"
-    if [[ -n "${backend_id}" && -n "${frontend_id}" ]] &&
-       [[ "$(docker inspect --format '{{.State.Health.Status}}' "${backend_id}")" == "healthy" ]] &&
-       [[ "$(docker inspect --format '{{.State.Health.Status}}' "${frontend_id}")" == "healthy" ]]; then
-      return 0
-    fi
-    sleep 2
+  local attempts="$1" attempt
+  for ((attempt = 0; attempt < attempts; attempt++)); do
+    if probe_release_containers; then return 0; fi
+    sleep 2 || return 1
   done
   return 1
 }
@@ -113,6 +118,8 @@ recover_previous_release() {
   local recovery_failed="false"
   trap - ERR EXIT
   set +e
+  # 恢复旧版本只补偿失败，不能把原操作改成成功。
+  [[ "${status}" -ne 0 ]] || status=1
   info "目标镜像未通过健康检查，正在恢复原镜像..."
   cp --preserve=mode,timestamps -- "${rollback_env}" "${ENV_FILE}" || recovery_failed="true"
   chmod 0600 "${ENV_FILE}" || recovery_failed="true"
@@ -128,31 +135,35 @@ recover_previous_release() {
   if [[ "${recovery_failed}" != "true" ]] && ! verify_release_endpoints; then
     recovery_failed="true"
   fi
+  if [[ "${recovery_failed}" != "true" ]] && ! probe_release_containers; then
+    recovery_failed="true"
+  fi
   if [[ "${recovery_failed}" == "true" ]]; then
     printf 'ERROR: 目标镜像失败，且原镜像恢复未通过健康检查；备份保留在 %s\n' \
       "${rollback_env}" >&2
     exit 2
   fi
-  rm -f -- "${rollback_env}"
+  if ! rm -f -- "${rollback_env}"; then
+    printf 'ERROR: 原镜像已通过健康检查，但无法清理恢复备份: %s\n' "${rollback_env}" >&2
+    exit 2
+  fi
   info "原镜像已恢复并通过健康检查"
   exit "${status}"
 }
 trap 'recover_previous_release $?' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 update_image_refs "${backend_target}" "${frontend_target}"
 export BACKEND_IMAGE="${backend_target}"
 export FRONTEND_IMAGE="${frontend_target}"
 compose up -d --no-build --force-recreate backend frontend
 
-wait_for_release_containers 45 || true
-[[ -n "${backend_id:-}" && -n "${frontend_id:-}" ]] ||
-  die "回滚后的服务容器不完整"
-[[ "$(docker inspect --format '{{.State.Health.Status}}' "${backend_id}")" == "healthy" ]] ||
-  die "回滚后的后端未通过健康检查"
-[[ "$(docker inspect --format '{{.State.Health.Status}}' "${frontend_id}")" == "healthy" ]] ||
-  die "回滚后的前端未通过健康检查"
+wait_for_release_containers 45 || die "回滚后的服务容器状态无法确认健康"
 
 verify_release_endpoints || exit $?
+# HTTP 检查期间容器可能变化，交付前用同一规则重新确认。
+probe_release_containers || die "回滚后的服务容器最终状态无法确认健康"
 
 trap - EXIT
 rm -f -- "${rollback_env}"

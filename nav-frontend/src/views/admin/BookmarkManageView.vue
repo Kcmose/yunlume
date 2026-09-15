@@ -27,6 +27,7 @@ import {
   selectionAfterBatchRequest,
 } from '@/utils/adminNavigationManage'
 import { createVisibilityTracker } from '@/utils/visibilityMutation'
+import { changedFormFields } from '@/utils/changedFormFields'
 
 interface BookmarkTableInstance {
   clearSelection: () => void
@@ -131,7 +132,7 @@ function openCreate() {
 
 function openEdit(row: Bookmark) {
   dialogGeneration += 1
-  editing.value = row
+  editing.value = { ...row }
   dialogVisible.value = true
 }
 
@@ -141,8 +142,15 @@ async function save(payload: BookmarkPayload) {
   const target = editing.value
   submitting.value = true
   try {
-    if (target) await updateBookmark(target.id, payload)
-    else await createBookmark(payload)
+    if (target) {
+      const changes = changedFormFields(target, payload)
+      if (Object.keys(changes).length === 0) {
+        if (generation === dialogGeneration) dialogVisible.value = false
+        await load()
+        return
+      }
+      await updateBookmark(target.id, changes)
+    } else await createBookmark(payload)
     ElMessage.success(target ? '书签已更新' : '书签已创建')
     // 关闭仅属于本次保存的弹窗，取消后重新打开的草稿由新代数持有。
     if (generation === dialogGeneration) dialogVisible.value = false

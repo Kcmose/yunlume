@@ -5,6 +5,7 @@ import type { Bookmark, BookmarkPayload } from '@/types/bookmark'
 import type { Category } from '@/types/category'
 import { isValidNavigationIcon } from '@/utils/adminNavigationManage'
 import { ensureHttpProtocol, isSafeHttpUrl } from '@/utils/url'
+import { isValidSortOrder, SORT_ORDER_ERROR, sortOrderInputProps } from '@/utils/sortOrder'
 
 const props = defineProps<{
   modelValue: boolean
@@ -34,6 +35,10 @@ const form = reactive<BookmarkPayload>(emptyForm())
 let formVersion = 0
 const rules: FormRules<BookmarkPayload> = {
   categoryId: [{ required: true, message: '请选择分类', trigger: 'change' }],
+  sortOrder: [{
+    validator: (_rule, value, callback) => isValidSortOrder(value) ? callback() : callback(new Error(SORT_ORDER_ERROR)),
+    trigger: ['blur', 'change'],
+  }],
   name: [{ required: true, message: '请输入书签名称', trigger: 'blur' }],
   url: [
     { required: true, message: '请输入书签地址', trigger: 'blur' },
@@ -78,7 +83,6 @@ async function submit() {
   emit('submit', {
     ...form,
     url: ensureHttpProtocol(form.url),
-    isRecommend: props.bookmark?.isRecommend ?? false,
   })
 }
 </script>
@@ -113,8 +117,8 @@ async function submit() {
           <el-input v-model="form.icon" maxlength="255" placeholder="例如：GH 或 https://.../icon.png" />
           <p class="admin-form-tip">建议使用 1–3 字短标记 / Emoji，或填写完整 HTTP(S) 图片 URL。</p>
         </el-form-item>
-        <el-form-item label="排序值">
-          <el-input-number v-model="form.sortOrder" :min="0" :max="9999" controls-position="right" />
+        <el-form-item label="排序值" prop="sortOrder">
+          <el-input-number v-model="form.sortOrder" v-bind="sortOrderInputProps" controls-position="right" />
         </el-form-item>
       </div>
       <div class="admin-switch-row">

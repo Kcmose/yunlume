@@ -62,6 +62,10 @@ require_workflow_text 'tagged commit must belong to default branch history' \
 
 require_workflow_text 'immutable destination preflight' \
   'assert_immutable_destination "$component" "$candidate_digest"'
+require_workflow_text 'shared registry query contract at immutable destination preflight' \
+  'current_digest="$(registry_manifest_digest "$image" "$VERSION")"'
+require_workflow_text 'shared registry query contract at immutable destination readback' \
+  'published_digest="$(registry_manifest_digest "$image" "$VERSION")"'
 require_workflow_text 'different-digest refusal' \
   'refusing to overwrite immutable release tag'
 require_workflow_text 'same-digest retry convergence' \

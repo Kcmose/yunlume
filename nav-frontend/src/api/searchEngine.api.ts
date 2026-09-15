@@ -2,6 +2,7 @@ import request, { unwrapApiData } from './request'
 import type {
   AdminSearchEngine,
   SearchEnginePayload,
+  SearchEngineUpdatePayload,
 } from '@/types/searchEngine'
 import type { EntityId } from '@/types/common'
 
@@ -15,7 +16,7 @@ export async function createSearchEngine(payload: SearchEnginePayload): Promise<
 
 export async function updateSearchEngine(
   id: EntityId,
-  payload: SearchEnginePayload,
+  payload: SearchEngineUpdatePayload,
 ): Promise<AdminSearchEngine> {
   return unwrapApiData(await request.put(`/admin/search-engines/${id}`, payload))
 }
