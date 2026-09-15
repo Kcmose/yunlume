@@ -12,7 +12,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.Size;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -79,7 +78,6 @@ public class BookmarkController {
     @Operation(summary = "批量调整书签排序")
     public Result<List<BookmarkVO>> sort(
             @NotEmpty(message = "排序列表不能为空")
-            @Size(max = 1000, message = "排序列表不能超过 1000 项")
             @RequestBody List<@Valid SortItemDTO> items
     ) {
         return Result.success(bookmarkService.sort(items));

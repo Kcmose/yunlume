@@ -38,7 +38,7 @@ SQL
 docker exec -i "$container" psql -X -U "$role" -d "$database" --set ON_ERROR_STOP=1 \
   < src/main/resources/schema-postgresql.sql >> "$report_dir/setup.log" 2>&1
 
-classes=(com.example.nav.ConcurrentMutationIntegrationTest com.example.nav.SearchEnginePartialUpdateRegressionTest com.example.nav.NumericInputIntegrationTest)
+classes=(com.example.nav.ConcurrentMutationIntegrationTest com.example.nav.SearchEnginePartialUpdateRegressionTest com.example.nav.NumericInputIntegrationTest com.example.nav.SortCapacityIntegrationTest com.example.nav.SortCapacityConcurrencyIntegrationTest)
 for test_class in "${classes[@]}"; do
   rm -f -- "target/surefire-reports/TEST-${test_class}.xml" "$report_dir/TEST-${test_class}.xml"
 done
@@ -47,7 +47,7 @@ if [[ "${CONCURRENT_MUTATION_MAVEN_OFFLINE:-false}" == true ]]; then maven+=(--o
 set +e
 CONCURRENT_MUTATION_TEST_URL="jdbc:postgresql://127.0.0.1:${port}/${database}" \
   CONCURRENT_MUTATION_TEST_USERNAME="$role" CONCURRENT_MUTATION_TEST_PASSWORD="$test_password" \
-  "${maven[@]}" "-Dtest=${classes[0]},${classes[1]},${classes[2]}" test > "$report_dir/maven.log" 2>&1
+  "${maven[@]}" "-Dtest=$(IFS=,; printf '%s' "${classes[*]}")" test > "$report_dir/maven.log" 2>&1
 status=$?
 set -e
 printf '%s\n' "$status" > "$report_dir/maven.exit"

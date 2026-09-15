@@ -28,7 +28,7 @@ import java.util.Set;
 public class CategoryServiceImpl implements CategoryService {
 
     private static final int SORT_STEP = 10;
-    private static final int MAX_BATCH_ITEMS = 1000;
+    private static final int SORT_QUERY_BATCH_SIZE = 1000;
 
     private final CategoryMapper categoryMapper;
     private final BookmarkMapper bookmarkMapper;
@@ -140,9 +140,6 @@ public class CategoryServiceImpl implements CategoryService {
         if (items == null || items.isEmpty()) {
             throw BusinessException.badRequest("排序列表不能为空");
         }
-        if (items.size() > MAX_BATCH_ITEMS) {
-            throw BusinessException.badRequest("排序列表不能超过 1000 项");
-        }
 
         Set<Long> ids = new HashSet<>();
         for (SortItemDTO item : items) {
@@ -158,10 +155,16 @@ public class CategoryServiceImpl implements CategoryService {
         }
 
         Map<Long, Category> categoriesById = new HashMap<>();
-        categoryMapper.selectList(Wrappers.<Category>lambdaQuery()
-                        .in(Category::getId, ids)
-                        .last("FOR UPDATE"))
-                .forEach(category -> categoriesById.put(category.getId(), category));
+        // 分段只限制 SQL 参数量；统一锁序，且全部校验完成后才在同一事务内写入。
+        List<Long> orderedIds = ids.stream().sorted().toList();
+        for (int start = 0; start < orderedIds.size(); start += SORT_QUERY_BATCH_SIZE) {
+            List<Long> batch = orderedIds.subList(start, Math.min(start + SORT_QUERY_BATCH_SIZE, orderedIds.size()));
+            categoryMapper.selectList(Wrappers.<Category>lambdaQuery()
+                            .in(Category::getId, batch)
+                            .orderByAsc(Category::getId)
+                            .last("FOR UPDATE"))
+                    .forEach(category -> categoriesById.put(category.getId(), category));
+        }
         for (Long id : ids) {
             if (!categoriesById.containsKey(id)) {
                 throw BusinessException.notFound("分类不存在: " + id);

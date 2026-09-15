@@ -11,7 +11,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.Size;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -71,7 +70,6 @@ public class CategoryController {
     @Operation(summary = "批量调整分类排序")
     public Result<List<CategoryVO>> sort(
             @NotEmpty(message = "排序列表不能为空")
-            @Size(max = 1000, message = "排序列表不能超过 1000 项")
             @RequestBody List<@Valid SortItemDTO> items
     ) {
         return Result.success(categoryService.sort(items));

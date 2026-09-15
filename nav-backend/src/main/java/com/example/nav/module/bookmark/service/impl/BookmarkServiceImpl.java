@@ -32,6 +32,7 @@ public class BookmarkServiceImpl implements BookmarkService {
 
     private static final int SORT_STEP = 10;
     private static final int MAX_BATCH_ITEMS = 1000;
+    private static final int LOCK_QUERY_BATCH_SIZE = 1000;
 
     private final BookmarkMapper bookmarkMapper;
     private final CategoryMapper categoryMapper;
@@ -212,9 +213,6 @@ public class BookmarkServiceImpl implements BookmarkService {
         if (items == null || items.isEmpty()) {
             throw BusinessException.badRequest("排序列表不能为空");
         }
-        if (items.size() > MAX_BATCH_ITEMS) {
-            throw BusinessException.badRequest("排序列表不能超过 1000 项");
-        }
 
         Set<Long> ids = new HashSet<>();
         for (SortItemDTO item : items) {
@@ -257,10 +255,16 @@ public class BookmarkServiceImpl implements BookmarkService {
 
     private Map<Long, Bookmark> loadBookmarks(Set<Long> ids) {
         Map<Long, Bookmark> bookmarksById = new HashMap<>();
-        bookmarkMapper.selectList(Wrappers.<Bookmark>lambdaQuery()
-                        .in(Bookmark::getId, ids)
-                        .last("FOR UPDATE"))
-                .forEach(bookmark -> bookmarksById.put(bookmark.getId(), bookmark));
+        // 分段只限制 SQL 参数量；统一锁序，且全部校验完成后才在同一事务内写入。
+        List<Long> orderedIds = ids.stream().sorted().toList();
+        for (int start = 0; start < orderedIds.size(); start += LOCK_QUERY_BATCH_SIZE) {
+            List<Long> batch = orderedIds.subList(start, Math.min(start + LOCK_QUERY_BATCH_SIZE, orderedIds.size()));
+            bookmarkMapper.selectList(Wrappers.<Bookmark>lambdaQuery()
+                            .in(Bookmark::getId, batch)
+                            .orderByAsc(Bookmark::getId)
+                            .last("FOR UPDATE"))
+                    .forEach(bookmark -> bookmarksById.put(bookmark.getId(), bookmark));
+        }
         for (Long id : ids) {
             if (!bookmarksById.containsKey(id)) {
                 throw BusinessException.notFound("书签不存在: " + id);
