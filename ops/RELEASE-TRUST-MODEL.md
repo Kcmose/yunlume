@@ -33,9 +33,12 @@
    process and intended HTTPS client necessarily handle the credential; no `gh`, jq, Python,
    mutation command, or later step inherits it. All Release mutations continue to use
    `GITHUB_TOKEN`. The secret must be a fine-grained PAT or GitHub App installation token scoped to
-   this repository with **Administration: read** and no Administration write permission. Missing,
-   unauthorized, malformed, or disabled policy fails closed before mutation. `enabled` must be
-   true; `enforced_by_owner` must be a boolean but may be false for repository-level enablement. Never print
+   this repository with **Administration: read** and no Administration write permission.
+   The workflow checks this policy before invoking `ops/converge-release-assets.sh`; extracting
+   that script keeps the inline GitHub expression below the platform's size limit without passing
+   the policy token to release mutations. Missing, unauthorized, malformed, or disabled policy
+   fails closed before mutation. `enabled` must be true; `enforced_by_owner` must be a boolean
+   but may be false for repository-level enablement. Never print
    or pass this secret to mutation commands.
 6. In candidate/Release verification and publication jobs, GitHub CLI is downloaded as exact
    v2.93.0 archives with published SHA-256 checksums and its

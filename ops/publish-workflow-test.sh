@@ -4,8 +4,9 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly SCRIPT_DIR
 workflow_source="$(<"${SCRIPT_DIR}/../.github/workflows/publish-images.yml")"
+converge_source="$(<"${SCRIPT_DIR}/converge-release-assets.sh")"
 
-validation_source="${workflow_source}"$'\n'"$(<"${SCRIPT_DIR}/release-preflight.sh")"$'\n'"$(<"${SCRIPT_DIR}/lib/publish-workflow.sh")"
+validation_source="${workflow_source}"$'\n'"${converge_source}"$'\n'"$(<"${SCRIPT_DIR}/release-preflight.sh")"$'\n'"$(<"${SCRIPT_DIR}/lib/publish-workflow.sh")"
 
 require_workflow_text() {
   local description="$1"
@@ -99,7 +100,7 @@ require_workflow_text 'GitHub immutable Release asset verification' \
 require_workflow_text 'final tag identity guard immediately before publication' \
   '# Final remote tag identity guard: keep immediately before draft=false.'
 
-final_guard="${workflow_source##*# Final remote tag identity guard: keep immediately before draft=false.}"
+final_guard="${converge_source##*# Final remote tag identity guard: keep immediately before draft=false.}"
 if [[ "${final_guard}" != *'assert_release_tag_commit "$REPOSITORY" "$RELEASE_TAG" "$GITHUB_SHA" || exit 1'* ||
       "${final_guard}" != *'gh api "repos/$REPOSITORY/compare/$GITHUB_SHA...$default_branch_ref"'* ||
       "${final_guard}" != *'[[ "$default_branch_status" == "ahead" || "$default_branch_status" == "identical" ]]'* ||
@@ -117,16 +118,16 @@ fi
 
 publish_marker='publish_release_by_id "$REPOSITORY" "$release_id"'
 rolling_marker='--tag "${image}:${minor_version}"'
-publish_offset="${workflow_source%%"${publish_marker}"*}"
-rolling_offset="${workflow_source%%"${rolling_marker}"*}"
-if [[ "${workflow_source}" != *"${rolling_marker}"* ||
+publish_offset="${converge_source%%"${publish_marker}"*}"
+rolling_offset="${converge_source%%"${rolling_marker}"*}"
+if [[ "${converge_source}" != *"${rolling_marker}"* ||
       ${#rolling_offset} -le ${#publish_offset} ]]; then
   printf 'Rolling major.minor image tags must be promoted only after the Release is published.\n' >&2
   exit 1
 fi
 require_workflow_text 'published release read-back verification' \
   'Release publication read-back did not match the intended immutable release'
-readback_offset="${workflow_source%%Release publication read-back did not match the intended immutable release*}"
+readback_offset="${converge_source%%Release publication read-back did not match the intended immutable release*}"
 if (( ${#readback_offset} >= ${#rolling_offset} )); then
   printf 'Rolling aliases are promoted before published Release read-back verification.\n' >&2
   exit 1
@@ -235,10 +236,11 @@ require_workflow_text 'independent release provenance baseline asset' \
 require_workflow_text 'all release outputs are attested before upload' \
   'name: Attest canonical invocation and complete core subject set'
 release_attestation_marker='name: Attest canonical invocation and complete core subject set'
-release_upload_marker='upload_release_asset_by_id "$REPOSITORY" "$release_id" "$asset"'
+release_upload_marker='bash ops/converge-release-assets.sh'
 release_attestation_prefix="${workflow_source%%"${release_attestation_marker}"*}"
 release_upload_prefix="${workflow_source%%"${release_upload_marker}"*}"
-if (( ${#release_attestation_prefix} >= ${#release_upload_prefix} )); then
+if [[ "${workflow_source}" != *"${release_upload_marker}"* ]] ||
+   (( ${#release_attestation_prefix} >= ${#release_upload_prefix} )); then
   printf 'Release asset attestations must be persisted before draft asset upload.\n' >&2
   exit 1
 fi
@@ -288,8 +290,8 @@ require_workflow_text 'published frontend immutable tag check' \
   'verify_immutable_image frontend "$published_frontend_digest"'
 
 published_marker='if [[ "$release_draft" == false ]]; then'
-published_branch="${workflow_source#*"${published_marker}"}"
-published_branch="${published_branch%%$'\n''          else'*}"
+published_branch="${converge_source#*"${published_marker}"}"
+published_branch="${published_branch%%$'\n''else'*}"
 if [[ "${published_branch}" == *'gh release upload '* ||
       "${published_branch}" == *'-F draft=false'* ||
       "${published_branch}" == *'--method PATCH'* ||
@@ -306,8 +308,8 @@ require_workflow_text 'published rerun exits before mutation branch' \
 
 require_workflow_text 'immediate complete immutable verification before rolling aliases' \
   '# Full immutable Release verification: keep immediately before rolling aliases.'
-pre_alias="${workflow_source##*# Full immutable Release verification: keep immediately before rolling aliases.}"
-first_alias_marker='            docker buildx imagetools create'
+pre_alias="${converge_source##*# Full immutable Release verification: keep immediately before rolling aliases.}"
+first_alias_marker='  docker buildx imagetools create'
 pre_alias="${pre_alias%%"${first_alias_marker}"*}"
 if [[ "${pre_alias}" != *'verify_published_release'* ]]; then
   printf 'Pre-alias verification does not invoke the complete verifier.\n' >&2
@@ -335,7 +337,7 @@ require_workflow_text 'archive upload precedes candidate commitment' \
 require_workflow_text 'late canonical owner marker' 'canonical-owner.json'
 require_workflow_text 'canonical bytes verified before ownership transfer' \
   '# Verify every canonical byte before final ownership.'
-ownership_window="${workflow_source##*# Verify every canonical byte before final ownership.}"
+ownership_window="${converge_source##*# Verify every canonical byte before final ownership.}"
 ownership_window="${ownership_window%%ensure_release_asset_once_by_id \"\$REPOSITORY\" \"\$release_id\" release/canonical-owner.json*}"
 if [[ "${ownership_window}" != *'verify_canonical_provenance release'* ||
       "${ownership_window}" != *'gh attestation verify "$asset"'* ]]; then
@@ -357,7 +359,8 @@ for i,m in enumerate(job_starts):
     jobs[m.group(1)] = text[m.start():(job_starts[i+1].start() if i+1<len(job_starts) else len(text))]
 mutating_tokens=('actions/upload-artifact@','actions/attest@','actions/attest-build-provenance@',
                  'docker/build-push-action@','--method POST','--method PATCH','--method DELETE',
-                 'docker buildx imagetools create','upload_release_asset_by_id','publish_release_by_id')
+                 'docker buildx imagetools create','upload_release_asset_by_id','publish_release_by_id',
+                 'bash ops/converge-release-assets.sh')
 allowed={'release-preflight','published-release-verify','release-reserve'}
 for name,body in jobs.items():
     if any(token in body for token in mutating_tokens) and name not in allowed:
@@ -393,6 +396,26 @@ preflight=Path(sys.argv[1]).resolve().parents[2].joinpath('ops/release-preflight
 for token in mutating_tokens:
     assert token not in preflight, ('preflight helper mutation', token)
 assert 'verify_rolling_aliases' in preflight
+converge=Path(sys.argv[1]).resolve().parents[2].joinpath('ops/converge-release-assets.sh').read_text()
+assert '${{' not in converge, 'External release script contains unevaluated workflow expressions'
+# 带表达式的 run 会编译为 format(...)；按转义后的表达式大小检查平台限制。
+for match in re.finditer(r'^        run: \|\n((?:(?:          [^\n]*|)[\n])*)', text, re.M):
+    script='\n'.join(line[10:] for line in match.group(1).splitlines())+'\n'
+    expressions=list(re.finditer(r'\$\{\{(.*?)\}\}', script, re.S))
+    if not expressions:
+        continue
+    parts=[]
+    previous=0
+    for index, expression in enumerate(expressions):
+        literal=script[previous:expression.start()]
+        parts.append(literal.replace("'", "''").replace('{', '{{').replace('}', '}}'))
+        parts.append('{'+str(index)+'}')
+        previous=expression.end()
+    parts.append(script[previous:].replace("'", "''").replace('{', '{{').replace('}', '}}'))
+    compiled="format('"+''.join(parts)+"', "+', '.join(e.group(1) for e in expressions)+')'
+    expression_length=len(compiled.encode('utf-16-le'))//2
+    line=text.count('\n', 0, match.start())+1
+    assert expression_length<=21000, ('run expression exceeds GitHub limit', line, expression_length)
 print('Published route graph gates are present; external writes are exercised by the behavior suite')
 PY
 

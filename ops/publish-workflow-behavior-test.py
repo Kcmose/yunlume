@@ -45,7 +45,18 @@ def step_script(name):
     end = text.find("\n      - name:", start + 1)
     body = text[start:end if end != -1 else len(text)]
     body = body.split("        run: |\n", 1)[1]
-    return "\n".join(line[10:] if line.startswith("          ") else line for line in body.splitlines()) + "\n"
+    lines = []
+    for line in body.splitlines():
+        line = line[10:] if line.startswith("          ") else line
+        external = re.fullmatch(r"bash (ops/[A-Za-z0-9_./-]+\.sh)", line)
+        if external:
+            script = (REPO / external.group(1)).resolve()
+            if not script.is_relative_to(REPO.resolve()):
+                raise AssertionError("Workflow script escapes repository: " + external.group(1))
+            lines.append(script.read_text(encoding="utf-8"))
+        else:
+            lines.append(line)
+    return "\n".join(lines) + "\n"
 
 
 MOCK = r'''#!/usr/bin/env python3

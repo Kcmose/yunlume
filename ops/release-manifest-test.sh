@@ -58,6 +58,7 @@ if python3 "${SCRIPT_DIR}/create-release-manifest.py" \
 fi
 
 workflow_source="$(<"${SCRIPT_DIR}/../.github/workflows/publish-images.yml")"
+workflow_source+=$'\n'"$(<"${SCRIPT_DIR}/converge-release-assets.sh")"
 for expected in \
   'name: Resolve candidate digests from durable GitHub attestations' \
   'packages: write' \
