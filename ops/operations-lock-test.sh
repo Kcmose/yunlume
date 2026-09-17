@@ -5,7 +5,8 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 LOCK_FILE="/run/lock/yunlume-operations.lock"
 EXPECTED_BUSY="已有 yunlume 操作正在运行"
-TEMP_DIR="$(mktemp -d -t yunlume-operations-lock-test.XXXXXXXX)"
+# 安装器会先校验父目录权限；使用 root 私有目录，避免依赖 CI 的 /opt 权限。
+TEMP_DIR="$(mktemp -d /root/yunlume-operations-lock-test.XXXXXXXX)"
 
 cleanup() {
   local status=$?
@@ -59,7 +60,7 @@ install_command=(
   bash "${ROOT_DIR}/install.sh"
   --mode docker
   --version 1.0.5
-  --install-dir /opt/yunlume-lock-test
+  --install-dir "${TEMP_DIR}/install"
   --release-base-url http://127.0.0.1:9
 )
 rollback_command=(
