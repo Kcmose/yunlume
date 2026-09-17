@@ -53,13 +53,17 @@ candidate_registry_digest() {
 }
 candidate_copy_to_registry() {
   publish_calls=$((publish_calls + 1))
+  [[ "${NOISY_TOOLS:-false}" != true ]] || printf 'Getting image list signatures\nCopying image sha256:fixture\n'
   case "${INTERRUPT_AT:-}" in
     before-final-manifest) return 71 ;;
     after-final-manifest) registry_digest="$4"; return 72 ;;
   esac
   registry_digest="$4"
 }
-candidate_verify_attestation() { verify_calls=$((verify_calls + 1)); }
+candidate_verify_attestation() {
+  verify_calls=$((verify_calls + 1))
+  [[ "${NOISY_TOOLS:-false}" != true ]] || printf 'Attestation verified\n'
+}
 export -f candidate_registry_digest candidate_copy_to_registry candidate_verify_attestation
 
 expected="sha256:$root_hex"
@@ -97,6 +101,24 @@ for phase in before-build after-build after-root-validation after-attestation be
   assert_eq "$publish_calls" "$before_retry_publish_calls"
   [[ "$verify_calls" -ge 2 ]] || fail "candidate attestation not verified for $phase"
 done
+# 模拟真实工具的 stdout 进度，验证命令替换仅捕获 digest，且重试不丢失失败状态。
+NOISY_TOOLS=true
+registry_digest=''; INTERRUPT_AT=''
+actual="$(publish_candidate_transaction image candidate "$work/candidate.oci.tar" "$expected" 2>"$work/progress")"
+assert_eq "$actual" "$expected"
+grep -Fq 'Copying image' "$work/progress" || fail 'copy progress was lost'
+grep -Fq 'Attestation verified' "$work/progress" || fail 'attestation output was lost'
+registry_digest="$expected"
+actual="$(publish_candidate_transaction image candidate "$work/candidate.oci.tar" "$expected" 2>"$work/progress")"
+assert_eq "$actual" "$expected"
+registry_digest=''; INTERRUPT_AT=before-final-manifest
+if actual="$(publish_candidate_transaction image candidate "$work/candidate.oci.tar" "$expected" 2>"$work/progress")"; then
+  fail 'noisy failed publication was accepted'
+else
+  assert_eq "$?" 71
+fi
+assert_eq "$actual" ''
+INTERRUPT_AT=''; NOISY_TOOLS=false
 registry_digest="sha256:$(printf b%.0s {1..64})"
 if publish_candidate_transaction image candidate "$work/candidate.oci.tar" "$expected" >/dev/null 2>&1; then
   fail 'moved candidate reference was accepted'

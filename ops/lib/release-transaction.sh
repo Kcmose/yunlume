@@ -191,7 +191,7 @@ publish_candidate_transaction() {
       printf 'Candidate reference moved: expected %s, got %s.\n' "$expected_digest" "$current" >&2
       return 1
     }
-    candidate_verify_attestation "$image" "$current" || return
+    candidate_verify_attestation "$image" "$current" >&2 || return
     printf '%s\n' "$current"
     return 0
   else
@@ -205,13 +205,14 @@ publish_candidate_transaction() {
       "$root" "$expected_digest" >&2
     return 1
   }
-  candidate_copy_to_registry "$image" "$tag" "$archive" "$expected_digest" || return
+  # stdout 是调用方捕获的唯一 digest；外部工具的进度和验证信息写入 stderr。
+  candidate_copy_to_registry "$image" "$tag" "$archive" "$expected_digest" >&2 || return
   published="$(candidate_registry_digest "$image" "$tag")" || return
   [[ "$published" == "$expected_digest" ]] || {
     printf 'Post-skopeo candidate digest %s differs from OCI root %s.\n' "$published" "$expected_digest" >&2
     return 1
   }
-  candidate_verify_attestation "$image" "$published" || return
+  candidate_verify_attestation "$image" "$published" >&2 || return
   printf '%s\n' "$published"
 }
 
