@@ -257,7 +257,7 @@ require_workflow_text 'canonical candidate digest commitment' \
 require_workflow_text 'canonical bundle digest is persisted' \
   '"attestationBundleSha256": bundle_sha'
 require_workflow_text 'verification uses exact canonical bundle' \
-  'attestation_args=(--bundle "$verify_dir/release-assets.sigstore.json")'
+  'attestation_args=(--bundle "$verify_dir/release-assets.sigstore.json"'
 require_workflow_text 'attestation source commit binding' \
   '--source-digest "$GITHUB_SHA"'
 require_workflow_text 'attestation source tag binding' \

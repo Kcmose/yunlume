@@ -123,7 +123,8 @@ if (( ${#matching_releases[@]} == 1 )); then
       attestation_args=()
       case "$asset_name" in
         release-provenance.json|release-assets.sigstore.json) ;;
-        *) attestation_args=(--bundle "$verify_dir/release-assets.sigstore.json") ;;
+        *) attestation_args=(--bundle "$verify_dir/release-assets.sigstore.json"
+            --predicate-type https://yunlume.example/attestations/release-invocation/v1) ;;
       esac
       gh attestation verify "$verify_dir/$asset_name" \
         "${attestation_args[@]}" \

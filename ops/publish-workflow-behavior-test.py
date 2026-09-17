@@ -49,7 +49,7 @@ def step_script(name):
 
 
 MOCK = r'''#!/usr/bin/env python3
-import json, os, pathlib, subprocess, sys
+import base64, json, os, pathlib, subprocess, sys
 p=pathlib.Path(os.environ['FIXTURE']); state=json.loads((p/'state.json').read_text()); args=sys.argv[1:]
 tool=pathlib.Path(sys.argv[0]).name
 with (p/'calls').open('a') as log: log.write(tool+' '+repr(args)+'\n')
@@ -113,6 +113,16 @@ if tool=='docker':
 if args==['version']: print('gh version 2.93.0 (fixture)'); sys.exit()
 if args[:2] in (['release','verify'],['release','verify-asset'],['attestation','verify']):
     if '--help' not in args and state.get('signature_failure'): fail()
+    if args[:2]==['attestation','verify'] and '--help' not in args:
+        predicate=args[args.index('--predicate-type')+1] if '--predicate-type' in args else 'https://slsa.dev/provenance/v1'
+        if '--bundle' in args and pathlib.Path(args[args.index('--bundle')+1]).name=='release-assets.sigstore.json':
+            bundle=json.loads(pathlib.Path(args[args.index('--bundle')+1]).read_text())
+            statement=json.loads(base64.b64decode(bundle['dsseEnvelope']['payload']))
+            expected=statement['predicateType']
+        else:
+            expected='https://slsa.dev/provenance/v1'
+        if predicate!=expected:
+            print('no attestations found with predicate type: '+predicate,file=sys.stderr); fail()
     sys.exit()
 if args and args[0]=='api':
     if '--method' in args and args[args.index('--method')+1]!='GET':
@@ -414,6 +424,20 @@ def tests(f):
         f.state = copy.deepcopy(base)
         configure(f.state)
         f.run("postpublish " + label + " refuses under conditional", setup + "if verify_published_release; then exit 9; fi")
+
+    # 执行真实草稿发布中的验证循环；默认 SLSA、错误类型和签名失败均不能被接受。
+    loop_start = converge.index('for asset in "${expected_assets[@]}"; do\n    attestation_args=()')
+    draft_loop = converge[loop_start:converge.index('\n  done', loop_start) + len('\n  done')]
+    (sandbox / "release").symlink_to(f.assets, target_is_directory=True)
+    draft_setup = 'set -Eeuo pipefail\nexpected_assets=(' + ' '.join(q('release/' + n) for n in base['asset_ids'].values()) + ')\n'
+    custom_option = '--predicate-type https://yunlume.example/attestations/release-invocation/v1'
+    f.state = copy.deepcopy(base)
+    f.run("draft verifies custom core subjects and SLSA anchors", draft_setup + draft_loop, cwd=sandbox)
+    f.run("draft rejects omitted custom predicate", draft_setup + draft_loop.replace(custom_option, ''), cwd=sandbox, success=False)
+    f.run("draft rejects wrong custom predicate", draft_setup + draft_loop.replace(custom_option, '--predicate-type https://example.invalid/wrong'), cwd=sandbox, success=False)
+    f.run("postpublish rejects omitted custom predicate", setup.replace(custom_option, '') + "verify_published_release", success=False)
+    f.state["signature_failure"] = True
+    f.run("draft rejects signature failure", draft_setup + draft_loop, cwd=sandbox, success=False)
 
 
 def candidate_recovery_tests(f):

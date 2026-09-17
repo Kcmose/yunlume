@@ -15,8 +15,11 @@
    commit/component GHCR tag is published last and is only a locator. Recovery requires the
    locator to equal the committed digest and rejects a moved tag even if the new digest has another
    otherwise valid same-source attestation. The OCI archive hash is never accepted as a substitute.
-4. `release-assets.sigstore.json` is a generic `actions/attest` custom attestation. Its signed
-   predicate contains the exact canonical run and attempt, source SHA/ref, workflow identity/ref,
+4. `release-assets.sigstore.json` is a generic `actions/attest` custom attestation. Core asset
+   verification explicitly selects `--predicate-type https://yunlume.example/attestations/release-invocation/v1`
+   during draft publication, published readback, and preflight reruns. The two anchor files,
+   backend JAR, and OCI images retain their separate SLSA build-provenance verification. The custom
+   signed predicate contains the exact canonical run and attempt, source SHA/ref, workflow identity/ref,
    both committed candidate root digests, and the complete core release subject name/digest set.
    `release-provenance.json` records the predicate and bundle SHA-256 values and defines canonical
    identity as `run:attempt:predicate-sha256:bundle-sha256`; the API attestation ID is deliberately
