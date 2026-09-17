@@ -269,8 +269,9 @@ import sys, urllib.parse
 print(urllib.parse.quote(sys.argv[1], safe=''))
 PY
 )" || return
-  gh api --hostname uploads.github.com --method POST \
-    "repos/$repository/releases/$release_id/assets?name=$encoded_name" \
+  # 使用完整上传 URL；--hostname 会让 gh 将上传域名当作 API 主机处理。
+  gh api --hostname github.com --method POST \
+    "https://uploads.github.com/repos/$repository/releases/$release_id/assets?name=$encoded_name" \
     -H 'Content-Type: application/octet-stream' --input "$path" >/dev/null
 }
 
@@ -329,8 +330,9 @@ PY
   # immutable releases provide the server-side race barrier if another actor
   # publishes between this read and the POST.
   assert_expected_draft_release_by_id "$repository" "$release_id" "$tag" "$sha" "$marker" || return
-  gh api --hostname uploads.github.com --method POST \
-    "repos/$repository/releases/$release_id/assets?name=$encoded_name" \
+  # 保留 github.com 的认证上下文，完整 URL 指定独立的附件上传端点。
+  gh api --hostname github.com --method POST \
+    "https://uploads.github.com/repos/$repository/releases/$release_id/assets?name=$encoded_name" \
     -H 'Content-Type: application/octet-stream' --input "$path" >/dev/null
 }
 

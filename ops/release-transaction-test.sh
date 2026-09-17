@@ -115,7 +115,7 @@ MOCK_TAG=v1.2.3
 MOCK_SHA="$(printf a%.0s {1..40})"
 gh() {
   if [[ "$*" == *'--method DELETE'* || "$*" == *'--method POST'* || "$*" == *'--method PATCH'* ]]; then
-    printf '%s\n' "$*" >> "$mutations_file"; return 0
+    printf '%s\n' "$*" >> "$mutations_file"; return "${MOCK_MUTATION_STATUS:-0}"
   fi
   if [[ "$*" == *'/immutable-releases'* ]]; then printf '%s\ttrue\n' "${MOCK_IMMUTABLE_ENABLED:-true}"; return 0; fi
   if [[ "$*" == *'/releases/77/assets'* ]]; then
@@ -165,8 +165,29 @@ assert_eq "$(wc -l < "$mutations_file")" 0
 printf 0 > "$release_reads_file"; : > "$mutations_file"; MOCK_STATE=draft; RACE_ON_READ=0; export MOCK_STATE RACE_ON_READ
 upload_release_asset_by_id repo/name 77 "$work/asset.bin" "$MOCK_TAG" "$MOCK_SHA" "$MOCK_MARKER"
 assert_eq "$(wc -l < "$mutations_file")" 1
-[[ "$(<"$mutations_file")" == *'--hostname uploads.github.com --method POST repos/repo/name/releases/77/assets?name=asset.bin'* ]] ||
+[[ "$(<"$mutations_file")" == *'--hostname github.com --method POST https://uploads.github.com/repos/repo/name/releases/77/assets?name=asset.bin'* ]] ||
   fail 'asset upload did not use exact release ID/upload host'
+
+# 两个上传入口都必须保留完整 URL 及失败状态，不能被 gh 改写主机。
+printf payload > "$work/asset-1.bin"
+for uploader in upload_release_asset_by_id ensure_release_asset_once_by_id; do
+  : > "$mutations_file"
+  "$uploader" repo/name 77 "$work/asset-1.bin" "$MOCK_TAG" "$MOCK_SHA" "$MOCK_MARKER"
+  assert_eq "$(wc -l < "$mutations_file")" 1
+  [[ "$(<"$mutations_file")" == *'--hostname github.com --method POST https://uploads.github.com/repos/repo/name/releases/77/assets?name=asset-1.bin'* ]] ||
+    fail "$uploader used an incorrect upload URL"
+  : > "$mutations_file"
+  MOCK_MUTATION_STATUS=73
+  if "$uploader" repo/name 77 "$work/asset-1.bin" "$MOCK_TAG" "$MOCK_SHA" "$MOCK_MARKER"; then
+    fail "$uploader swallowed upload failure"
+  else
+    assert_eq "$?" 73
+  fi
+  MOCK_MUTATION_STATUS=0
+  : > "$mutations_file"
+  "$uploader" repo/name 77 "$work/asset-1.bin" "$MOCK_TAG" "$MOCK_SHA" "$MOCK_MARKER"
+  assert_eq "$(wc -l < "$mutations_file")" 1
+done
 printf 0 > "$release_reads_file"; : > "$mutations_file"; MOCK_STATE=draft; export MOCK_STATE
 publish_release_by_id repo/name 77 "$MOCK_TAG" "$MOCK_SHA" "$MOCK_MARKER"
 assert_eq "$(wc -l < "$mutations_file")" 1
