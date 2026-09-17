@@ -15,7 +15,12 @@ env -0 > "$MOCK_CURL_ENV"
 cat > "$MOCK_CURL_CONFIG"
 case "${MOCK_POLICY_MODE:-ok}" in
   ok) printf '{"enabled":true,"enforced_by_owner":true}\n' ;;
+  repository_enabled) printf '{"enabled":true,"enforced_by_owner":false}\n' ;;
   disabled) printf '{"enabled":false,"enforced_by_owner":true}\n' ;;
+  repository_disabled) printf '{"enabled":false,"enforced_by_owner":false}\n' ;;
+  invalid_enabled) printf '{"enabled":1,"enforced_by_owner":false}\n' ;;
+  missing_owner) printf '{"enabled":true}\n' ;;
+  null_owner) printf '{"enabled":true,"enforced_by_owner":null}\n' ;;
   malformed) printf '{"enabled":true,"enforced_by_owner":"true"}\n' ;;
   extra) printf '{"enabled":true,"enforced_by_owner":true,"surprise":1}\n' ;;
   forbidden) exit 22 ;;
@@ -54,7 +59,10 @@ done
 if "$SCRIPT_DIR/check-immutable-releases-policy.sh" owner/repo >/dev/null 2>&1; then
   fail 'missing policy token was accepted'
 fi
-for mode in forbidden disabled malformed extra; do
+MOCK_POLICY_MODE=repository_enabled IMMUTABLE_RELEASES_READ_TOKEN=policy_secret \
+  "$SCRIPT_DIR/check-immutable-releases-policy.sh" Valid-Owner/repo.name
+
+for mode in forbidden disabled repository_disabled invalid_enabled missing_owner null_owner malformed extra; do
   export MOCK_POLICY_MODE="$mode"
   if IMMUTABLE_RELEASES_READ_TOKEN=policy_secret "$SCRIPT_DIR/check-immutable-releases-policy.sh" owner/repo >/dev/null 2>&1; then
     fail "policy response mode was accepted: $mode"

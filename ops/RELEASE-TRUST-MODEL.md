@@ -31,7 +31,8 @@
    mutation command, or later step inherits it. All Release mutations continue to use
    `GITHUB_TOKEN`. The secret must be a fine-grained PAT or GitHub App installation token scoped to
    this repository with **Administration: read** and no Administration write permission. Missing,
-   unauthorized, disabled, or non-owner-enforced policy fails closed before mutation. Never print
+   unauthorized, malformed, or disabled policy fails closed before mutation. `enabled` must be
+   true; `enforced_by_owner` must be a boolean but may be false for repository-level enablement. Never print
    or pass this secret to mutation commands.
 6. In candidate/Release verification and publication jobs, GitHub CLI is downloaded as exact
    v2.93.0 archives with published SHA-256 checksums and its

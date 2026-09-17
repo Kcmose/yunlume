@@ -44,6 +44,9 @@ except Exception as exc:
     raise SystemExit(f"Malformed immutable-release policy JSON: {exc}")
 if not isinstance(value, dict) or set(value) != {"enabled", "enforced_by_owner"}:
     raise SystemExit("Immutable-release policy JSON must contain exactly enabled and enforced_by_owner")
-if value["enabled"] is not True or value["enforced_by_owner"] is not True:
-    raise SystemExit("Repository immutable releases must be enabled and enforced by the owner")
+# 所有者是否强制执行与仓库是否已启用是两个独立状态。
+if type(value["enforced_by_owner"]) is not bool:
+    raise SystemExit("Immutable-release enforced_by_owner must be a boolean")
+if value["enabled"] is not True:
+    raise SystemExit("Repository immutable releases must be enabled")
 ' <<<"$response"
