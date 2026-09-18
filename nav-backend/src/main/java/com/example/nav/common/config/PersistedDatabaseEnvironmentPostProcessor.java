@@ -108,8 +108,26 @@ public class PersistedDatabaseEnvironmentPostProcessor implements EnvironmentPos
         boolean requireTls = "require".equals(sslMode);
         boolean verifyCa = "verify-ca".equals(sslMode);
         boolean verifyFull = "verify-full".equals(sslMode);
-        if (!(requireTls || verifyCa || verifyFull)) {
+        boolean privatePlaintext = "disable".equals(sslMode);
+        if (!(requireTls || verifyCa || verifyFull || privatePlaintext)) {
             throw new IllegalStateException("Persisted external database TLS mode is unsafe");
+        }
+        if (privatePlaintext) {
+            var addresses = PostgresqlPrivateNetwork.resolve(
+                    properties.getProperty("nav.database-config.private-host"));
+            if (!String.join(",", addresses).equals(
+                    properties.getProperty("nav.database-config.private-addresses"))) {
+                throw new IllegalStateException("明文 PostgreSQL 私网解析已变化，拒绝恢复连接");
+            }
+            java.net.URI endpoint = java.net.URI.create(url.substring("jdbc:".length()));
+            if (endpoint.getPort() < 1 || endpoint.getPort() > 65535
+                    || !PostgresqlPrivateNetwork.authority(addresses.get(0), endpoint.getPort())
+                            .equals(endpoint.getRawAuthority())) {
+                throw new IllegalStateException("明文 PostgreSQL 连接地址与已确认私网地址不一致");
+            }
+        } else if (properties.containsKey("nav.database-config.private-host")
+                || properties.containsKey("nav.database-config.private-addresses")) {
+            throw new IllegalStateException("Unexpected plaintext PostgreSQL settings");
         }
         if (!"public".equals(parameters.get("currentSchema"))
                 || !"5".equals(parameters.get("connectTimeout"))
@@ -128,7 +146,7 @@ public class PersistedDatabaseEnvironmentPostProcessor implements EnvironmentPos
             throw new IllegalStateException("Persisted database URL contains unknown parameters");
         }
         if (rootCertificate != null) {
-            if (requireTls) {
+            if (requireTls || privatePlaintext) {
                 throw new IllegalStateException("Unverified TLS mode must not load a CA file");
             }
             requireSecureFile(caFile, "Persisted PostgreSQL CA certificate");

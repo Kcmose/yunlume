@@ -1,8 +1,10 @@
 package com.example.nav.module.install.service;
 
 import com.example.nav.common.config.DatabaseInstallProperties;
+import com.example.nav.common.config.PostgresqlPrivateNetwork;
 import com.example.nav.common.exception.BusinessException;
 import com.example.nav.module.install.model.DatabaseConnectionSpec;
+import com.example.nav.module.install.model.DatabaseSslMode;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
@@ -150,6 +152,15 @@ public class DatabaseConfigurationStore {
         if (spec.sslMode() == null) {
             throw BusinessException.badRequest("数据库 SSL 模式不能为空");
         }
+        if (spec.sslMode() == DatabaseSslMode.DISABLE) {
+            if (!PostgresqlPrivateNetwork.resolve(spec.host()).equals(spec.resolvedAddresses())
+                    || spec.caCertificatePem() != null
+                    || !jdbcUrl.startsWith("jdbc:postgresql://"
+                            + PostgresqlPrivateNetwork.authority(spec.resolvedAddresses().get(0), spec.port())
+                            + "/" + spec.database() + "?sslmode=disable&")) {
+                throw BusinessException.badRequest("明文 PostgreSQL 配置与已确认的私网目标不一致");
+            }
+        }
         try {
             if (spec.caCertificatePem() != null) {
                 writeTextAtomically(caCertificateFile, spec.caCertificatePem());
@@ -162,6 +173,10 @@ public class DatabaseConfigurationStore {
             values.setProperty("spring.datasource.url", jdbcUrl);
             values.setProperty("spring.datasource.username", spec.username());
             values.setProperty("spring.datasource.password", spec.password());
+            if (spec.sslMode() == DatabaseSslMode.DISABLE) {
+                values.setProperty("nav.database-config.private-host", spec.host());
+                values.setProperty("nav.database-config.private-addresses", String.join(",", spec.resolvedAddresses()));
+            }
             writePropertiesAtomically(configFile, values);
         } catch (RuntimeException exception) {
             if (!Files.exists(configFile, LinkOption.NOFOLLOW_LINKS)) {

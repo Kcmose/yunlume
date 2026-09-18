@@ -1,6 +1,7 @@
 package com.example.nav.module.install.service;
 
 import com.example.nav.common.config.DatabaseInstallProperties;
+import com.example.nav.common.config.PostgresqlPrivateNetwork;
 import com.example.nav.common.exception.BusinessException;
 import com.example.nav.common.security.SecureTransportPolicy;
 import com.example.nav.module.install.dto.DatabaseConfigureDTO;
@@ -269,11 +270,25 @@ public class DatabaseSetupService {
         String username = validateUsername(dto.username());
         String password = validatePassword(dto.password());
         DatabaseSslMode sslMode = dto.sslMode() == null ? DatabaseSslMode.VERIFY_FULL : dto.sslMode();
-        if (sslMode == DatabaseSslMode.DISABLE || sslMode == DatabaseSslMode.PREFER) {
+        if (sslMode == DatabaseSslMode.PREFER) {
             throw BusinessException.badRequest("外部数据库不允许关闭或降级 TLS 验证");
         }
         String caCertificate = null;
-        if (sslMode == DatabaseSslMode.REQUIRE) {
+        if (sslMode == DatabaseSslMode.DISABLE) {
+            if (!Boolean.TRUE.equals(dto.acknowledgeInsecureTransport())) {
+                throw BusinessException.badRequest("关闭 PostgreSQL SSL 必须确认可信私网明文传输风险");
+            }
+            if (dto.caCertificatePem() != null && !dto.caCertificatePem().isBlank()) {
+                throw BusinessException.badRequest("明文连接不应提交 CA 证书");
+            }
+            try {
+                if (!resolvedAddresses.equals(PostgresqlPrivateNetwork.resolve(host))) {
+                    throw BusinessException.conflict("数据库主机解析结果已变化，请重新测试连接");
+                }
+            } catch (IllegalStateException exception) {
+                throw BusinessException.badRequest("关闭 PostgreSQL SSL 只允许使用可信私网地址");
+            }
+        } else if (sslMode == DatabaseSslMode.REQUIRE) {
             if (!Boolean.TRUE.equals(dto.acknowledgeUnverifiedTls())) {
                 throw BusinessException.badRequest("REQUIRE 模式必须确认其不校验证书和主机名的风险");
             }
@@ -536,7 +551,9 @@ public class DatabaseSetupService {
     }
 
     private String jdbcUrl(DatabaseConnectionSpec spec, Path caPath) {
-        String host = spec.host().contains(":") ? "[" + spec.host() + "]" : spec.host();
+        String connectionHost = spec.sslMode() == DatabaseSslMode.DISABLE
+                ? spec.resolvedAddresses().get(0) : spec.host();
+        String host = connectionHost.contains(":") ? "[" + connectionHost + "]" : connectionHost;
         StringBuilder url = new StringBuilder("jdbc:postgresql://")
                 .append(host).append(':').append(spec.port()).append('/')
                 .append(spec.database())

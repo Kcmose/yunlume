@@ -15,9 +15,11 @@ export interface InstallDatabaseFormValue {
   sslMode: InstallDatabaseSslMode
   caCertificatePem: string
   acknowledgeUnverifiedTls: boolean
+  acknowledgeInsecureTransport?: boolean
 }
 
 const SSL_MODES: InstallDatabaseSslMode[] = [
+  'DISABLE',
   'REQUIRE',
   'VERIFY_CA',
   'VERIFY_FULL',
@@ -40,7 +42,9 @@ export function buildInstallDatabaseConfig(
     password: form.password,
     sslMode: form.sslMode,
   }
-  if (form.sslMode === 'REQUIRE') {
+  if (form.sslMode === 'DISABLE') {
+    config.acknowledgeInsecureTransport = form.acknowledgeInsecureTransport === true
+  } else if (form.sslMode === 'REQUIRE') {
     config.acknowledgeUnverifiedTls = form.acknowledgeUnverifiedTls
   } else {
     config.caCertificatePem = form.caCertificatePem

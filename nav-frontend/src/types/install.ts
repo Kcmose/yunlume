@@ -7,6 +7,7 @@ export type InstallState =
   | 'UNKNOWN'
 
 export type InstallDatabaseSslMode =
+  | 'DISABLE'
   | 'REQUIRE'
   | 'VERIFY_CA'
   | 'VERIFY_FULL'
@@ -22,6 +23,7 @@ export interface InstallDatabaseConfig {
   sslMode: InstallDatabaseSslMode
   caCertificatePem?: string
   acknowledgeUnverifiedTls?: boolean
+  acknowledgeInsecureTransport?: boolean
 }
 
 export interface InstallDatabaseTestResult {

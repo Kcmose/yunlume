@@ -101,6 +101,7 @@ const SSL_MODE_OPTIONS: Array<{ value: InstallDatabaseSslMode; label: string; he
   { value: 'VERIFY_FULL', label: '完整验证', help: '验证证书链及服务器主机名' },
   { value: 'VERIFY_CA', label: '验证 CA', help: '验证证书链，不校验主机名' },
   { value: 'REQUIRE', label: '仅要求加密', help: '建立加密连接，但不验证证书或主机名' },
+  { value: 'DISABLE', label: '可信私网明文', help: '仅用于同机容器或隔离私网；数据库账号、密码和数据不加密传输' },
 ]
 const DATABASE_CA_MAX_BYTES = 65_536
 const REDIS_CA_MAX_BYTES = 65_536
@@ -157,6 +158,7 @@ const form = reactive<InstallForm>({
     sslMode: 'VERIFY_FULL',
     caCertificatePem: '',
     acknowledgeUnverifiedTls: false,
+    acknowledgeInsecureTransport: false,
   },
   redis: {
     host: '',
@@ -354,7 +356,7 @@ function isValidDatabaseHost(value: string): boolean {
 }
 
 function databaseUsesCaCertificate(): boolean {
-  return form.database.sslMode !== 'REQUIRE'
+  return form.database.sslMode === 'VERIFY_CA' || form.database.sslMode === 'VERIFY_FULL'
 }
 
 function redisUsesCustomCaCertificate(): boolean {
@@ -533,6 +535,17 @@ const rules: FormRules = {
           && value !== true
         ) {
           return callback(new Error('使用 REQUIRE 前必须确认未验证证书和主机名的风险'))
+        }
+        callback()
+      },
+      trigger: 'change',
+    },
+  ],
+  'database.acknowledgeInsecureTransport': [
+    {
+      validator: (_rule, value, callback) => {
+        if (form.database.sslMode === 'DISABLE' && value !== true) {
+          return callback(new Error('请确认数据库位于可信私网并接受明文传输风险'))
         }
         callback()
       },
@@ -739,6 +752,7 @@ function scrubDatabaseAuthorization(clearTest = true) {
   form.database.password = ''
   form.database.caCertificatePem = ''
   form.database.acknowledgeUnverifiedTls = false
+  form.database.acknowledgeInsecureTransport = false
   databaseTicket.value = ''
   if (clearTest) {
     databaseTest.value = null
@@ -770,11 +784,13 @@ function invalidateDatabaseTest() {
 
 function handleDatabaseSslModeChange() {
   invalidateDatabaseTest()
-  if (form.database.sslMode === 'REQUIRE') form.database.caCertificatePem = ''
-  else form.database.acknowledgeUnverifiedTls = false
+  if (!databaseUsesCaCertificate()) form.database.caCertificatePem = ''
+  form.database.acknowledgeUnverifiedTls = false
+  form.database.acknowledgeInsecureTransport = false
   void formRef.value?.clearValidate([
     'database.caCertificatePem',
     'database.acknowledgeUnverifiedTls',
+    'database.acknowledgeInsecureTransport',
   ])
 }
 
@@ -891,7 +907,9 @@ function databaseValidationFields(): string[] {
     'database.password',
     'database.sslMode',
   ]
-  fields.push(form.database.sslMode === 'REQUIRE'
+  fields.push(form.database.sslMode === 'DISABLE'
+    ? 'database.acknowledgeInsecureTransport'
+    : form.database.sslMode === 'REQUIRE'
     ? 'database.acknowledgeUnverifiedTls'
     : 'database.caCertificatePem')
   return fields
@@ -1647,7 +1665,7 @@ onBeforeUnmount(() => {
               </div>
 
               <el-form-item
-                v-else
+                v-else-if="form.database.sslMode === 'REQUIRE'"
                 prop="database.acknowledgeUnverifiedTls"
                 class="install-database-risk"
               >
@@ -1664,6 +1682,26 @@ onBeforeUnmount(() => {
                   @change="invalidateDatabaseTest"
                 >
                   我已理解 REQUIRE 不校验证书与主机名的风险
+                </el-checkbox>
+              </el-form-item>
+              <el-form-item
+                v-else
+                prop="database.acknowledgeInsecureTransport"
+                class="install-database-risk"
+              >
+                <el-alert
+                  type="warning"
+                  :closable="false"
+                  title="明文连接不加密数据库密码和数据"
+                  description="仅用于同机 Docker 网络或隔离私网，不允许公网、回环、链路本地或元数据地址。"
+                  show-icon
+                />
+                <el-checkbox
+                  v-model="form.database.acknowledgeInsecureTransport"
+                  :disabled="databaseFieldsLocked"
+                  @change="invalidateDatabaseTest"
+                >
+                  我确认数据库位于可信私网，并接受明文传输风险
                 </el-checkbox>
               </el-form-item>
             </div>

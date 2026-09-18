@@ -5,6 +5,7 @@ import InstallView from './InstallView.vue'
 import { deferred, mountComponent } from '@/test/componentHarness'
 import { useInstallStore } from '@/stores/install.store'
 import type { CompleteInstallationPayload, InstallStatus } from '@/types/install'
+import type { InstallDatabaseFormValue } from '@/utils/installDatabase'
 
 const api = vi.hoisted(() => ({
   getInstallStatusApi: vi.fn(), checkInstallationApi: vi.fn(), completeInstallationApi: vi.fn(),
@@ -22,12 +23,17 @@ vi.mock('element-plus', () => ({
 const required: InstallStatus = { state: 'REQUIRED', installationRequired: true, webInstallEnabled: true, ready: true }
 const completed: InstallStatus = { state: 'COMPLETED', installationRequired: false, webInstallEnabled: false, ready: true }
 interface PageState {
-  form: CompleteInstallationPayload & { confirmationAccepted: boolean }
+  form: CompleteInstallationPayload & { confirmationAccepted: boolean; database: InstallDatabaseFormValue }
   formRef: { validateField(): Promise<unknown> }
   submitting: boolean
   submissionFinished: boolean
   completeInstallation(): Promise<void>
   refreshStatus(force: boolean): Promise<void>
+  handleDatabaseSslModeChange(): void
+  databaseUsesCaCertificate(): boolean
+  databaseTicket: string
+  databaseTest: unknown
+  scrubDatabaseAuthorization(): void
 }
 const cleanups: Array<() => void> = []
 async function flush() { await new Promise<void>((resolve) => setImmediate(resolve)); await nextTick() }
@@ -56,6 +62,29 @@ afterEach(() => {
 })
 
 describe('完成安装的提交归属和互斥', () => {
+  it('切换数据库 SSL 模式撤销旧测试和风险确认，明文模式不索取 CA', async () => {
+    api.getInstallStatusApi.mockResolvedValue({ ...required, state: 'DATABASE_REQUIRED', ready: false })
+    const { state } = await mountPage()
+    state.formRef = { validateField: vi.fn().mockResolvedValue(true), clearValidate: vi.fn() } as PageState['formRef']
+    state.form.database.sslMode = 'DISABLE'
+    state.form.database.caCertificatePem = 'stale CA'
+    state.form.database.acknowledgeUnverifiedTls = true
+    state.form.database.acknowledgeInsecureTransport = true
+    state.databaseTicket = 'old ticket'
+    state.databaseTest = { ok: true }
+    state.handleDatabaseSslModeChange()
+    expect(state.databaseUsesCaCertificate()).toBe(false)
+    expect(state.form.database.caCertificatePem).toBe('')
+    expect(state.form.database.acknowledgeUnverifiedTls).toBe(false)
+    expect(state.form.database.acknowledgeInsecureTransport).toBe(false)
+    expect(state.databaseTicket).toBe('')
+    state.form.database.acknowledgeInsecureTransport = true
+    state.scrubDatabaseAuthorization()
+    expect(state.form.database.acknowledgeInsecureTransport).toBe(false)
+    state.form.database.sslMode = 'VERIFY_FULL'
+    state.handleDatabaseSslModeChange()
+    expect(state.databaseUsesCaCertificate()).toBe(true)
+  })
   it.each(['validation', 'status', 'environment', 'complete'] as const)(
     '%s 等待期间再次触发只完成一次安装', async (stage) => {
       const { state } = await mountPage()

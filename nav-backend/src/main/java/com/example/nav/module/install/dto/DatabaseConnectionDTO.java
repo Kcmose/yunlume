@@ -23,8 +23,15 @@ public record DatabaseConnectionDTO(
         @Size(max = 65536, message = "CA 证书不能超过 64KiB")
         String caCertificatePem,
 
-        Boolean acknowledgeUnverifiedTls
+        Boolean acknowledgeUnverifiedTls,
+        Boolean acknowledgeInsecureTransport
 ) {
+    public DatabaseConnectionDTO(String host, Integer port, String database, String username,
+                                 String password, DatabaseSslMode sslMode, String caCertificatePem,
+                                 Boolean acknowledgeUnverifiedTls) {
+        this(host, port, database, username, password, sslMode, caCertificatePem,
+                acknowledgeUnverifiedTls, false);
+    }
     @Override
     public String toString() {
         return "DatabaseConnectionDTO[host=<redacted>, port=" + port

@@ -49,12 +49,27 @@ describe('installation database request shaping', () => {
     }))).not.toHaveProperty('caCertificatePem')
   })
 
-  it('exposes only the three supported external TLS modes', () => {
+  it('exposes explicit private plaintext but never opportunistic TLS downgrade', () => {
     expect(isInstallDatabaseSslMode('VERIFY_FULL')).toBe(true)
     expect(isInstallDatabaseSslMode('VERIFY_CA')).toBe(true)
     expect(isInstallDatabaseSslMode('REQUIRE')).toBe(true)
     expect(isInstallDatabaseSslMode('PREFER')).toBe(false)
-    expect(isInstallDatabaseSslMode('DISABLE')).toBe(false)
+    expect(isInstallDatabaseSslMode('DISABLE')).toBe(true)
+  })
+
+  it('requires a separate plaintext acknowledgement and never sends stale CA or TLS acknowledgement', () => {
+    const request = buildInstallDatabaseConfig(externalForm({
+      sslMode: 'DISABLE', acknowledgeUnverifiedTls: true,
+    }))
+    expect(request.acknowledgeInsecureTransport).toBe(false)
+    expect(request).not.toHaveProperty('caCertificatePem')
+    expect(request).not.toHaveProperty('acknowledgeUnverifiedTls')
+    expect(buildInstallDatabaseConfig(externalForm({
+      sslMode: 'DISABLE', acknowledgeInsecureTransport: true,
+    })).acknowledgeInsecureTransport).toBe(true)
+    expect(buildInstallDatabaseConfig(externalForm({
+      sslMode: 'VERIFY_FULL', acknowledgeInsecureTransport: true,
+    }))).not.toHaveProperty('acknowledgeInsecureTransport')
   })
 })
 
